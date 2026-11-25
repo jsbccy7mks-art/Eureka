@@ -26,6 +26,7 @@ android {
         create("zapp") {
             if (zappKeystore.exists()) {
                 storeFile = zappKeystore
+                storeType = "PKCS12"
                 storePassword = System.getenv("ZAPP_KEYSTORE_PASSWORD")
                 keyAlias = "zapp"
                 keyPassword = System.getenv("ZAPP_KEYSTORE_PASSWORD")
