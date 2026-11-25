@@ -134,7 +134,8 @@ fun HomeScreen(
     }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val heroHeight = maxHeight * 0.47f
+        val screenHeight = maxHeight
+        val heroHeight = screenHeight * 0.47f
         Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
 
         Column(Modifier.fillMaxSize()) {
@@ -155,7 +156,7 @@ fun HomeScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = maxHeight * 0.5f),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = screenHeight * 0.5f),
                 ) {
                     items(rows, key = { it.id }) { row ->
                         if (row.id == CONTINUE_ROW) {
