@@ -23,12 +23,18 @@ jobs:
         with:
           gradle-version: 8.7
 
+      # Secrets pasted on a phone can pick up invisible characters, so keep only the characters
+      # the key and password can actually contain.
       - name: Restore signing key
         env:
           KEY_B64: ${{ secrets.ZAPP_KEYSTORE_B64 }}
+          KEY_PASSWORD: ${{ secrets.ZAPP_KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KEY_B64" ]; then
-            echo "$KEY_B64" | base64 -d > zapp.keystore
+            printf "%s" "$KEY_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d > zapp.keystore
+            CLEAN_PASSWORD=$(printf "%s" "$KEY_PASSWORD" | tr -cd 'A-Za-z0-9')
+            echo "::add-mask::$CLEAN_PASSWORD"
+            echo "ZAPP_KEYSTORE_PASSWORD=$CLEAN_PASSWORD" >> "$GITHUB_ENV"
             echo "Signing with the permanent Zapp key."
           else
             echo "::warning::No ZAPP_KEYSTORE_B64 secret: this APK can't update earlier installs."
@@ -38,8 +44,6 @@ jobs:
         run: gradle testReleaseUnitTest --no-daemon
 
       - name: Build APK
-        env:
-          ZAPP_KEYSTORE_PASSWORD: ${{ secrets.ZAPP_KEYSTORE_PASSWORD }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Name the APK
