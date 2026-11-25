@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 (new search)
+
+**New**
+- Search has its own on-screen keyboard (letters, numbers, space, delete, clear), so the TV's
+  keyboard never pops up. A real keyboard, or a remote with letters, types straight in too.
+- Suggestions as you type: matching titles and channels, and your recent searches; pick one to search
+  for it.
+- Recent searches (per profile) when the box is empty.
+- Voice search with the microphone key, on TVs that have speech recognition.
+- Results in the new style: films and series as posters with titles, then channels, then the guide.
+
+
 ## 0.18.0 (player)
 
 **New**

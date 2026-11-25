@@ -520,6 +520,17 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------ search
 
+    /** Your last searches, newest first (kept per profile). */
+    var recentSearches by mutableStateOf(settings.recentSearches)
+        private set
+
+    fun addRecentSearch(q: String) {
+        val t = q.trim()
+        if (t.length < 2) return
+        recentSearches = (listOf(t) + recentSearches.filterNot { it.equals(t, ignoreCase = true) }).take(10)
+        settings.recentSearches = recentSearches
+    }
+
     private val searchQuery = MutableStateFlow("")
 
     fun search(text: String) {

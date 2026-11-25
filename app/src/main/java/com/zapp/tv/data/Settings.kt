@@ -220,6 +220,10 @@ class Settings(context: Context) {
         get() = prefs.getLong(acct("stremioLastSync"), 0)
         set(value) = prefs.edit().putLong(acct("stremioLastSync"), value).apply()
 
+    var recentSearches: List<String>
+        get() = (prefs.getString(acct("recentSearches"), "") ?: "").split('\n').filter { it.isNotBlank() }
+        set(value) = prefs.edit().putString(acct("recentSearches"), value.joinToString("\n")).apply()
+
     /** This profile's encrypted account secret (Stremio sign-in key and so on). */
     fun acctSecret(key: String): String {
         accountTick.intValue
