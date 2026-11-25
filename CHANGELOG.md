@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1 (polish)
+
+**Changed**
+- Home: the artwork now fades smoothly into the page with no visible edge, and cards no longer grow
+  and shrink as you move along a row.
+- Movies and Series use the same design as Home: big header with artwork and details, smaller cards,
+  smooth scrolling, and hold OK on a card to change that row's size or shape.
+- New player controls: title, clock and end time at the top; round play/pause and 10-second skip
+  buttons; Audio and Subtitles show what's playing now (e.g. "English, 5.1").
+- English is now the preferred audio and subtitle language (unless you'd picked one), and English
+  tracks are listed first.
+- Starting a film or episode shows an animated Zapp logo over the title's artwork, from choosing play
+  (and while your debrid service fetches it) until the picture appears.
+
+
 ## 0.9.0 (new Home)
 
 **New**

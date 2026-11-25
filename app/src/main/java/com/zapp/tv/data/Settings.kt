@@ -43,7 +43,17 @@ class Settings(context: Context) {
     private fun stringState(key: String, default: String) = mutableStateOf(prefs.getString(key, default) ?: default)
     private fun intState(key: String, default: Int) = mutableIntStateOf(prefs.getInt(key, default))
 
-    private val audioLanguageState = stringState("audioLanguage", "")
+    init {
+        // 0.9.1: English became the preferred audio and subtitle language (unless one was chosen).
+        if (!prefs.getBoolean("englishDefault091", false)) {
+            val e = prefs.edit().putBoolean("englishDefault091", true)
+            if (prefs.getString("audioLanguage", "").isNullOrEmpty()) e.putString("audioLanguage", "en")
+            if (prefs.getString("subtitleLanguage", "").isNullOrEmpty()) e.putString("subtitleLanguage", "en")
+            e.commit()
+        }
+    }
+
+    private val audioLanguageState = stringState("audioLanguage", "en")
     /** Preferred audio language code, or "" for the TV's own language. */
     var audioLanguage: String
         get() = audioLanguageState.value
@@ -72,7 +82,7 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("subtitlesOn", value).apply()
         }
 
-    private val subtitleLanguageState = stringState("subtitleLanguage", "")
+    private val subtitleLanguageState = stringState("subtitleLanguage", "en")
     var subtitleLanguage: String
         get() = subtitleLanguageState.value
         set(value) {

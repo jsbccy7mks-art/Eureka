@@ -80,7 +80,7 @@ fun PosterCard(
                 .aspectRatio(if (wide) 16f / 9f else 2f / 3f),
             onFocusChange = { if (it) onFocus() },
             shape = RoundedCornerShape(10.dp),
-            focusScale = 1.07f,
+            focusScale = 1f,
             restColor = ZappColors.Glass,
         ) { focused ->
             if (landscape && meta.posterShape != "landscape") {
@@ -155,7 +155,7 @@ fun ContinueCard(
                 .aspectRatio(16f / 9f),
             onFocusChange = { if (it) onFocus() },
             shape = RoundedCornerShape(12.dp),
-            focusScale = 1.06f,
+            focusScale = 1f,
             restColor = ZappColors.Glass,
         ) { focused ->
             Artwork(progress.background ?: progress.poster, progress.name)

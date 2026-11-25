@@ -348,7 +348,8 @@ fun ZappRoot(vm: AppViewModel) {
         }
 
         mvm.busy?.let { BusyOverlay(it) }
-        mvm.resolving?.let { BusyOverlay(it) }
+        // While a film is starting, the sources screen shows this itself.
+        mvm.resolving?.let { if (playRequest == null || vodOpen) BusyOverlay(it) }
 
         if (playerOpen && playback.channel != null) {
             val rows = vm.channels.collectAsLazyPagingItems()

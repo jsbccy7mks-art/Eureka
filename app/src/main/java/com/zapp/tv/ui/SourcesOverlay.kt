@@ -57,6 +57,12 @@ fun SourcesOverlay(
     onPick: (StreamItem) -> Unit,
     onClose: () -> Unit,
 ) {
+    // A pick that fails (a debrid service that can't get it) drops back to the list.
+    var picked by remember(request.videoId) { mutableStateOf(false) }
+    val pick: (StreamItem) -> Unit = {
+        picked = true
+        onPick(it)
+    }
     BackHandler(onBack = onClose)
     val addons by mvm.addons.collectAsState()
     val order = addons.map { it.manifest.name }
@@ -117,19 +123,42 @@ fun SourcesOverlay(
         val preferred = request.preferBingeGroup?.let { g -> all.firstOrNull { canPlay(it) && it.bingeGroup == g } }
         val firstAddonDone = sorted.firstOrNull()?.addonName == order.firstOrNull { name -> addons.any { it.manifest.name == name && it.addon.enabled } }
         if (preferred != null) {
-            onPick(preferred)
+            pick(preferred)
         } else if (finished || firstAddonDone) {
-            all.firstOrNull { canPlay(it) }?.let { onPick(it) } ?: run { autoPlay = false }
+            all.firstOrNull { canPlay(it) }?.let { pick(it) } ?: run { autoPlay = false }
         }
     }
     LaunchedEffect(autoPlay) {
         if (autoPlay) {
             delay(12_000)
-            all.firstOrNull { canPlay(it) }?.let { onPick(it) }
+            all.firstOrNull { canPlay(it) }?.let { pick(it) }
             autoPlay = false
         }
     }
+    val resolving = mvm.resolving
+    LaunchedEffect(resolving) { if (resolving == null && picked) autoPlay = false }
     LaunchedEffect(all.isNotEmpty(), autoPlay) { if (!autoPlay && all.isNotEmpty()) firstFocus.tryRequest() }
+
+    // Autoplay, or a debrid service fetching the chosen source: the Zapp starting screen, which the
+    // player keeps showing until the first picture, so it all reads as one quick start.
+    if (autoPlay || resolving != null) {
+        Box(Modifier.fillMaxSize()) {
+            StartingScreen(
+                background = request.video?.thumbnail ?: request.meta.background ?: request.meta.poster,
+                title = request.meta.name,
+                subtitle = request.episodeLabel,
+                status = resolving,
+            )
+            if (resolving == null) {
+                val stop = remember { FocusRequester() }
+                LaunchedEffect(Unit) { stop.tryRequest() }
+                Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp)) {
+                    ZButton("Let me choose", { autoPlay = false }, style = ButtonStyle.Quiet, focusRequester = stop)
+                }
+            }
+        }
+        return
+    }
 
     Box(
         Modifier
@@ -221,7 +250,7 @@ fun SourcesOverlay(
                                     )
                                 }
                                 StreamRow(s, if (i == 0) firstFocus else null, if (s.playable) null else if (s.infoHash != null) debridName else null, isReady(s) == true) {
-                                    if (canPlay(s)) onPick(s)
+                                    if (canPlay(s)) pick(s)
                                 }
                             }
                         }

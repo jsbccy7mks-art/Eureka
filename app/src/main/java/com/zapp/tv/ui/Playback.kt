@@ -241,7 +241,12 @@ class Playback(
                 )
             }
         }
-        return list
+        // Your preferred language (English unless you changed it) comes first in the menus.
+        val preferred = (if (type == C.TRACK_TYPE_AUDIO) settings.audioLanguage else settings.subtitleLanguage).ifEmpty { "en" }
+        return list.sortedBy { c ->
+            val lang = c.group.getTrackFormat(c.index).language?.lowercase().orEmpty()
+            if (lang == preferred || lang.startsWith("$preferred-") || (preferred == "en" && lang == "eng")) 0 else 1
+        }
     }
 
     val subtitlesShowing: Boolean

@@ -40,6 +40,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Path
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -84,6 +94,17 @@ fun VodPlayer(
     var ended by remember { mutableStateOf(false) }
     val currentInfo by rememberUpdatedState(info)
     val next = remember(request.videoId) { request.video?.let { mvm.nextEpisode(request.videos, it.id) } }
+    // Until the first picture appears, the Zapp starting screen stays up (it carries on from the
+    // sources screen, so starting a film looks like one smooth step).
+    var started by remember(info.videoId) { mutableStateOf(false) }
+    LaunchedEffect(info.videoId) {
+        var playingFor = 0
+        while (!started) {
+            delay(250)
+            playingFor = if (player.isPlaying) playingFor + 1 else 0
+            if (playingFor >= 6) started = true // fallback if no first-frame signal arrives
+        }
+    }
 
     fun save() {
         val d = player.duration
@@ -112,6 +133,10 @@ fun VodPlayer(
         playback.fullscreen = true
         view.keepScreenOn = true
         val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                started = true
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     save()
@@ -241,8 +266,8 @@ fun VodPlayer(
         )
         SubtitleLayer(playback.cues, vm.settings, raisedForPanel = panel == VodPanel.Controls)
 
-        if (playback.buffering && playback.error == null) {
-            CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
+        if (started && playback.buffering && playback.error == null) {
+            ZappLoader(36.dp)
         }
 
         // Quick progress strip when seeking with the controls hidden.
@@ -259,6 +284,15 @@ fun VodPlayer(
                     SeekBar(playback, active = false)
                 }
             }
+        }
+
+        AnimatedVisibility(
+            visible = panel != VodPanel.None,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            VodTopBar(playback, info)
         }
 
         AnimatedVisibility(
@@ -318,6 +352,14 @@ fun VodPlayer(
             }
         }
 
+        AnimatedVisibility(
+            visible = !started && playback.error == null,
+            enter = fadeIn(),
+            exit = fadeOut(androidx.compose.animation.core.tween(450)),
+        ) {
+            StartingScreen(info.background ?: info.poster, info.title, info.episodeLabel)
+        }
+
         if (countdown > 0 && next != null) {
             Column(
                 Modifier
@@ -337,6 +379,130 @@ fun VodPlayer(
                     ZButton("Play now", { playNext(next) }, style = ButtonStyle.Primary, focusRequester = playNow)
                     ZButton("Stop", { close() })
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VodTopBar(playback: Playback, info: MediaInfo) {
+    val now = rememberNow(15_000)
+    val timeFormat = rememberTimeFormat()
+    val remaining by produceState(0L) {
+        while (true) {
+            val d = playback.player.duration
+            value = if (d > 0 && d != C.TIME_UNSET) (d - playback.player.currentPosition).coerceAtLeast(0) else 0
+            delay(1_000)
+        }
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color(0xE6070A14), Color.Transparent)))
+            .padding(start = 48.dp, end = 48.dp, top = 30.dp, bottom = 60.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(info.title, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            info.episodeLabel?.let {
+                Spacer(Modifier.height(2.dp))
+                Text(it, color = ZappColors.Dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(timeFormat.format(now), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            if (remaining > 0) {
+                Text("Ends at ${timeFormat.format(now + remaining)}", color = ZappColors.Dim, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+private enum class PlayerIcon { Play, Pause, Back10, Forward10 }
+
+@Composable
+private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp) {
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = this.size.width
+            when (icon) {
+                PlayerIcon.Play -> drawPath(
+                    Path().apply {
+                        moveTo(w * 0.3f, w * 0.18f)
+                        lineTo(w * 0.84f, w * 0.5f)
+                        lineTo(w * 0.3f, w * 0.82f)
+                        close()
+                    },
+                    color,
+                )
+                PlayerIcon.Pause -> {
+                    drawRoundRect(color, Offset(w * 0.24f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.17f, w * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
+                    drawRoundRect(color, Offset(w * 0.59f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.17f, w * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
+                }
+                PlayerIcon.Back10, PlayerIcon.Forward10 -> {
+                    val back = icon == PlayerIcon.Back10
+                    val r = w * 0.38f
+                    drawArc(
+                        color,
+                        startAngle = if (back) -60f else -120f,
+                        sweepAngle = if (back) 300f else -300f,
+                        useCenter = false,
+                        topLeft = Offset(w / 2 - r, w / 2 - r),
+                        size = androidx.compose.ui.geometry.Size(r * 2, r * 2),
+                        style = Stroke(w * 0.07f, cap = StrokeCap.Round),
+                    )
+                    // Arrow head at the top of the circle.
+                    val tipX = if (back) w * 0.5f - r * 0.5f else w * 0.5f + r * 0.5f
+                    val dir = if (back) -1f else 1f
+                    drawPath(
+                        Path().apply {
+                            moveTo(tipX + dir * w * 0.12f, w * 0.12f - w * 0.02f)
+                            lineTo(tipX - dir * w * 0.02f, w * 0.12f + w * 0.06f)
+                            lineTo(tipX + dir * w * 0.08f, w * 0.12f + w * 0.16f)
+                            close()
+                        },
+                        color,
+                    )
+                }
+            }
+        }
+        if (icon == PlayerIcon.Back10 || icon == PlayerIcon.Forward10) {
+            Text("10", color = color, fontSize = (size.value * 0.27f).sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
+    val s = if (big) 60.dp else 48.dp
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier.size(s),
+        focusRequester = requester,
+        shape = CircleShape,
+        focusScale = 1.08f,
+        restColor = if (big) Color(0x33FFFFFF) else Color(0x1FFFFFFF),
+    ) { focused ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            PlayerGlyph(icon, if (focused) ZappColors.OnFocus else Color.White, if (big) 28.dp else 26.dp)
+        }
+    }
+}
+
+/** A labelled option in the player, showing its current value ("Audio" / "English, 5.1"). */
+@Composable
+private fun ChipButton(label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) {
+    FocusSurface(
+        onClick = onClick,
+        focusRequester = requester,
+        shape = RoundedCornerShape(14.dp),
+        focusScale = 1.04f,
+        restColor = if (accent) ZappColors.Brand1.copy(alpha = 0.45f) else Color(0x1FFFFFFF),
+    ) { focused ->
+        Column(Modifier.padding(horizontal = 16.dp, vertical = if (value != null) 8.dp else 14.dp).widthIn(max = 220.dp)) {
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else Color.White, maxLines = 1)
+            value?.let {
+                Text(it, fontSize = 11.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -364,35 +530,46 @@ private fun VodControls(
     }
     val audio = playback.choices(C.TRACK_TYPE_AUDIO)
     val subtitles = playback.choices(C.TRACK_TYPE_TEXT)
+    val audioNow = audio.firstOrNull { it.selected }?.let { listOf(it.label, it.detail).filter { s -> s.isNotBlank() }.joinToString(", ") }
+    val subsNow = when {
+        subtitles.isEmpty() -> "None available"
+        else -> subtitles.firstOrNull { it.selected }?.label ?: "Off"
+    }
+
+    fun seekBy(ms: Long) {
+        val p = playback.player
+        val d = p.duration
+        val target = (p.currentPosition + ms).coerceAtLeast(0)
+        p.seekTo(if (d > 0 && d != C.TIME_UNSET) target.coerceAtMost(d - 1_000) else target)
+    }
 
     Column {
-        Text(info.title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        info.episodeLabel?.let { Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 1) }
         playback.error?.let {
-            Spacer(Modifier.height(10.dp))
             ErrorBanner("This source isn't playing. Try again, or choose another source.")
         }
         SeekBar(playback, active = focusable)
-        Spacer(Modifier.height(14.dp))
-        Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(18.dp))
+        Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
             if (playback.error != null) {
-                ZButton("Choose another source", onSources, style = ButtonStyle.Primary, focusRequester = first)
-                ZButton("Try again", { playback.retry() })
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ChipButton("Choose another source", null, onSources, requester = first, accent = true)
+                    ChipButton("Try again", null, { playback.retry() })
+                }
             } else {
-                ZButton(if (playing) "Pause" else "Play", { playback.togglePause() }, focusRequester = first)
-                ZButton("Sources", onSources)
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    RoundButton(PlayerIcon.Back10, false, null) { seekBy(-10_000) }
+                    RoundButton(if (playing) PlayerIcon.Pause else PlayerIcon.Play, true, first) { playback.togglePause() }
+                    RoundButton(PlayerIcon.Forward10, false, null) { seekBy(10_000) }
+                }
             }
-            ZButton(if (audio.size > 1) "Audio (${audio.size})" else "Audio", onAudio)
-            ZButton(
-                when {
-                    subtitles.isEmpty() -> "Subtitles"
-                    playback.subtitlesShowing -> "Subtitles on"
-                    else -> "Subtitles off"
-                },
-                onSubtitles,
-            )
-            ZButton("Stream info", onDetails)
-            if (next != null) ZButton("Next episode", onNext)
+            Spacer(Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                ChipButton("Audio", audioNow ?: "Default", onAudio)
+                ChipButton("Subtitles", subsNow, onSubtitles)
+                ChipButton("Sources", null, onSources)
+                ChipButton("Info", null, onDetails)
+                if (next != null) ChipButton("Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, onNext, accent = true)
+            }
         }
     }
 }

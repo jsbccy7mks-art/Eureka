@@ -44,7 +44,7 @@ fun BrowseScreen(
 ) {
     val addons by mvm.addons.collectAsState()
     val catalogs by produceState<List<CatalogRef>?>(null, addons, type) { value = mvm.catalogs(type) }
-    var hero by remember(type) { mutableStateOf<MetaPreview?>(null) }
+    var hero by remember(type) { mutableStateOf<HeroItem?>(null) }
     val emptyFocus = remember { FocusRequester() }
     var handledTick by remember { mutableIntStateOf(focusTick) }
     val label = if (type == "movie") "Movies" else "Series"
@@ -55,7 +55,9 @@ fun BrowseScreen(
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
         handledTick = focusTick
-        if (last != null) pending = last else emptyFocus.tryRequest()
+        val firstRow = catalogs?.firstOrNull()
+        pending = last ?: firstRow?.let { it.key to "" }
+        if (pending == null) emptyFocus.tryRequest()
     }
 
     val list = catalogs
@@ -78,27 +80,58 @@ fun BrowseScreen(
         return
     }
 
-    Column(Modifier.fillMaxSize()) {
-        MediaHero(hero, 270.dp, label, "Loading catalogues…")
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 40.dp),
-        ) {
-            items(list.orEmpty(), key = { it.key }) { ref ->
-                CatalogRow(
-                    mvm = mvm,
-                    ref = ref,
-                    title = if (list.orEmpty().count { it.def.name == ref.def.name } > 1) "${ref.def.name} from ${ref.addon.manifest.name}" else ref.def.name,
-                    onFocusItem = {
-                        hero = it
-                        last = ref.key to it.id
-                    },
-                    onOpen = onOpen,
-                    pendingId = pending?.takeIf { it.first == ref.key }?.second,
-                    onPendingDone = { pending = null },
-                )
+    val layout = remember(list, mvm.settings.homeRowsJson) { mvm.homeLayout(list.orEmpty()) }
+    var options by remember(type) { mutableStateOf<String?>(null) }
+
+    ImmersiveLayout(
+        mvm = mvm,
+        focused = hero,
+        placeholder = {
+            Column(Modifier.align(Alignment.BottomStart).padding(start = RowInset, bottom = 24.dp)) {
+                Text(label, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+                Spacer(Modifier.height(6.dp))
+                Text(if (list == null) "Loading catalogues…" else "Every ${if (type == "movie") "film" else "series"} catalogue from your add-ons", color = ZappColors.Dim, fontSize = 13.sp)
             }
+        },
+    ) {
+        items(list.orEmpty(), key = { it.key }) { ref ->
+            val title = if (list.orEmpty().count { it.def.name == ref.def.name } > 1) "${ref.def.name} from ${ref.addon.manifest.name}" else ref.def.name
+            val row = layout.firstOrNull { it.id == ref.key }
+            CatalogRow(
+                mvm = mvm,
+                ref = ref,
+                title = title,
+                onFocusItem = {
+                    hero = HeroItem(it, title)
+                    last = ref.key to it.id
+                },
+                onOpen = onOpen,
+                pendingId = pending?.takeIf { it.first == ref.key }?.second,
+                onPendingDone = { pending = null },
+                size = row?.size ?: 1,
+                landscape = row?.landscape ?: false,
+                showTitles = false,
+                onLongPress = { options = ref.key },
+            )
+        }
+    }
+
+    options?.let { key ->
+        val row = layout.firstOrNull { it.id == key }
+        if (row == null) {
+            options = null
+        } else {
+            RowOptionsDialog(
+                row = row,
+                progress = null,
+                canMoveUp = false,
+                canMoveDown = false,
+                onChange = { change -> mvm.updateRow(layout, row.id, change) },
+                onMove = {},
+                onRemoveTitle = {},
+                onClose = { options = null },
+                canHide = false,
+            )
         }
     }
 }

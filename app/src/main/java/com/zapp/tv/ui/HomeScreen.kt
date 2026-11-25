@@ -62,8 +62,6 @@ import kotlinx.coroutines.delay
 
 private data class HomeFocus(val rowKey: String, val itemKey: String)
 
-/** What the big header at the top of Home is showing. */
-private data class HeroItem(val meta: MetaPreview, val rowTitle: String, val progress: WatchProgress? = null)
 
 /** A long press on a card: options for its row (and for that title, in Continue watching). */
 private data class RowOptions(val rowId: String, val progress: WatchProgress? = null)
@@ -94,7 +92,6 @@ fun HomeScreen(
     val rows = layout.filter { r -> r.on && (if (r.id == CONTINUE_ROW) continueItems.isNotEmpty() else catalogs.any { it.key == r.id }) }
 
     var focused by remember { mutableStateOf<HeroItem?>(null) }
-    var hero by remember { mutableStateOf<HeroItem?>(null) }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
     var pending by remember { mutableStateOf<HomeFocus?>(null) }
     var handledTick by remember { mutableIntStateOf(focusTick) }
@@ -117,84 +114,44 @@ fun HomeScreen(
         if (target != null) pending = target else emptyFocus.tryRequest()
     }
 
-    // The header follows focus after a short pause, so scrolling quickly along a row stays smooth.
-    LaunchedEffect(focused) {
-        if (hero == null) {
-            hero = focused
-        } else {
-            delay(220)
-            hero = focused
-        }
-    }
-    val detail by produceState<com.zapp.tv.addons.MetaDetail?>(null, hero?.meta?.id) {
-        value = null
-        val h = hero ?: return@produceState
-        delay(450)
-        value = runCatching { mvm.meta(h.meta.type, h.meta.id) }.getOrNull()
-    }
-
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val screenHeight = maxHeight
-        val heroHeight = screenHeight * 0.47f
-        Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
-
-        Column(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(heroHeight),
-            ) {
-                if (rows.isEmpty()) {
-                    EmptyHero(emptyFocus, onOpenAddons)
-                } else {
-                    HeroInfo(hero, detail)
-                }
-            }
-
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-            PivotScrolling(26.dp) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = screenHeight * 0.5f),
-                ) {
-                    items(rows, key = { it.id }) { row ->
-                        if (row.id == CONTINUE_ROW) {
-                            ContinueRow(
-                                items = continueItems,
-                                size = row.size,
-                                pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
-                                onPendingDone = { pending = null },
-                                onFocusItem = { p ->
-                                    focused = HeroItem(p.asPreview(), "Continue watching", p)
-                                    lastFocus = HomeFocus(row.id, p.videoId)
-                                },
-                                onClick = onResume,
-                                onLongPress = { p -> options = RowOptions(row.id, p) },
-                            )
-                        } else {
-                            val ref = catalogs.first { it.key == row.id }
-                            val p = pending?.takeIf { it.rowKey == row.id }
-                            CatalogRow(
-                                mvm = mvm,
-                                ref = ref,
-                                title = row.title,
-                                onFocusItem = { meta ->
-                                    focused = HeroItem(meta, row.title)
-                                    lastFocus = HomeFocus(row.id, meta.id)
-                                },
-                                onOpen = onOpenTitle,
-                                pendingId = p?.itemKey,
-                                onPendingDone = { pending = null },
-                                size = row.size,
-                                landscape = row.landscape,
-                                showTitles = false,
-                                onLongPress = { options = RowOptions(row.id) },
-                            )
-                        }
-                    }
-                }
-            }
+    ImmersiveLayout(
+        mvm = mvm,
+        focused = focused,
+        header = if (rows.isEmpty()) ({ EmptyHero(emptyFocus, onOpenAddons) }) else null,
+    ) {
+        items(rows, key = { it.id }) { row ->
+            if (row.id == CONTINUE_ROW) {
+                ContinueRow(
+                    items = continueItems,
+                    size = row.size,
+                    pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
+                    onPendingDone = { pending = null },
+                    onFocusItem = { p ->
+                        focused = HeroItem(p.asPreview(), "Continue watching", p)
+                        lastFocus = HomeFocus(row.id, p.videoId)
+                    },
+                    onClick = onResume,
+                    onLongPress = { p -> options = RowOptions(row.id, p) },
+                )
+            } else {
+                val ref = catalogs.first { it.key == row.id }
+                val p = pending?.takeIf { it.rowKey == row.id }
+                CatalogRow(
+                    mvm = mvm,
+                    ref = ref,
+                    title = row.title,
+                    onFocusItem = { meta ->
+                        focused = HeroItem(meta, row.title)
+                        lastFocus = HomeFocus(row.id, meta.id)
+                    },
+                    onOpen = onOpenTitle,
+                    pendingId = p?.itemKey,
+                    onPendingDone = { pending = null },
+                    size = row.size,
+                    landscape = row.landscape,
+                    showTitles = false,
+                    onLongPress = { options = RowOptions(row.id) },
+                )
             }
         }
     }
@@ -218,157 +175,6 @@ fun HomeScreen(
                 },
                 onClose = { options = null },
             )
-        }
-    }
-}
-
-/** Artwork of the title you're on, filling the top right and fading into the page. */
-@Composable
-private fun Backdrop(url: String?) {
-    Box(Modifier.fillMaxSize()) {
-        Crossfade(
-            targetState = url,
-            animationSpec = tween(650),
-            label = "backdrop",
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .fillMaxWidth(0.74f)
-                .fillMaxHeight(0.8f),
-        ) { u ->
-            Box(Modifier.fillMaxSize()) {
-                if (u != null) {
-                    AsyncImage(
-                        model = u,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        alignment = Alignment.TopCenter,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-        }
-        // Fade the picture into the page on the left and at the bottom.
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .fillMaxWidth(0.74f)
-                .fillMaxHeight(0.8f)
-                .background(
-                    Brush.horizontalGradient(
-                        0f to ZappColors.Bg,
-                        0.18f to ZappColors.Bg.copy(alpha = 0.82f),
-                        0.5f to ZappColors.Bg.copy(alpha = 0.25f),
-                        1f to Color.Transparent,
-                    ),
-                ),
-        )
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .fillMaxWidth(0.74f)
-                .fillMaxHeight(0.8f)
-                .background(
-                    Brush.verticalGradient(
-                        0f to ZappColors.Bg.copy(alpha = 0.25f),
-                        0.45f to Color.Transparent,
-                        0.72f to ZappColors.Bg.copy(alpha = 0.7f),
-                        1f to ZappColors.Bg,
-                    ),
-                ),
-        )
-    }
-}
-
-@Composable
-private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
-    AnimatedContent(
-        targetState = item,
-        transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) },
-        contentKey = { it?.meta?.id + "|" + it?.progress?.videoId },
-        label = "hero",
-        modifier = Modifier.fillMaxSize(),
-    ) { h ->
-        Box(Modifier.fillMaxSize()) {
-            if (h == null) return@Box
-            val d = detail?.takeIf { it.preview.id == h.meta.id }
-            val m = h.meta
-            val logo = m.logo ?: d?.preview?.logo
-            val description = m.description ?: d?.preview?.description
-            Column(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = RowInset, bottom = 18.dp)
-                    .widthIn(max = 460.dp),
-            ) {
-                Text(
-                    (if (m.type == "series") "SERIES" else if (m.type == "movie") "FILM" else m.type.uppercase()) + "  ·  " + h.rowTitle,
-                    color = ZappColors.Brand2,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(10.dp))
-                if (logo != null) {
-                    AsyncImage(
-                        model = logo,
-                        contentDescription = m.name,
-                        contentScale = ContentScale.Fit,
-                        alignment = Alignment.BottomStart,
-                        modifier = Modifier
-                            .heightIn(max = 78.dp)
-                            .widthIn(max = 330.dp),
-                    )
-                } else {
-                    Text(
-                        m.name,
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp,
-                        lineHeight = 34.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                MetaFacts(
-                    m.releaseInfo ?: d?.preview?.releaseInfo,
-                    m.imdbRating ?: d?.preview?.imdbRating,
-                    d?.runtime,
-                    m.genres.ifEmpty { d?.preview?.genres ?: emptyList() },
-                )
-                val p = h.progress
-                if (p != null) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProgressLine(
-                            if (p.duration > 1) (p.position.toFloat() / p.duration).coerceIn(0f, 1f)
-                            else ((p.percent ?: 0.0) / 100).toFloat().coerceIn(0f, 1f),
-                            Modifier.width(160.dp),
-                            track = Color(0x33FFFFFF),
-                            fill = Color.White,
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            listOfNotNull(p.episodeLabel, minutesLeft(p)).joinToString("  ·  "),
-                            color = ZappColors.Text,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                        )
-                    }
-                }
-                if (!description.isNullOrBlank()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(description, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                }
-                val people = d?.cast.orEmpty().take(3)
-                if (people.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text("With " + people.joinToString(", "), color = ZappColors.Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
         }
     }
 }
@@ -435,81 +241,6 @@ private fun ContinueRow(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun RowOptionsDialog(
-    row: HomeRowSetting,
-    progress: WatchProgress?,
-    canMoveUp: Boolean,
-    canMoveDown: Boolean,
-    onChange: ((HomeRowSetting) -> HomeRowSetting) -> Unit,
-    onMove: (Int) -> Unit,
-    onRemoveTitle: (WatchProgress) -> Unit,
-    onClose: () -> Unit,
-) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        delay(60)
-        first.tryRequest()
-    }
-    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
-        Column(
-            Modifier
-                .width(440.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(ZappColors.Panel)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Column {
-                Text(row.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text("Changes apply straight away.", color = ZappColors.Faint, fontSize = 12.sp)
-            }
-            OptionLine("Card size") {
-                Box(Modifier.focusRequester(first).focusGroup()) {
-                    Segmented(
-                        listOf("0" to "Small", "1" to "Medium", "2" to "Large"),
-                        row.size.toString(),
-                    ) { v -> onChange { it.copy(size = v.toInt()) } }
-                }
-            }
-            if (row.id != CONTINUE_ROW) {
-                OptionLine("Cards") {
-                    Segmented(
-                        listOf("poster" to "Posters", "landscape" to "Landscape"),
-                        if (row.landscape) "landscape" else "poster",
-                    ) { v -> onChange { it.copy(landscape = v == "landscape") } }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (canMoveUp) ZButton("Move up", { onMove(-1) })
-                if (canMoveDown) ZButton("Move down", { onMove(1) })
-                ZButton("Hide row", {
-                    onChange { it.copy(on = false) }
-                    onClose()
-                }, style = ButtonStyle.Quiet)
-            }
-            if (progress != null) {
-                ZButton("Remove ${progress.name} from this row", { onRemoveTitle(progress) }, style = ButtonStyle.Danger)
-            }
-            Text(
-                "Hidden rows can be switched back on in Settings, Home layout.",
-                color = ZappColors.Faint,
-                fontSize = 11.sp,
-            )
-            ZButton("Done", onClose, style = ButtonStyle.Primary)
-        }
-    }
-}
-
-@Composable
-private fun OptionLine(label: String, content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = ZappColors.Dim, fontSize = 13.sp, modifier = Modifier.width(96.dp))
-        content()
     }
 }
 
