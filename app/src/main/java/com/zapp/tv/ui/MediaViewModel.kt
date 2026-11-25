@@ -200,6 +200,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called by the player: "start", "pause" or "stop" with how far through the video it is. */
     fun scrobble(event: String, info: MediaInfo, percent: Double, durationMs: Long = 0L) {
+        if (info.videoId.startsWith("catchup:")) return // TV replays aren't films or series
         // Stremio: send where you got to when you pause or stop.
         if (event != "start" && stremio.signedIn && durationMs > 0) {
             val d = durationMs
@@ -522,7 +523,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun progressFor(metaId: String): Flow<List<WatchProgress>> = repo.progressFor(metaId)
 
     fun saveProgress(info: MediaInfo, position: Long, duration: Long) {
-        if (duration <= 0) return
+        if (duration <= 0 || info.videoId.startsWith("catchup:")) return
         viewModelScope.launch {
             repo.saveProgress(
                 WatchProgress(

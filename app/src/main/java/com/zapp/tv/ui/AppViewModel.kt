@@ -278,6 +278,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
 
     fun resolveUrl(channel: Channel): String = repo.playableUrl(channel)
 
+    fun canCatchUp(channel: Channel, start: Long, stop: Long): Boolean = repo.canCatchUp(channel, start, stop)
+
+    fun catchupUrl(channel: Channel, start: Long, stop: Long): String? = repo.catchupUrl(channel, start, stop)
+
     fun recordWatched(channel: Channel) {
         viewModelScope.launch { repo.recordWatched(channel) }
     }

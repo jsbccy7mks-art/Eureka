@@ -8,6 +8,8 @@ data class ParsedChannel(
     val logo: String?,
     val group: String?,
     val epgId: String?,
+    val catchupDays: Int = 0,
+    val catchupSource: String? = null,
 )
 
 data class M3uResult(val epgUrl: String?, val channels: List<ParsedChannel>)
@@ -23,6 +25,8 @@ object M3uParser {
         var logo: String? = null
         var group: String? = null
         var epgId: String? = null
+        var catchupDays = 0
+        var catchupSource: String? = null
         var extGroup: String? = null
 
         while (true) {
@@ -46,6 +50,17 @@ object M3uParser {
                     logo = attrs["tvg-logo"]?.takeIf { it.isNotBlank() }
                     group = attrs["group-title"]?.takeIf { it.isNotBlank() }
                     epgId = attrs["tvg-id"]?.takeIf { it.isNotBlank() }
+                    // Catch-up: "catchup" (default, append, shift, flussonic), "catchup-days", "catchup-source".
+                    val type = attrs["catchup"]?.lowercase()
+                    catchupDays = (attrs["catchup-days"] ?: attrs["timeshift"])?.trim()?.toIntOrNull() ?: if (type != null) 7 else 0
+                    catchupSource = when (type) {
+                        null -> attrs["catchup-source"]?.takeIf { it.isNotBlank() }?.let { if (it.startsWith("http")) it else "append:$it" }
+                        "append" -> attrs["catchup-source"]?.let { "append:$it" }
+                        "shift", "timeshift" -> "append:?utc={utc}&lutc={lutc}"
+                        "flussonic", "fs" -> "flussonic"
+                        else -> attrs["catchup-source"]?.let { if (it.startsWith("http")) it else "append:$it" }
+                    }
+                    if (catchupSource == null) catchupDays = 0
                     hasInfo = true
                 }
 
@@ -58,7 +73,7 @@ object M3uParser {
                 else -> {
                     if (hasInfo) {
                         val resolvedGroup = group ?: extGroup?.takeIf { it.isNotBlank() }
-                        channels.add(ParsedChannel(name, line, logo, resolvedGroup, epgId))
+                        channels.add(ParsedChannel(name, line, logo, resolvedGroup, epgId, catchupDays, catchupSource))
                         hasInfo = false
                         extGroup = null
                     }

@@ -80,6 +80,7 @@ private data class GuideSelection(val row: ChannelRow, val programme: Programme?
 fun GuideScreen(
     vm: AppViewModel,
     focusTick: Int,
+    onCatchUp: (ChannelRow, Programme) -> Unit = { _, _ -> },
     onWatch: (ChannelRow) -> Unit,
 ) {
     val scope = vm.scope.collectAsState().value ?: return
@@ -204,6 +205,7 @@ fun GuideScreen(
                                 },
                                 onSelect = { selection = it },
                                 onWatch = onWatch,
+                                onCatchUp = onCatchUp,
                             )
                         }
                     }
@@ -345,6 +347,7 @@ private fun GuideRow(
     onShift: (Long, GuideFocus) -> Unit,
     onSelect: (GuideSelection) -> Unit,
     onWatch: (ChannelRow) -> Unit,
+    onCatchUp: (ChannelRow, Programme) -> Unit,
 ) {
     val channel = row.channel
     val epgId = channel.epgId
@@ -504,7 +507,9 @@ private fun GuideRow(
                                     }
                                 },
                             onFocus = { onSelect(GuideSelection(row, p)) },
-                            onClick = { onWatch(row) },
+                            replay = vm.canCatchUp(channel, p.start, p.stop),
+                            // Past programmes on catch-up channels play from the start; anything else tunes in.
+                            onClick = { if (vm.canCatchUp(channel, p.start, p.stop)) onCatchUp(row, p) else onWatch(row) },
                         )
                     }
                 }
@@ -523,6 +528,7 @@ private fun ProgrammeCell(
     modifier: Modifier,
     onFocus: () -> Unit,
     onClick: () -> Unit,
+    replay: Boolean = false,
 ) {
     val airing = programme.start <= now && programme.stop > now
     val past = programme.stop <= now
@@ -554,8 +560,8 @@ private fun ProgrammeCell(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = timeFormat.format(programme.start),
-                color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                text = timeFormat.format(programme.start) + if (replay) "  ·  ↺ Replay" else "",
+                color = if (focused) ZappColors.OnFocusDim else if (replay) ZappColors.Signal else ZappColors.Faint,
                 fontSize = 10.sp,
                 maxLines = 1,
             )

@@ -77,6 +77,10 @@ data class Channel(
      */
     val streamUrl: String,
     val epgId: String?,
+    /** Days of past programmes the provider keeps for replay (0: no catch-up). */
+    @ColumnInfo(defaultValue = "0") val catchupDays: Int = 0,
+    /** M3U catch-up link template ("append:" + suffix to add to the channel link). */
+    val catchupSource: String? = null,
 )
 
 /** One TV guide entry. Keyed by the guide's channel id, so it survives channel list refreshes. */

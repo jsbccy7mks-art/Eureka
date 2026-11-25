@@ -23,6 +23,8 @@ class XtreamClient(private val http: OkHttpClient) {
         val icon: String?,
         val epgId: String?,
         val categoryId: String?,
+        /** Days of catch-up the provider keeps (0: none). */
+        val archiveDays: Int = 0,
     )
 
     /** Accepts things like "host:8080", "http://host:8080/", "http://host:8080/c/". */
@@ -73,6 +75,8 @@ class XtreamClient(private val http: OkHttpClient) {
             var icon: String? = null
             var epg: String? = null
             var cat: String? = null
+            var archive = 0
+            var archiveDays = 0
             r.beginObject()
             while (r.hasNext()) {
                 when (r.nextName()) {
@@ -81,11 +85,13 @@ class XtreamClient(private val http: OkHttpClient) {
                     "stream_icon" -> icon = r.readAsString()
                     "epg_channel_id" -> epg = r.readAsString()
                     "category_id" -> cat = r.readAsString()
+                    "tv_archive" -> archive = r.readAsString()?.toIntOrNull() ?: 0
+                    "tv_archive_duration" -> archiveDays = r.readAsString()?.toIntOrNull() ?: 0
                     else -> r.skipValue()
                 }
             }
             r.endObject()
-            if (id == null) null else XtreamStream(id, name, icon, epg, cat)
+            if (id == null) null else XtreamStream(id, name, icon, epg, cat, if (archive == 1) archiveDays.coerceAtLeast(1) else 0)
         }
 
     fun streamUrl(server: String, user: String, pass: String, streamId: String, format: String): String =

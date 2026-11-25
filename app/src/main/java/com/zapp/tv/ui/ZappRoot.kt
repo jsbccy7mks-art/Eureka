@@ -203,6 +203,38 @@ fun ZappRoot(vm: AppViewModel) {
         }
     }
 
+    /** Replays a past programme (catch-up) in the film player, from its start. */
+    fun playCatchUp(row: ChannelRow, p: com.zapp.tv.data.Programme) {
+        val url = vm.catchupUrl(row.channel, p.start, p.stop)
+        if (url == null) {
+            vm.showToast("This programme can't be replayed")
+            return
+        }
+        val fmt = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+        val day = java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault()).format(p.start)
+        val info = MediaInfo(
+            videoId = "catchup:${row.channel.id}:${p.start}",
+            metaId = "catchup",
+            type = "tv",
+            title = p.title,
+            episodeLabel = "${row.channel.name}, $day ${fmt.format(p.start)}",
+            poster = p.icon ?: row.channel.logo,
+            background = p.icon,
+            url = url,
+            headers = emptyMap(),
+        )
+        playback.stop()
+        playback.playMedia(info, 0)
+        playRequest = PlayRequest(
+            meta = com.zapp.tv.addons.MetaPreview("catchup", "tv", p.title, p.icon, "landscape", p.icon, null, p.description, null, null, emptyList()),
+            video = null,
+            videos = emptyList(),
+            resumeMs = 0,
+            autoPlay = false,
+        )
+        vodOpen = true
+    }
+
     fun watchChannel(channel: com.zapp.tv.data.Channel) {
         vm.lastChannelUrl = channel.streamUrl
         playback.play(channel)
@@ -320,7 +352,7 @@ fun ZappRoot(vm: AppViewModel) {
                         }
                         Dest.Guide -> Column(Modifier.fillMaxSize()) {
                             ScreenHeader("TV guide", vm.guideStatus)
-                            GuideScreen(vm, focusTick) { watch(it) }
+                            GuideScreen(vm, focusTick, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
                         }
                         Dest.Search -> SearchScreen(vm, playback, focusTick, mvm, { openTitle(it) }) { watchChannel(it) }
                         Dest.Settings -> SettingsScreen(

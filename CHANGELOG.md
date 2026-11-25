@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.0 (catch-up)
+
+**New**
+- Catch-up: on channels where your provider keeps past programmes, earlier shows in the TV guide are
+  marked "↺ Replay" and play from the start in the film player (pause, rewind, skip). Works with Xtream
+  providers that offer it and M3U playlists with catch-up information.
+- Live TV categories match the new look: the open category has a small bar in your theme's colours.
+
+
 ## 0.15.0 (two-way sync, accounts per profile)
 
 **New**

@@ -294,7 +294,7 @@ private fun CategoryItemRow(
     FocusSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        selected = selected,
+        selected = false,
         focusRequester = focusRequester,
         onFocusChange = { if (it) onFocus() },
         shape = RoundedCornerShape(9.dp),
@@ -304,6 +304,17 @@ private fun CategoryItemRow(
             Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // The open category: a short bar in the theme's colours, like the sidebar.
+            if (selected && !focused) {
+                Box(
+                    Modifier
+                        .width(3.dp)
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Brush.verticalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
+                )
+                Spacer(Modifier.width(9.dp))
+            }
             if (item.id == FAVORITES) {
                 StarGlyph(if (focused) ZappColors.OnFocus else ZappColors.Star, 11.dp)
                 Spacer(Modifier.width(8.dp))

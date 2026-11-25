@@ -197,6 +197,48 @@ class PlaylistRepository(
         return xtream.livePrefix(login.server, login.user, login.pass) + url.removePrefix("xt:")
     }
 
+    /** Whether this past programme can be replayed on its channel. */
+    fun canCatchUp(channel: Channel, start: Long, stop: Long, now: Long = System.currentTimeMillis()): Boolean =
+        channel.catchupDays > 0 && stop <= now && start >= now - channel.catchupDays * 86_400_000L &&
+            (channel.streamUrl.startsWith("xt:") || channel.catchupSource != null)
+
+    /** The replay link for a past programme, or null when the channel has no catch-up. */
+    fun catchupUrl(channel: Channel, start: Long, stop: Long): String? {
+        val minutes = ((stop - start) / 60_000).coerceAtLeast(1)
+        val url = channel.streamUrl
+        if (url.startsWith("xt:")) {
+            val login = logins[channel.playlistId] ?: return null
+            val id = url.removePrefix("xt:").substringBefore('.')
+            val at = java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.US).format(start)
+            return "${login.server}/timeshift/${android.net.Uri.encode(login.user)}/${android.net.Uri.encode(login.pass)}/$minutes/$at/$id.ts"
+        }
+        val source = channel.catchupSource ?: return null
+        if (source == "flussonic") {
+            val base = url.substringBeforeLast('/')
+            return "$base/archive-${start / 1000}-${(stop - start) / 1000}.m3u8"
+        }
+        val template = if (source.startsWith("append:")) url + source.removePrefix("append:") else source
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = start }
+        fun two(n: Int) = n.toString().padStart(2, '0')
+        return template
+            .replace("{utc}", (start / 1000).toString())
+            .replace("\${start}", (start / 1000).toString())
+            .replace("{start}", (start / 1000).toString())
+            .replace("{utcend}", (stop / 1000).toString())
+            .replace("\${end}", (stop / 1000).toString())
+            .replace("{end}", (stop / 1000).toString())
+            .replace("{lutc}", (System.currentTimeMillis() / 1000).toString())
+            .replace("\${timestamp}", (System.currentTimeMillis() / 1000).toString())
+            .replace("{duration}", ((stop - start) / 1000).toString())
+            .replace("\${duration}", ((stop - start) / 1000).toString())
+            .replace("{Y}", cal.get(java.util.Calendar.YEAR).toString())
+            .replace("{m}", two(cal.get(java.util.Calendar.MONTH) + 1))
+            .replace("{d}", two(cal.get(java.util.Calendar.DAY_OF_MONTH)))
+            .replace("{H}", two(cal.get(java.util.Calendar.HOUR_OF_DAY)))
+            .replace("{M}", two(cal.get(java.util.Calendar.MINUTE)))
+            .replace("{S}", two(cal.get(java.util.Calendar.SECOND)))
+    }
+
     /** Keeps the in-memory login cache in step with the database. */
     fun cacheLogins(playlists: List<Playlist>) {
         val ids = HashSet<Long>()
@@ -374,6 +416,7 @@ class PlaylistRepository(
                         logo = s.icon?.takeIf { it.isNotBlank() },
                         streamUrl = "xt:${s.id}.${p.format}",
                         epgId = s.epgId?.takeIf { it.isNotBlank() },
+                        catchupDays = s.archiveDays,
                     )
                 }
                 db.channelDao().insertAll(rows)
@@ -419,6 +462,8 @@ class PlaylistRepository(
                         logo = c.logo,
                         streamUrl = c.url,
                         epgId = c.epgId,
+                        catchupDays = c.catchupDays,
+                        catchupSource = c.catchupSource,
                     )
                 }
                 db.channelDao().insertAll(rows)
