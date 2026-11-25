@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,7 +26,23 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk zapp-tv.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: zapp-tv-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: zapp-tv.apk
+
+      # Publishes every successful build as a release, so the newest APK is always at:
+      # https://github.com/<owner>/<repo>/releases/latest/download/zapp-tv.apk
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          gh release create "$TAG" zapp-tv.apk \
+            --title "Zapp TV build ${{ github.run_number }}" \
+            --notes "Built from ${GITHUB_SHA::7}. Install on your TV with the Downloader app." \
+            --target "$GITHUB_SHA" \
+            --latest
