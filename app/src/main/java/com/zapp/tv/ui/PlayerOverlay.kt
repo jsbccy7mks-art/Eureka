@@ -432,7 +432,7 @@ private fun ControlsPanel(
 
 /** Progress and seeking, shown only when the stream can actually be moved through. */
 @Composable
-internal fun SeekBar(playback: Playback, active: Boolean) {
+internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp.tv.data.Segment> = emptyList()) {
     val player = playback.player
     val state by produceState(Triple(0L, 0L, false), active) {
         while (true) {
@@ -478,6 +478,16 @@ internal fun SeekBar(playback: Playback, active: Boolean) {
                         .padding(horizontal = 6.dp),
                     fill = if (focused) Color.White else ZappColors.Signal,
                 )
+                // Intro, recap and credits marked on the bar.
+                if (markers.isNotEmpty()) {
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 6.dp)) {
+                        for (m in markers) {
+                            val a = (m.startMs.toFloat() / duration).coerceIn(0f, 1f) * size.width
+                            val b = (m.endMs.toFloat() / duration).coerceIn(0f, 1f) * size.width
+                            drawRect(Color(0x99FFC94A), androidx.compose.ui.geometry.Offset(a, 0f), androidx.compose.ui.geometry.Size((b - a).coerceAtLeast(2f), size.height))
+                        }
+                    }
+                }
             }
         }
         Text(formatClock(duration), color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp))

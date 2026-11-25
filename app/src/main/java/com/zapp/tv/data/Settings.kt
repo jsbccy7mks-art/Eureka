@@ -273,6 +273,24 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    private val skipIntroState = mutableIntStateOf(prefs.getInt("skipIntro", 1))
+    /** Intros: 0 leave, 1 show a Skip button, 2 skip by themselves. */
+    var skipIntro: Int
+        get() = skipIntroState.intValue
+        set(value) {
+            skipIntroState.intValue = value
+            prefs.edit().putInt("skipIntro", value).apply()
+        }
+
+    private val skipRecapState = mutableIntStateOf(prefs.getInt("skipRecap", 1))
+    /** Recaps: 0 leave, 1 show a Skip button, 2 skip by themselves. */
+    var skipRecap: Int
+        get() = skipRecapState.intValue
+        set(value) {
+            skipRecapState.intValue = value
+            prefs.edit().putInt("skipRecap", value).apply()
+        }
+
     private val trailersState = mutableStateOf(prefs.getBoolean("trailers", true))
     /** Muted trailers behind the header on Home and details. */
     var trailers: Boolean

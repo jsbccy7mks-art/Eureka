@@ -267,6 +267,18 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             onClick = { s.maxQuality = (s.maxQuality + 1) % 3 },
         )
         SettingRow(
+            title = "Skip intros",
+            body = "Using IntroDB's community timings, where an episode has them.",
+            value = SettingValue.Choice(listOf("Off", "Show a Skip button", "Skip by itself")[s.skipIntro.coerceIn(0, 2)]),
+            onClick = { s.skipIntro = (s.skipIntro + 1) % 3 },
+        )
+        SettingRow(
+            title = "Skip recaps",
+            body = "\"Previously on…\" at the start of episodes.",
+            value = SettingValue.Choice(listOf("Off", "Show a Skip button", "Skip by itself")[s.skipRecap.coerceIn(0, 2)]),
+            onClick = { s.skipRecap = (s.skipRecap + 1) % 3 },
+        )
+        SettingRow(
             title = "Play the next episode automatically",
             body = "Counts down from 10 at the end of an episode, then plays the next one.",
             value = SettingValue.Toggle(s.autoNextEpisode),
@@ -472,7 +484,8 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            "Zapp TV doesn't include any channels, playlists or accounts. Add your own from Sources.",
+            "Zapp TV doesn't include any channels, playlists or accounts. Add your own from Sources. " +
+                "Intro, recap and credits timings come from IntroDB (introdb.app), a community project.",
             color = ZappColors.Faint,
             fontSize = 12.sp,
         )

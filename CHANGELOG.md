@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.20.0 (skip intro)
+
+**New**
+- Skip intros and recaps, using IntroDB's community timings (introdb.app) for titles with IMDb ids.
+  A "Skip intro" / "Skip recap" button appears already selected, so one press of OK skips; or choose
+  "Skip by itself" in Settings, Playback.
+- When the end credits start (and there's no scene after them), the next-episode countdown begins
+  early, with "Keep watching" to stay for the credits.
+- Intro, recap and credits are marked on the seek bar.
+
+
 ## 0.19.0 (new search)
 
 **New**

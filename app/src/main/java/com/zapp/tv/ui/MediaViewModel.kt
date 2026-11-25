@@ -652,6 +652,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         return null
     }
 
+    /** Intro, recap and credits timings for a film or episode (null when IntroDB doesn't know it). */
+    suspend fun segments(videoId: String, type: String): com.zapp.tv.data.Segments? = zapp.introDb.segments(videoId, type)
+
     fun hideFromContinue(metaId: String) = viewModelScope.launch { repo.hideFromContinue(metaId) }
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)

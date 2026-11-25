@@ -212,8 +212,47 @@ fun VodPlayer(
         }
     }
 
-    // Next episode: count down after the episode ends, if autoplay is on.
+    // ---- IntroDB: skip intros and recaps, and offer the next episode when the credits start.
+    val segments by produceState<com.zapp.tv.data.Segments?>(null, info.videoId) { value = mvm.segments(info.videoId, info.type) }
+    val positionNow by produceState(0L, info.videoId) {
+        while (true) {
+            value = player.currentPosition
+            delay(400)
+        }
+    }
+    val inIntro = segments?.intro?.let { positionNow in it } == true
+    val inRecap = segments?.recap?.let { positionNow in it } == true
+    val skipTarget = when {
+        inIntro && mvm.settings.skipIntro > 0 -> segments?.intro
+        inRecap && mvm.settings.skipRecap > 0 -> segments?.recap
+        else -> null
+    }
+    var autoSkipped by remember(info.videoId) { mutableStateOf(setOf<Long>()) }
+    LaunchedEffect(skipTarget) {
+        val t = skipTarget ?: return@LaunchedEffect
+        val auto = (t == segments?.intro && mvm.settings.skipIntro == 2) || (t == segments?.recap && mvm.settings.skipRecap == 2)
+        if (auto && t.startMs !in autoSkipped) {
+            autoSkipped = autoSkipped + t.startMs
+            player.seekTo(t.endMs)
+            vm.showToast(if (t == segments?.intro) "Skipped the intro" else "Skipped the recap")
+        }
+    }
+    // End credits (and no scene after them): count down to the next episode early.
+    var creditsDismissed by remember(info.videoId) { mutableStateOf(false) }
+    val credits = next != null && !creditsDismissed && segments?.postCredits == null &&
+        segments?.outro?.let { positionNow >= it.startMs && player.duration > 0 && it.startMs > player.duration / 2 } == true
+
+    // Next episode: count down after the episode ends (or when the credits start), if autoplay is on.
     var countdown by remember(info.videoId) { mutableIntStateOf(-1) }
+    LaunchedEffect(credits) {
+        if (!credits || !mvm.settings.autoNextEpisode) return@LaunchedEffect
+        for (i in 10 downTo 1) {
+            countdown = i
+            delay(1_000)
+        }
+        countdown = -1
+        next?.let { playNext(it) }
+    }
     LaunchedEffect(ended) {
         if (!ended) return@LaunchedEffect
         if (next == null) {
@@ -308,7 +347,7 @@ fun VodPlayer(
                 Column {
                     Text(info.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     info.episodeLabel?.let { Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 1) }
-                    SeekBar(playback, active = false)
+                    SeekBar(playback, active = false, markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro))
                 }
             }
         }
@@ -341,6 +380,7 @@ fun VodPlayer(
                         save()
                         onChooseSource()
                     },
+                    markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro),
                     onNext = { next?.let { playNext(it) } },
                 )
             }
@@ -387,6 +427,32 @@ fun VodPlayer(
             StartingScreen(info.background ?: info.poster, info.title, info.episodeLabel)
         }
 
+        // "Skip intro" / "Skip recap": already selected, so one press of OK skips.
+        val showSkip = skipTarget != null && panel == VodPanel.None && countdown <= 0 &&
+            !((skipTarget == segments?.intro && mvm.settings.skipIntro == 2) || (skipTarget == segments?.recap && mvm.settings.skipRecap == 2))
+        AnimatedVisibility(
+            visible = showSkip,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 48.dp),
+            enter = fadeIn() + slideInHorizontally { it / 4 },
+            exit = fadeOut(),
+        ) {
+            val skipFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) {
+                delay(80)
+                skipFocus.tryRequest()
+            }
+            DisposableEffect(Unit) { onDispose { if (panel == VodPanel.None) focus.tryRequest() } }
+            ZButton(
+                if (skipTarget == segments?.recap && !inIntro) "Skip recap" else "Skip intro",
+                {
+                    skipTarget?.let { player.seekTo(it.endMs) }
+                    focus.tryRequest()
+                },
+                style = ButtonStyle.Primary,
+                focusRequester = skipFocus,
+            )
+        }
+
         if (countdown > 0 && next != null) {
             Column(
                 Modifier
@@ -404,7 +470,15 @@ fun VodPlayer(
                 LaunchedEffect(Unit) { playNow.tryRequest() }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ZButton("Play now", { playNext(next) }, style = ButtonStyle.Primary, focusRequester = playNow)
-                    ZButton("Stop", { close() })
+                    if (credits) {
+                        ZButton("Keep watching", {
+                            creditsDismissed = true
+                            countdown = -1
+                            focus.tryRequest()
+                        })
+                    } else {
+                        ZButton("Stop", { close() })
+                    }
                 }
             }
         }
@@ -546,6 +620,7 @@ private fun VodControls(
     onDetails: () -> Unit,
     onSources: () -> Unit,
     onNext: () -> Unit,
+    markers: List<com.zapp.tv.data.Segment> = emptyList(),
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
@@ -574,7 +649,7 @@ private fun VodControls(
         playback.error?.let {
             ErrorBanner("This source isn't playing. Try again, or choose another source.")
         }
-        SeekBar(playback, active = focusable)
+        SeekBar(playback, active = focusable, markers = markers)
         Spacer(Modifier.height(18.dp))
         Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
             if (playback.error != null) {
