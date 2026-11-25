@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.1
+
+**Changed**
+- Ranked landscape cards: a small number with a soft drop shadow, and the title logo kept tiny in the
+  bottom right.
+- Trailers: choose when they start (2, 4, 8 or 15 seconds) and whether they play with sound
+  (Settings, Appearance, Trailers and motion).
+- Settings switches are clear on every theme: On is a coloured track, Off an empty outline, with the
+  words On and Off beside them.
+
+**Fixed**
+- Opening Settings from the sidebar now always moves into Settings, so the sidebar closes.
+
+
 ## 0.13.0 (faster, tidier settings)
 
 **Faster**

@@ -1036,27 +1036,46 @@ fun SettingRow(
 
 @Composable
 private fun Switch(checked: Boolean, focused: Boolean) {
-    Box(
-        Modifier
-            .width(38.dp)
-            .height(22.dp)
-            .clip(RoundedCornerShape(50))
-            .background(
-                when {
-                    checked -> ZappColors.Brand2
-                    focused -> Color(0xFFCBD2E0)
-                    else -> ZappColors.Line
-                },
-            )
-            .padding(3.dp),
-        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
+    // Clear on any theme: "On" is a coloured track with a dark knob; "Off" is an empty outline.
+    val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 20.dp else 0.dp, androidx.compose.animation.core.tween(160), label = "knob")
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (checked) "On" else "Off",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = when {
+                focused -> ZappColors.OnFocusDim
+                checked -> ZappColors.Text
+                else -> ZappColors.Faint
+            },
+        )
+        Spacer(Modifier.width(10.dp))
         Box(
             Modifier
-                .size(16.dp)
+                .width(42.dp)
+                .height(22.dp)
                 .clip(RoundedCornerShape(50))
-                .background(Color.White),
-        )
+                .background(
+                    if (checked) Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))
+                    else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)),
+                )
+                .border(1.5.dp, if (checked) Color.Transparent else if (focused) Color(0x66000000) else Color(0x55FFFFFF), RoundedCornerShape(50))
+                .padding(3.dp),
+        ) {
+            Box(
+                Modifier
+                    .padding(start = knobX)
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(
+                        when {
+                            checked -> ZappColors.Bg
+                            focused -> Color(0x99000000)
+                            else -> Color(0x88FFFFFF)
+                        },
+                    ),
+            )
+        }
     }
 }
 
