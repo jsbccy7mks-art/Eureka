@@ -66,6 +66,11 @@ private data class HomeFocus(val rowKey: String, val itemKey: String)
 
 /** A long press on a card: options for its row (and for that title, in Continue watching). */
 /** Set when Zapp has just opened (or the profile changed): Home then starts on Continue watching. */
+/** Home has loaded enough to show (the opening animation ends then). */
+object HomeReady {
+    var ready = false
+}
+
 object StartFocus {
     var fresh = true
 }
@@ -113,6 +118,8 @@ fun HomeScreen(
     }
 
     var focused by remember { mutableStateOf<HeroItem?>(null) }
+    // Opening animation waits for this: something on Home has focus (its rows have loaded).
+    LaunchedEffect(focused != null) { if (focused != null) { delay(700); HomeReady.ready = true } }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
     var pending by remember { mutableStateOf<HomeFocus?>(null) }
     var handledTick by remember { mutableIntStateOf(focusTick) }

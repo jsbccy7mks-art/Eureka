@@ -278,9 +278,9 @@ fun LaunchScreen(sound: Boolean, ready: () -> Boolean, onDone: () -> Unit) {
         }
         delay(700)
         word.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
-        // At least 1.8 s, at most 3 s; sooner once Home is ready.
+        // At least about 2.5 s; then until Home has loaded (up to 8 s in all).
         val start = System.currentTimeMillis()
-        while (System.currentTimeMillis() - start < 500 || (!ready() && System.currentTimeMillis() - start < 1_700)) delay(100)
+        while (System.currentTimeMillis() - start < 1_200 || (!ready() && System.currentTimeMillis() - start < 6_700)) delay(100)
         fade.animateTo(0f, tween(450))
         onDone()
     }

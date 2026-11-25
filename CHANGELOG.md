@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.26.1
+
+**Fixed**
+- Back out of a title (or the sources list) opened the sidebar: focus now goes straight back to the
+  card you were on.
+- The opening animation now lasts until Home has actually loaded (about 2.5 seconds at least).
+
 ## 0.26.0
 
 **Fixed**

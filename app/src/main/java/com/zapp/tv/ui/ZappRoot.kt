@@ -101,6 +101,12 @@ fun ZappRoot(vm: AppViewModel) {
     var vodOpen by remember { mutableStateOf(false) }
     val railFocus = remember { FocusRequester() }
     var launching by rememberSaveable { mutableStateOf(true) }
+    // Just closed a title, the sources or the player: the sidebar can't take focus for a moment, so
+    // focus goes back to the card you were on instead of falling onto the sidebar.
+    var railLockUntil by remember { mutableStateOf(0L) }
+    fun lockRail() {
+        railLockUntil = System.currentTimeMillis() + 900
+    }
 
     /** Ask the visible screen to take focus once it has been drawn. */
     fun requestContentFocus(waitMs: Long = 120) {
@@ -385,7 +391,16 @@ fun ZappRoot(vm: AppViewModel) {
                     }
                 }
 
+                var railTick by remember { mutableIntStateOf(0) }
+                LaunchedEffect(railLockUntil) {
+                    val wait = railLockUntil - System.currentTimeMillis()
+                    if (wait > 0) {
+                        delay(wait)
+                        railTick++
+                    }
+                }
                 Sidebar(
+                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null,
                     onRight = { requestContentFocus(0) },
                     dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
@@ -438,7 +453,7 @@ fun ZappRoot(vm: AppViewModel) {
         if (launching) {
             LaunchScreen(
                 sound = mvm.settings.startupSound,
-                ready = { mvm.addons.value.isNotEmpty() },
+                ready = { HomeReady.ready || dest != Dest.Home },
                 onDone = {
                     launching = false
                     StartFocus.fresh = true
@@ -479,6 +494,7 @@ fun ZappRoot(vm: AppViewModel) {
                     onPlay = { playRequest = it },
                     onOpenTitle = { m -> detail = DetailRequest(m.type, m.id, m) },
                     onClose = {
+                        lockRail()
                         detail = null
                         requestContentFocus()
                     },
@@ -493,6 +509,7 @@ fun ZappRoot(vm: AppViewModel) {
                 request = pr,
                 onPick = { stream -> startStream(pr, stream) },
                 onClose = {
+                    lockRail()
                     playRequest = null
                     requestContentFocus()
                 },
@@ -589,6 +606,7 @@ private fun ScreenHeader(title: String, guideStatus: String?) {
 /** Icon rail that opens into a labelled menu while the remote is on it. */
 @Composable
 private fun Sidebar(
+    locked: Boolean,
     onRight: () -> Unit,
     dests: List<Dest>,
     profile: com.zapp.tv.data.Profile?,
@@ -669,7 +687,9 @@ private fun Sidebar(
                     val selected = d == current
                     FocusSurface(
                         onClick = { onSelect(d) },
-                        modifier = Modifier.width(if (open) RailOpenWidth - 28.dp else 44.dp),
+                        modifier = Modifier
+                            .focusProperties { canFocus = !locked }
+                            .width(if (open) RailOpenWidth - 28.dp else 44.dp),
                         focusRequester = if (selected) railFocus else null,
                         shape = RoundedCornerShape(12.dp),
                         focusScale = 1f,
@@ -739,7 +759,9 @@ private fun Sidebar(
             if (profile != null) {
                 FocusSurface(
                     onClick = onProfiles,
-                    modifier = Modifier.width(if (open) RailOpenWidth - 28.dp else 44.dp),
+                    modifier = Modifier
+                        .focusProperties { canFocus = !locked }
+                        .width(if (open) RailOpenWidth - 28.dp else 44.dp),
                     shape = RoundedCornerShape(12.dp),
                     focusScale = 1f,
                 ) { focused ->
