@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0E1A">
+<title>Zapp setup</title>
+<style>
+  :root {
+    --bg: #0A0E1A; --panel: #121A2C; --panel-2: #1B2540; --line: #26314F;
+    --text: #EDF1FA; --dim: #94A0BD; --faint: #5E6A88;
+    --accent: #6C7BFF; --ok: #39D0F0; --err: #FF8A9A;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    background:
+      radial-gradient(60% 40% at 0% 0%, rgba(122, 92, 255, .22), transparent 70%),
+      radial-gradient(50% 35% at 100% 100%, rgba(47, 211, 240, .12), transparent 70%),
+      var(--bg);
+    padding: max(20px, env(safe-area-inset-top)) 16px 40px;
+  }
+  main { max-width: 440px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; margin: 8px 0 28px; }
+  header span { font-weight: 700; font-size: 22px; letter-spacing: -.02em; }
+  h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 6px; }
+  p.lead { color: var(--dim); margin: 0 0 24px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+  .seg button { border: 0; background: transparent; color: var(--dim); font: inherit; font-weight: 600; padding: 10px; border-radius: 9px; }
+  .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+  label { display: block; font-size: 13px; color: var(--dim); margin: 0 0 6px; }
+  .field { margin-bottom: 14px; }
+  input {
+    width: 100%; font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 8px; }
+  .row .chip { flex: 1; text-align: center; padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--dim); font-weight: 600; font-size: 14px; }
+  .row .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+  .hint { color: var(--faint); font-size: 13px; margin-top: 6px; }
+  .primary {
+    width: 100%; margin-top: 10px; border: 0; border-radius: 12px; padding: 15px;
+    font: inherit; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, #7A5CFF, #2FD3F0);
+  }
+  .primary:disabled { opacity: .55; }
+  .status { margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-size: 15px; display: none; }
+  .status.ok { display: block; background: rgba(57, 208, 240, .12); color: var(--ok); }
+  .status.err { display: block; background: rgba(255, 79, 106, .12); color: var(--err); }
+  .status.work { display: block; background: var(--panel); color: var(--dim); }
+  section.list { margin-top: 34px; }
+  section.list h2 { font-size: 15px; color: var(--dim); font-weight: 600; margin: 0 0 10px; }
+  .pl { background: var(--panel); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .pl b { display: block; }
+  .pl small { color: var(--faint); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7A5CFF"/><stop offset="1" stop-color="#2FD3F0"/></linearGradient></defs>
+      <rect width="100" height="100" rx="28" fill="url(#g)"/>
+      <path d="M58 12 L28 56 L47 56 L42 88 L73 43 L54 43 L62 12 Z" fill="#fff"/>
+    </svg>
+    <span>zapp</span>
+  </header>
+
+  <h1>Add a playlist to your TV</h1>
+  <p class="lead">Type the details from your provider. Your TV downloads the channels straight away.</p>
+
+  <div class="field" id="codeBox" hidden>
+    <label for="code">Code shown on your TV</label>
+    <input id="code" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="ABC123">
+  </div>
+
+  <div class="seg" role="group" aria-label="Playlist type">
+    <button type="button" data-type="xtream" aria-pressed="true">Xtream login</button>
+    <button type="button" data-type="m3u" aria-pressed="false">M3U link</button>
+  </div>
+
+  <form id="form" autocomplete="off">
+    <div class="field">
+      <label for="name">Name (optional)</label>
+      <input id="name" placeholder="My provider">
+    </div>
+
+    <div data-for="xtream">
+      <div class="field">
+        <label for="server">Server address</label>
+        <input id="server" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com:8080">
+      </div>
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Stream type</label>
+        <div class="row" role="group" aria-label="Stream type">
+          <span class="chip" role="button" tabindex="0" data-format="ts" aria-pressed="true">TS</span>
+          <span class="chip" role="button" tabindex="0" data-format="m3u8" aria-pressed="false">HLS (M3U8)</span>
+        </div>
+        <div class="hint">Leave on TS unless channels don't play.</div>
+      </div>
+    </div>
+
+    <div data-for="m3u" hidden>
+      <div class="field">
+        <label for="url">Playlist link</label>
+        <input id="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com/playlist.m3u">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="epg">TV guide link (optional)</label>
+      <input id="epg" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com/guide.xml.gz">
+      <div class="hint" id="epgHint">Leave empty to use your provider's own guide.</div>
+    </div>
+
+    <button class="primary" type="submit" id="submit">Add to TV</button>
+    <div class="status" id="status"></div>
+  </form>
+
+  <section class="list" id="list" hidden>
+    <h2>Already on your TV</h2>
+    <div id="items"></div>
+  </section>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  let token = (params.get('t') || '').trim().toUpperCase();
+  let type = 'xtream';
+  let format = 'ts';
+
+  if (!token) $('codeBox').hidden = false;
+
+  function currentToken() {
+    return token || $('code').value.trim().toUpperCase();
+  }
+
+  document.querySelectorAll('.seg button').forEach((b) => {
+    b.addEventListener('click', () => {
+      type = b.dataset.type;
+      document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+      document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
+      $('epgHint').textContent = type === 'xtream'
+        ? "Leave empty to use your provider's own guide."
+        : 'Leave empty to use the guide link inside the playlist, if it has one.';
+    });
+  });
+
+  document.querySelectorAll('.chip').forEach((c) => {
+    c.addEventListener('click', () => {
+      format = c.dataset.format;
+      document.querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', x === c));
+    });
+  });
+
+  function setStatus(kind, text) {
+    const s = $('status');
+    s.className = 'status ' + kind;
+    s.textContent = text;
+  }
+
+  async function loadList() {
+    const t = currentToken();
+    if (!t) return;
+    try {
+      const r = await fetch('/api/playlists?t=' + encodeURIComponent(t));
+      const data = await r.json();
+      if (!data.ok) return;
+      const items = $('items');
+      items.innerHTML = '';
+      data.playlists.forEach((p) => {
+        const div = document.createElement('div');
+        div.className = 'pl';
+        const b = document.createElement('b');
+        b.textContent = p.name;
+        const small = document.createElement('small');
+        small.textContent = p.type === 'xtream' ? 'Xtream login' : 'M3U link';
+        div.append(b, small);
+        items.append(div);
+      });
+      $('list').hidden = data.playlists.length === 0;
+    } catch (e) { /* TV unreachable; ignore */ }
+  }
+
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const t = currentToken();
+    if (!t) { setStatus('err', 'Enter the code shown on your TV.'); return; }
+
+    const body = {
+      type,
+      name: $('name').value,
+      epg: $('epg').value,
+      server: $('server').value,
+      username: $('username').value,
+      password: $('password').value,
+      format,
+      url: $('url').value,
+    };
+    if (type === 'xtream' && (!body.server.trim() || !body.username.trim() || !body.password.trim())) {
+      setStatus('err', 'Fill in the server address, username and password.');
+      return;
+    }
+    if (type === 'm3u' && !body.url.trim()) {
+      setStatus('err', 'Paste the playlist link first.');
+      return;
+    }
+
+    $('submit').disabled = true;
+    setStatus('work', 'Adding the playlist. Big playlists can take a minute…');
+    try {
+      const r = await fetch('/api/playlists?t=' + encodeURIComponent(t), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        setStatus('ok', data.message);
+        $('form').reset();
+        loadList();
+      } else {
+        setStatus('err', data.error);
+      }
+    } catch (err) {
+      setStatus('err', "Couldn't reach your TV. Keep your phone on the same Wi-Fi and try again.");
+    } finally {
+      $('submit').disabled = false;
+    }
+  });
+
+  $('code').addEventListener('input', () => { if ($('code').value.trim().length === 6) loadList(); });
+  loadList();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Zapp" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/zapp_bg</item>
+        <item name="android:statusBarColor">@color/zapp_bg</item>
+        <item name="android:navigationBarColor">@color/zapp_bg</item>
+    </style>
+</resources>

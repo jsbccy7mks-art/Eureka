@@ -1,0 +1,101 @@
+package com.zapp.tv.data
+
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+const val TYPE_XTREAM = "xtream"
+const val TYPE_M3U = "m3u"
+
+@Entity(tableName = "playlists")
+data class Playlist(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val type: String,
+    /** Xtream: server base URL. M3U: playlist URL. */
+    val url: String,
+    val username: String? = null,
+    val password: String? = null,
+    /** Xtream stream container: "ts" or "m3u8". */
+    val format: String = "ts",
+    /** XMLTV guide link. Empty for Xtream means "use the provider's own guide". */
+    val epgUrl: String? = null,
+    val lastUpdated: Long = 0,
+    val epgUpdated: Long = 0,
+)
+
+@Entity(
+    tableName = "categories",
+    foreignKeys = [
+        ForeignKey(
+            entity = Playlist::class,
+            parentColumns = ["id"],
+            childColumns = ["playlistId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["playlistId"])],
+)
+data class Category(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val playlistId: Long,
+    val remoteId: String,
+    val name: String,
+    val sortOrder: Int,
+)
+
+@Entity(
+    tableName = "channels",
+    foreignKeys = [
+        ForeignKey(
+            entity = Playlist::class,
+            parentColumns = ["id"],
+            childColumns = ["playlistId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["playlistId", "number"]),
+        Index(value = ["categoryId"]),
+    ],
+)
+data class Channel(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val playlistId: Long,
+    val categoryId: Long?,
+    /** Position of the channel inside its playlist (1-based). */
+    val number: Int,
+    val name: String,
+    val logo: String?,
+    val streamUrl: String,
+    val epgId: String?,
+)
+
+/** One TV guide entry. Keyed by the guide's channel id, so it survives channel list refreshes. */
+@Entity(
+    tableName = "programmes",
+    indices = [Index(value = ["playlistId", "channelEpgId", "start"])],
+)
+data class Programme(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val playlistId: Long,
+    val channelEpgId: String,
+    val start: Long,
+    val stop: Long,
+    val title: String,
+    val description: String?,
+)
+
+/** Favourites are keyed by stream link, which stays the same when a playlist is refreshed. */
+@Entity(
+    tableName = "favorites",
+    indices = [Index(value = ["playlistId", "streamUrl"], unique = true)],
+)
+data class Favorite(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val playlistId: Long,
+    val streamUrl: String,
+    val name: String,
+    val addedAt: Long,
+)
