@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.1 (refinements)
+
+**Fixed**
+- Up (and other moves) sometimes did nothing, including on the details page: focusing some buttons
+  and menu items rebuilt them and dropped focus. Focus now stays put.
+
+**Changed**
+- Home, Movies and Series: the header shows the title's logo again, and is smaller. Its parts stay in
+  fixed places, so moving between titles only changes what's shown, never where it sits. Smaller
+  cards and row titles.
+- Details page: smaller, finer type with more of the picture showing; poster lettering for the title.
+- Focus matches your theme: buttons light up in a tint of the theme, and cards get a theme-coloured
+  outline. Settings, Appearance: outline thickness (thin, medium, thick) and a pulsing glow (on/off).
+
+
 ## 0.10.0 (minimal look, themes, new details page)
 
 **New**

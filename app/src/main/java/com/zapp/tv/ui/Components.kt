@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import androidx.compose.ui.draw.drawWithContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -197,8 +198,13 @@ fun FocusSurface(
     restColor: Color = Color.Transparent,
     selectedColor: Color = ZappColors.Glass,
     focusColor: Color = ZappColors.Focus,
+    /** Cards: draw the theme's focus ring (and glow, if switched on) instead of filling with colour. */
+    ring: Boolean = false,
+    ringCorner: Dp = 10.dp,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
+    val pulse = LocalFocusPulse.current
+    val ownRequester = remember { FocusRequester() }
     var focused by remember { mutableStateOf(false) }
     val press = remember { PressState() }
     val clickState by rememberUpdatedState(onClick)
@@ -221,7 +227,9 @@ fun FocusSurface(
                 scaleX = scale
                 scaleY = scale
             }
-            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            // Always one focusRequester node (ours if none given): adding or removing it would rebuild
+            // the focus node below and drop focus.
+            .focusRequester(focusRequester ?: ownRequester)
             .onFocusChanged {
                 if (it.isFocused != focused) {
                     focused = it.isFocused
@@ -256,6 +264,10 @@ fun FocusSurface(
                 }
             }
             .focusable()
+            .drawWithContent {
+                drawContent()
+                if (ring && focused) drawFocusRing(ringCorner.toPx(), pulse.value)
+            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { clickState() },
@@ -268,6 +280,46 @@ fun FocusSurface(
         content(focused)
     }
 }
+
+/** How focus looks on cards, from Settings, Appearance. */
+object FocusStyle {
+    /** Ring thickness in dp. */
+    var ringWidth by mutableStateOf(2.5f)
+    var glow by mutableStateOf(true)
+}
+
+/** One shared, slow pulse (0..1) for the focus glow, so cards don't each run an animation. */
+val LocalFocusPulse = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.runtime.State<Float>> {
+    androidx.compose.runtime.mutableFloatStateOf(0.5f)
+}
+
+/** The theme-coloured ring around a focused card, with an optional soft pulsing glow outside it. */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float) {
+    val stroke = FocusStyle.ringWidth.dp.toPx()
+    if (FocusStyle.glow) {
+        val spread = 10.dp.toPx()
+        val steps = 5
+        for (i in 1..steps) {
+            val grow = spread * i / steps
+            drawRoundRect(
+                color = ZappColors.Brand1.copy(alpha = (0.10f + 0.16f * pulse) * (1f - i / (steps + 1f))),
+                topLeft = Offset(-grow, -grow),
+                size = androidx.compose.ui.geometry.Size(size.width + grow * 2, size.height + grow * 2),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner + grow),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(spread / steps + 1f),
+            )
+        }
+    }
+    drawRoundRect(
+        brush = Brush.linearGradient(listOf(ZappColors.Focus, ZappColors.Brand2.copy(alpha = 0.9f).compositeOverWhite())),
+        topLeft = Offset(stroke / 2, stroke / 2),
+        size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius((corner - stroke / 2).coerceAtLeast(0f)),
+        style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+    )
+}
+
+private fun Color.compositeOverWhite(): Color = androidx.compose.ui.graphics.lerp(this, Color.White, 0.35f)
 
 enum class ButtonStyle { Primary, Secondary, Quiet, Danger }
 
@@ -284,14 +336,12 @@ fun ZButton(
     var isFocused by remember { mutableStateOf(false) }
     FocusSurface(
         onClick = onClick,
-        modifier = modifier
-            .then(
-                if (!isFocused && style != ButtonStyle.Primary && style != ButtonStyle.Quiet) {
-                    Modifier.border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(50))
-                } else {
-                    Modifier
-                },
-            ),
+        // Always the same modifiers (only the colour changes), so focus is never lost by rebuilding them.
+        modifier = modifier.border(
+            1.dp,
+            if (!isFocused && style != ButtonStyle.Primary && style != ButtonStyle.Quiet) Color(0x2EFFFFFF) else Color.Transparent,
+            RoundedCornerShape(50),
+        ),
         focusRequester = focusRequester,
         onFocusChange = {
             isFocused = it

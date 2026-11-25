@@ -55,7 +55,8 @@ object ZappColors {
     val Text = Color(0xFFF1F2F6)
     val Dim = Color(0xFFA3A7B4)
     val Faint = Color(0xFF6B7080)
-    val Focus = Color(0xFFF5F6FA)
+    /** Focus takes a light tint of the theme (plain white-grey for Monochrome). */
+    val Focus: Color get() = lerp(palette.brand1, Color.White, 0.8f)
     val OnFocus: Color get() = palette.bg
     val OnFocusDim = Color(0xFF555A68)
     val Brand1: Color get() = palette.brand1
@@ -89,8 +90,19 @@ fun ZappTheme(content: @Composable () -> Unit) {
             onSurface = ZappColors.Text,
         ),
     ) {
+        // Only animate while the glow is switched on.
+        val pulse = if (!FocusStyle.glow) androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0.5f) } else androidx.compose.animation.core.rememberInfiniteTransition(label = "focusPulse").animateFloat(
+            0f,
+            1f,
+            androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(1300, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+            ),
+            label = "pulse",
+        )
         CompositionLocalProvider(
             LocalTextStyle provides TextStyle(fontFamily = Inter, color = ZappColors.Text),
+            LocalFocusPulse provides pulse,
             content = content,
         )
     }

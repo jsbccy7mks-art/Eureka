@@ -158,6 +158,33 @@ class Settings(context: Context) {
         com.zapp.tv.ui.ZappColors.palette = com.zapp.tv.ui.Palettes.byId(prefs.getString("theme", "aurora"))
     }
 
+    private val focusRingState = mutableIntStateOf(prefs.getInt("focusRing", 1))
+    /** Focus ring on cards: 0 thin, 1 medium, 2 thick. */
+    var focusRing: Int
+        get() = focusRingState.intValue
+        set(value) {
+            focusRingState.intValue = value
+            prefs.edit().putInt("focusRing", value).apply()
+            com.zapp.tv.ui.FocusStyle.ringWidth = ringWidthFor(value)
+        }
+
+    private val focusGlowState = mutableStateOf(prefs.getBoolean("focusGlow", true))
+    /** A soft pulsing glow around the focused card. */
+    var focusGlow: Boolean
+        get() = focusGlowState.value
+        set(value) {
+            focusGlowState.value = value
+            prefs.edit().putBoolean("focusGlow", value).apply()
+            com.zapp.tv.ui.FocusStyle.glow = value
+        }
+
+    private fun ringWidthFor(v: Int) = when (v) { 0 -> 1.5f; 2 -> 3.5f; else -> 2.5f }
+
+    init {
+        com.zapp.tv.ui.FocusStyle.ringWidth = ringWidthFor(prefs.getInt("focusRing", 1))
+        com.zapp.tv.ui.FocusStyle.glow = prefs.getBoolean("focusGlow", true)
+    }
+
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))
     /** Only list sources that can play straight away (ready on your debrid service or add-on). */
     var cachedOnly: Boolean

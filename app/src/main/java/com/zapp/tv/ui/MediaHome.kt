@@ -101,7 +101,7 @@ fun ImmersiveLayout(
             .background(ZappColors.Bg),
     ) {
         val screenHeight = maxHeight
-        val heroHeight = screenHeight * 0.47f
+        val heroHeight = screenHeight * 0.45f
         Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
         AmbientGlow(0.8f)
 
@@ -118,11 +118,11 @@ fun ImmersiveLayout(
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                PivotScrolling(26.dp) {
+                PivotScrolling(22.dp) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(top = 4.dp, bottom = screenHeight * 0.5f),
                         content = rows,
                     )
@@ -199,72 +199,93 @@ private fun Backdrop(url: String?) {
 
 @Composable
 private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
-    AnimatedContent(
-        targetState = item,
-        transitionSpec = { fadeIn(tween(260)) togetherWith fadeOut(tween(160)) },
-        contentKey = { it?.meta?.id + "|" + it?.progress?.videoId },
-        label = "hero",
-        modifier = Modifier.fillMaxSize(),
-    ) { h ->
-        Box(Modifier.fillMaxSize()) {
-            if (h == null) return@Box
-            val d = detail?.takeIf { it.preview.id == h.meta.id }
-            val m = h.meta
-            val description = m.description ?: d?.preview?.description
-            Column(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = RowInset, bottom = 18.dp)
-                    .widthIn(max = 460.dp),
-            ) {
+    // Fixed slots (label, title, facts, two lines of text, one line of cast), so moving between
+    // titles only changes what's shown, never where it sits.
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(start = RowInset, top = 34.dp)
+            .widthIn(max = 400.dp),
+    ) {
+        AnimatedContent(
+            targetState = item,
+            transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(140)) },
+            contentKey = { it?.meta?.id + "|" + it?.progress?.videoId },
+            label = "hero",
+        ) { h ->
+            Column(Modifier.fillMaxWidth()) {
+                if (h == null) return@Column
+                val d = detail?.takeIf { it.preview.id == h.meta.id }
+                val m = h.meta
+                val logo = m.logo ?: d?.preview?.logo
+                val description = m.description ?: d?.preview?.description
                 Text(
                     (if (m.type == "series") "SERIES" else if (m.type == "movie") "FILM" else m.type.uppercase()) + "  ·  " + h.rowTitle.uppercase(),
                     color = ZappColors.Faint,
-                    fontSize = 10.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.6.sp,
+                    letterSpacing = 1.5.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(8.dp))
-                MovieTitle(m.name, 40.sp)
+                Box(Modifier.height(52.dp).fillMaxWidth(), contentAlignment = Alignment.BottomStart) {
+                    if (logo != null) {
+                        AsyncImage(
+                            model = logo,
+                            contentDescription = m.name,
+                            contentScale = ContentScale.Fit,
+                            alignment = Alignment.BottomStart,
+                            modifier = Modifier.heightIn(max = 52.dp).widthIn(max = 230.dp),
+                        )
+                    } else {
+                        MovieTitle(m.name, 24.sp, maxLines = 2)
+                    }
+                }
                 Spacer(Modifier.height(10.dp))
-                FactsLine(
-                    m.releaseInfo ?: d?.preview?.releaseInfo,
-                    m.imdbRating ?: d?.preview?.imdbRating,
-                    d?.runtime,
-                    m.genres.ifEmpty { d?.preview?.genres ?: emptyList() },
-                )
                 val p = h.progress
                 if (p != null) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         ProgressLine(
                             if (p.duration > 1) (p.position.toFloat() / p.duration).coerceIn(0f, 1f)
                             else ((p.percent ?: 0.0) / 100).toFloat().coerceIn(0f, 1f),
-                            Modifier.width(160.dp),
+                            Modifier.width(110.dp),
                             track = Color(0x33FFFFFF),
                             fill = Color.White,
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(
-                            listOfNotNull(p.episodeLabel, minutesLeft(p)).joinToString("  ·  "),
-                            color = ZappColors.Text,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
+                        Text(listOfNotNull(p.episodeLabel, minutesLeft(p)).joinToString("  ·  "), color = ZappColors.Dim, fontSize = 11.5.sp, maxLines = 1)
+                    }
+                } else {
+                    Box(Modifier.height(16.dp), contentAlignment = Alignment.CenterStart) {
+                        FactsLine(
+                            m.releaseInfo ?: d?.preview?.releaseInfo,
+                            m.imdbRating ?: d?.preview?.imdbRating,
+                            d?.runtime,
+                            m.genres.ifEmpty { d?.preview?.genres ?: emptyList() },
+                            size = 11.5.sp,
                         )
                     }
                 }
-                if (!description.isNullOrBlank()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(description, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                }
-                val people = d?.cast.orEmpty().take(3)
-                if (people.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text("With " + people.joinToString(", "), color = ZappColors.Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+                Spacer(Modifier.height(9.dp))
+                Text(
+                    description.orEmpty(),
+                    color = ZappColors.Dim,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    d?.cast.orEmpty().take(3).takeIf { it.isNotEmpty() }?.let { "With " + it.joinToString(", ") }.orEmpty(),
+                    color = ZappColors.Faint,
+                    fontSize = 11.sp,
+                    minLines = 1,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

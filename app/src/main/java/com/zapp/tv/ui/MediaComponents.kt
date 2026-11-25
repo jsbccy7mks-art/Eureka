@@ -49,9 +49,9 @@ val PosterWidth = 122.dp
 
 /** Card width for a Home row: size 0 small, 1 medium, 2 large. */
 fun cardWidth(size: Int, landscape: Boolean): Dp = if (landscape) {
-    when (size) { 0 -> 176.dp; 2 -> 256.dp; else -> 210.dp }
+    when (size) { 0 -> 150.dp; 2 -> 220.dp; else -> 182.dp }
 } else {
-    when (size) { 0 -> 94.dp; 2 -> 140.dp; else -> 114.dp }
+    when (size) { 0 -> 80.dp; 2 -> 120.dp; else -> 98.dp }
 }
 
 /**
@@ -82,6 +82,8 @@ fun PosterCard(
             shape = RoundedCornerShape(10.dp),
             focusScale = 1f,
             restColor = ZappColors.Glass,
+            focusColor = ZappColors.Glass,
+            ring = true,
         ) { focused ->
             if (landscape && meta.posterShape != "landscape") {
                 Artwork(meta.background ?: meta.poster, meta.name)
@@ -101,13 +103,6 @@ fun PosterCard(
                 }
             } else {
                 Artwork(meta.poster, meta.name)
-            }
-            if (focused) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .border(2.5.dp, Color.White, RoundedCornerShape(10.dp)),
-                )
             }
         }
         if (showTitle) {
@@ -154,9 +149,11 @@ fun ContinueCard(
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f),
             onFocusChange = { if (it) onFocus() },
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             focusScale = 1f,
             restColor = ZappColors.Glass,
+            focusColor = ZappColors.Glass,
+            ring = true,
         ) { focused ->
             Artwork(progress.background ?: progress.poster, progress.name)
             Box(
@@ -174,12 +171,9 @@ fun ContinueCard(
                 track = Color(0x66FFFFFF),
                 fill = Color.White,
             )
-            if (focused) {
-                Box(Modifier.fillMaxSize().border(3.dp, Color.White, RoundedCornerShape(12.dp)))
-            }
         }
-        Spacer(Modifier.height(7.dp))
-        Text(progress.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.height(6.dp))
+        Text(progress.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             listOfNotNull(progress.episodeLabel, minutesLeft(progress)).joinToString(", "),
             color = ZappColors.Dim,
@@ -282,7 +276,7 @@ fun prettyRuntime(runtime: String?): String? {
 
 /** Year, runtime, genres and rating on one quiet line. */
 @Composable
-fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<String>, modifier: Modifier = Modifier) {
+fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<String>, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.TextUnit = 12.5.sp) {
     val parts = listOfNotNull(year, prettyRuntime(runtime), genres.take(3).joinToString(", ").ifBlank { null })
     val text = androidx.compose.ui.text.buildAnnotatedString {
         append(parts.joinToString("   ·   "))
@@ -294,7 +288,7 @@ fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<Str
             append(rating)
         }
     }
-    Text(text, color = ZappColors.Dim, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+    Text(text, color = ZappColors.Dim, fontSize = size, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
 /** Year, rating, runtime and genres as small tags. */
@@ -372,7 +366,7 @@ fun CatalogRow(
             LazyRow(
                 state = listState,
                 modifier = Modifier.restoreFocus(memory),
-                horizontalArrangement = Arrangement.spacedBy(if (size == 0) 10.dp else 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (size == 0) 8.dp else 10.dp),
                 contentPadding = PaddingValues(horizontal = RowInset),
             ) {
                 if (items.isEmpty()) {
@@ -422,10 +416,10 @@ val RowInset = 48.dp
 @Composable
 fun RowHeader(title: String, subtitle: String? = null) {
     Row(
-        Modifier.padding(start = RowInset, bottom = 9.dp),
+        Modifier.padding(start = RowInset, bottom = 7.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp)
+        Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.2.sp, color = ZappColors.Text)
         subtitle?.let {
             Spacer(Modifier.width(8.dp))
             Text(it, fontSize = 11.sp, color = ZappColors.Faint)

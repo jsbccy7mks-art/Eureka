@@ -481,6 +481,8 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, onClick
             shape = RoundedCornerShape(10.dp),
             focusScale = 1f,
             restColor = ZappColors.Glass,
+            focusColor = ZappColors.Glass,
+            ring = true,
         ) { focused ->
             Artwork(v.thumbnail, shortLabel(v))
             if (p != null) {
@@ -503,7 +505,6 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, onClick
                     )
                 }
             }
-            if (focused) Box(Modifier.fillMaxSize().border(2.5.dp, Color.White, RoundedCornerShape(10.dp)))
         }
         Spacer(Modifier.height(7.dp))
         Text(

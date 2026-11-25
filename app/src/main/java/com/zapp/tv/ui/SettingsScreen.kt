@@ -801,7 +801,7 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
 @Composable
 private fun AppearancePane(vm: AppViewModel) {
     val s = vm.settings
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Theme", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Text("Colours for the glow, highlights and progress bars across the app.", color = ZappColors.Dim, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
@@ -814,7 +814,7 @@ private fun AppearancePane(vm: AppViewModel) {
                         modifier = Modifier
                             .width(110.dp)
                             .height(70.dp)
-                            .then(if (chosen) Modifier.border(2.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier),
+                            .border(2.dp, if (chosen) Color.White else Color.Transparent, RoundedCornerShape(14.dp)),
                         shape = RoundedCornerShape(14.dp),
                         focusScale = 1.05f,
                         focusColor = Color.White,
@@ -837,6 +837,21 @@ private fun AppearancePane(vm: AppViewModel) {
                 }
             }
         }
+        Spacer(Modifier.height(22.dp))
+        Text("Focus", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        SettingRow(
+            title = "Focus outline",
+            body = "How thick the outline is around the card you're on.",
+            value = SettingValue.Choice(listOf("Thin", "Medium", "Thick")[s.focusRing.coerceIn(0, 2)]),
+            onClick = { s.focusRing = (s.focusRing + 1) % 3 },
+        )
+        SettingRow(
+            title = "Pulsing glow",
+            body = "A soft glow in the theme's colour that gently pulses around the card you're on.",
+            value = SettingValue.Toggle(s.focusGlow),
+            onClick = { s.focusGlow = !s.focusGlow },
+        )
     }
 }
 
