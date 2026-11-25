@@ -110,7 +110,7 @@ class Playback(
         private set
     private var enhancer: android.media.audiofx.LoudnessEnhancer? = null
 
-    fun setBoost(on: Boolean) {
+    fun toggleBoost(on: Boolean) {
         boost = on
         applyBoost()
     }

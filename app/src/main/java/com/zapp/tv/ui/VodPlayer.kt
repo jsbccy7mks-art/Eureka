@@ -595,7 +595,7 @@ private fun VodControls(
                 ChipButton("Subtitles", subsNow, onSubtitles)
                 ChipButton("Sources", null, onSources)
                 ChipButton("Picture", listOf("Fit", "Fill", "Stretch")[playback.pictureMode], { playback.pictureMode = (playback.pictureMode + 1) % 3 })
-                ChipButton("Boost", if (playback.boost) "On" else "Off", { playback.setBoost(!playback.boost) })
+                ChipButton("Boost", if (playback.boost) "On" else "Off", { playback.toggleBoost(!playback.boost) })
                 ChipButton("Info", null, onDetails)
                 if (next != null) ChipButton("Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, onNext, accent = true)
             }
