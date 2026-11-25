@@ -27,8 +27,8 @@
   header span { font-weight: 700; font-size: 22px; letter-spacing: -.02em; }
   h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 6px; }
   p.lead { color: var(--dim); margin: 0 0 24px; }
-  .seg { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
-  .seg button { border: 0; background: transparent; color: var(--dim); font: inherit; font-weight: 600; padding: 10px; border-radius: 9px; }
+  .seg { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+  .seg button { font-size: 13px !important; border: 0; background: transparent; color: var(--dim); font: inherit; font-weight: 600; padding: 10px; border-radius: 9px; }
   .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
   label { display: block; font-size: 13px; color: var(--dim); margin: 0 0 6px; }
   .field { margin-bottom: 14px; }
@@ -83,6 +83,7 @@
     <button type="button" data-type="m3u" aria-pressed="false">M3U link</button>
     <button type="button" data-type="addon" aria-pressed="false">Add-on</button>
     <button type="button" data-type="simkl" aria-pressed="false">Simkl</button>
+    <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
   </div>
 
   <form id="form" autocomplete="off">
@@ -96,6 +97,21 @@
         <label for="simklClientId">Simkl Client ID</label>
         <input id="simklClientId" autocapitalize="off" spellcheck="false" placeholder="From simkl.com/settings/developer">
         <div class="hint">Create an app at simkl.com/settings/developer (device or TV type), then copy its Client ID here. You only do this once.</div>
+      </div>
+    </div>
+
+    <div data-for="debrid" hidden>
+      <div class="field">
+        <label>Service</label>
+        <div class="row" role="group" aria-label="Debrid service">
+          <span class="chip dchip" role="button" tabindex="0" data-service="pm" aria-pressed="true">Premiumize</span>
+          <span class="chip dchip" role="button" tabindex="0" data-service="tb" aria-pressed="false">TorBox</span>
+        </div>
+        <div class="hint">Real-Debrid and AllDebrid sign in with a code on the TV instead (Settings, Accounts and sync).</div>
+      </div>
+      <div class="field">
+        <label for="debridKey">API key</label>
+        <input id="debridKey" autocapitalize="off" spellcheck="false" placeholder="From your account page">
       </div>
     </div>
 
@@ -171,17 +187,25 @@
       type = b.dataset.type;
       document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
-      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type || type === 'simkl'; });
+      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type || type === 'simkl' || type === 'debrid'; });
       $('epgHint').textContent = type === 'xtream'
         ? "Leave empty to use your provider's own guide."
         : 'Leave empty to use the guide link inside the playlist, if it has one.';
     });
   });
 
-  document.querySelectorAll('.chip').forEach((c) => {
+  let debridService = 'pm';
+  document.querySelectorAll('.dchip').forEach((c) => {
+    c.addEventListener('click', () => {
+      debridService = c.dataset.service;
+      document.querySelectorAll('.dchip').forEach((x) => x.setAttribute('aria-pressed', x === c));
+    });
+  });
+
+  document.querySelectorAll('.chip:not(.dchip)').forEach((c) => {
     c.addEventListener('click', () => {
       format = c.dataset.format;
-      document.querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', x === c));
+      document.querySelectorAll('.chip:not(.dchip)').forEach((x) => x.setAttribute('aria-pressed', x === c));
     });
   });
 
@@ -230,7 +254,13 @@
       url: $('url').value,
       addonUrl: $('addonUrl').value,
       simklClientId: $('simklClientId').value,
+      debridService,
+      debridKey: $('debridKey').value,
     };
+    if (type === 'debrid' && !body.debridKey.trim()) {
+      setStatus('err', 'Paste the API key first.');
+      return;
+    }
     if (type === 'simkl' && !body.simklClientId.trim()) {
       setStatus('err', 'Paste the Client ID first.');
       return;

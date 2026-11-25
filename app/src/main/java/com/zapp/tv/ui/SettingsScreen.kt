@@ -651,6 +651,67 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
                 )
             }
         }
+
+        Spacer(Modifier.height(16.dp))
+        DebridSection(vm, mvm)
+    }
+}
+
+@Composable
+private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
+    val version = mvm.settings.debridVersion
+    Text("Debrid services", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+    Text(
+        "Lets torrent sources from your add-ons play: Zapp asks your own debrid account for a normal link. " +
+            "If you connect more than one, they're tried in this order.",
+        color = ZappColors.Dim,
+        fontSize = 12.sp,
+        lineHeight = 17.sp,
+    )
+    mvm.message?.let { Text(it, color = ZappColors.Signal, fontSize = 12.sp) }
+
+    when (val s = mvm.debridSignIn) {
+        is MediaViewModel.DebridSignIn.Waiting -> Panel(Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                QrCode(s.link, 140.dp)
+                Spacer(Modifier.width(24.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Scan with your phone and approve Zapp on ${s.service}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Or go to ${s.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = 12.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(s.code, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    Spacer(Modifier.height(10.dp))
+                    val cancel = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { cancel.tryRequest() }
+                    ZButton("Cancel", { mvm.cancelDebridSignIn() }, style = ButtonStyle.Quiet, focusRequester = cancel)
+                }
+            }
+        }
+        is MediaViewModel.DebridSignIn.Failed -> ErrorBanner(s.message)
+        MediaViewModel.DebridSignIn.None -> Unit
+    }
+
+    val d = mvm.debrid
+    listOf<Triple<com.zapp.tv.data.DebridService, String, (() -> Unit)?>>(
+        Triple(d.realDebrid, "Sign in with a code on your phone.", { mvm.connectRealDebrid() }),
+        Triple(d.allDebrid, "Sign in with a PIN on your phone.", { mvm.connectAllDebrid() }),
+        Triple(d.premiumize, "Paste your API key (premiumize.me, Account) on the phone page, Debrid tab.", null),
+        Triple(d.torBox, "Paste your API key (torbox.app, Settings) on the phone page, Debrid tab.", null),
+    ).forEach { (service, how, connect) ->
+        val on = version >= 0 && service.connected
+        SettingRow(
+            title = service.name,
+            body = if (on) "Connected" else how,
+            value = SettingValue.Choice(if (on) "Disconnect" else if (connect != null) "Connect" else "From phone"),
+            onClick = {
+                when {
+                    on -> mvm.disconnectDebrid(service.id)
+                    connect != null -> connect()
+                    else -> vm.showToast("Open the phone page from Settings, Playlists and choose the Debrid tab")
+                }
+            },
+        )
     }
 }
 

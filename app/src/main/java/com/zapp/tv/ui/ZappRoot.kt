@@ -116,7 +116,17 @@ fun ZappRoot(vm: AppViewModel) {
         detail = DetailRequest(meta.type, meta.id, meta)
     }
 
-    fun startStream(req: PlayRequest, stream: com.zapp.tv.addons.StreamItem) {
+    fun startStream(req: PlayRequest, stream: com.zapp.tv.addons.StreamItem, resolvedUrl: String? = null) {
+        if (resolvedUrl == null && stream.url.isNullOrBlank() && stream.infoHash != null) {
+            // Torrent source: ask the debrid service for a link first.
+            mvm.resolveTorrent(
+                stream = stream,
+                title = req.meta.name,
+                onReady = { url -> startStream(req, stream, url) },
+                onError = { msg -> vm.showToast(msg) },
+            )
+            return
+        }
         val info = MediaInfo(
             videoId = req.videoId,
             metaId = req.meta.id,
@@ -125,7 +135,7 @@ fun ZappRoot(vm: AppViewModel) {
             episodeLabel = req.episodeLabel,
             poster = req.meta.poster,
             background = req.video?.thumbnail ?: req.meta.background,
-            url = stream.url.orEmpty(),
+            url = resolvedUrl ?: stream.url.orEmpty(),
             headers = stream.headers,
         )
         playback.playMedia(info, req.resumeMs, req.resumePercent)
@@ -332,6 +342,7 @@ fun ZappRoot(vm: AppViewModel) {
         }
 
         mvm.busy?.let { BusyOverlay(it) }
+        mvm.resolving?.let { BusyOverlay(it) }
 
         if (playerOpen && playback.channel != null) {
             val rows = vm.channels.collectAsLazyPagingItems()

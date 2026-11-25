@@ -77,22 +77,25 @@ fun SourcesOverlay(
 
     val sorted = batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
     val all = sorted.flatMap { it.streams }
+    val viaDebrid = mvm.debridConnected
+    val debridName = mvm.debridNames().firstOrNull()
+    fun canPlay(s: StreamItem) = s.playable || (viaDebrid && s.infoHash != null)
 
     // Autoplay: wait briefly for the add-ons to answer, then take the first playable source.
     LaunchedEffect(autoPlay, finished, batches.size) {
         if (!autoPlay) return@LaunchedEffect
-        val preferred = request.preferBingeGroup?.let { g -> all.firstOrNull { it.playable && it.bingeGroup == g } }
+        val preferred = request.preferBingeGroup?.let { g -> all.firstOrNull { canPlay(it) && it.bingeGroup == g } }
         val firstAddonDone = sorted.firstOrNull()?.addonName == order.firstOrNull { name -> addons.any { it.manifest.name == name && it.addon.enabled } }
         if (preferred != null) {
             onPick(preferred)
         } else if (finished || firstAddonDone) {
-            all.firstOrNull { it.playable }?.let { onPick(it) } ?: run { autoPlay = false }
+            all.firstOrNull { canPlay(it) }?.let { onPick(it) } ?: run { autoPlay = false }
         }
     }
     LaunchedEffect(autoPlay) {
         if (autoPlay) {
             delay(12_000)
-            all.firstOrNull { it.playable }?.let { onPick(it) }
+            all.firstOrNull { canPlay(it) }?.let { onPick(it) }
             autoPlay = false
         }
     }
@@ -174,8 +177,8 @@ fun SourcesOverlay(
                                         modifier = Modifier.padding(start = 4.dp, top = if (i == 0) 0.dp else 10.dp, bottom = 6.dp),
                                     )
                                 }
-                                StreamRow(s, if (i == 0) firstFocus else null) {
-                                    if (s.playable) onPick(s)
+                                StreamRow(s, if (i == 0) firstFocus else null, if (s.playable) null else if (s.infoHash != null) debridName else null) {
+                                    if (canPlay(s)) onPick(s)
                                 }
                             }
                         }
@@ -187,10 +190,11 @@ fun SourcesOverlay(
 }
 
 @Composable
-private fun StreamRow(s: StreamItem, requester: FocusRequester?, onClick: () -> Unit) {
+private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?, onClick: () -> Unit) {
     val note = when {
         s.playable -> null
-        s.infoHash != null -> "Torrent: needs a debrid service, coming in a later update"
+        s.infoHash != null && debrid != null -> "Through $debrid"
+        s.infoHash != null -> "Torrent: connect a debrid service in Settings to play it"
         s.externalUrl != null -> "Opens a website, which Zapp can't show"
         s.ytId != null -> "YouTube video"
         else -> "Not playable"
@@ -225,7 +229,7 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, onClick: () -> 
             Column(Modifier.weight(1f)) {
                 Text(
                     s.name.replace('\n', ' '),
-                    color = if (focused) ZappColors.OnFocus else if (s.playable) ZappColors.Text else ZappColors.Faint,
+                    color = if (focused) ZappColors.OnFocus else if (s.playable || debrid != null) ZappColors.Text else ZappColors.Faint,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,

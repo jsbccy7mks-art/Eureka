@@ -178,6 +178,110 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ------------------------------------------------------------ debrid services
+
+    sealed interface DebridSignIn {
+        data object None : DebridSignIn
+        data class Waiting(val service: String, val code: String, val link: String, val shortLink: String) : DebridSignIn
+        data class Failed(val message: String) : DebridSignIn
+    }
+
+    val debrid = zapp.debrid
+    var debridSignIn by mutableStateOf<DebridSignIn>(DebridSignIn.None)
+        private set
+    private var debridJob: Job? = null
+
+    /** True when at least one debrid service is connected (re-read when sign-ins change). */
+    val debridConnected: Boolean
+        get() {
+            settings.debridVersion
+            return debrid.connected.isNotEmpty()
+        }
+
+    fun debridNames(): List<String> {
+        settings.debridVersion
+        return debrid.connected.map { it.name }
+    }
+
+    fun connectRealDebrid() {
+        debridJob?.cancel()
+        debridJob = viewModelScope.launch {
+            try {
+                val d = debrid.realDebrid.startSignIn()
+                debridSignIn = DebridSignIn.Waiting("Real-Debrid", d.userCode, d.directUrl, d.url)
+                val deadline = System.currentTimeMillis() + d.expiresIn * 1000L
+                while (System.currentTimeMillis() < deadline) {
+                    delay(d.interval * 1000L)
+                    if (debrid.realDebrid.poll(d)) {
+                        debridSignIn = DebridSignIn.None
+                        message = "Real-Debrid connected"
+                        return@launch
+                    }
+                }
+                debridSignIn = DebridSignIn.Failed("The code ran out of time. Try again.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                debridSignIn = DebridSignIn.Failed(e.message ?: "Couldn't reach Real-Debrid.")
+            }
+        }
+    }
+
+    fun connectAllDebrid() {
+        debridJob?.cancel()
+        debridJob = viewModelScope.launch {
+            try {
+                val p = debrid.allDebrid.startSignIn()
+                debridSignIn = DebridSignIn.Waiting("AllDebrid", p.pin, p.url, "alldebrid.com/pin")
+                val deadline = System.currentTimeMillis() + p.expiresIn * 1000L
+                while (System.currentTimeMillis() < deadline) {
+                    delay(5_000)
+                    if (debrid.allDebrid.poll(p)) {
+                        debridSignIn = DebridSignIn.None
+                        message = "AllDebrid connected"
+                        return@launch
+                    }
+                }
+                debridSignIn = DebridSignIn.Failed("The PIN ran out of time. Try again.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                debridSignIn = DebridSignIn.Failed(e.message ?: "Couldn't reach AllDebrid.")
+            }
+        }
+    }
+
+    fun cancelDebridSignIn() {
+        debridJob?.cancel()
+        debridSignIn = DebridSignIn.None
+    }
+
+    fun disconnectDebrid(id: String) {
+        debrid.all.firstOrNull { it.id == id }?.signOut()
+    }
+
+    var resolving by mutableStateOf<String?>(null)
+        private set
+
+    /** Turns a torrent source into a playable link through the connected debrid service(s). */
+    fun resolveTorrent(stream: com.zapp.tv.addons.StreamItem, title: String, onReady: (String) -> Unit, onError: (String) -> Unit) {
+        val hash = stream.infoHash ?: return onError("This source has no torrent to fetch.")
+        if (resolving != null) return
+        resolving = "Getting it from ${debrid.connected.firstOrNull()?.name ?: "your debrid service"}…"
+        viewModelScope.launch {
+            try {
+                val (_, url) = debrid.resolve(com.zapp.tv.data.TorrentRef(hash.lowercase(), stream.fileIdx, stream.filename, title))
+                onReady(url)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onError(e.message ?: "Couldn't play this source.")
+            } finally {
+                resolving = null
+            }
+        }
+    }
+
     // ------------------------------------------------------------ add-ons
 
     fun addAddon(url: String, onDone: () -> Unit = {}) {

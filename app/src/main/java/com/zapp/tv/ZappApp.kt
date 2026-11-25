@@ -35,6 +35,8 @@ class ZappApp : Application() {
 
     val updater: Updater by lazy { Updater(this, httpClient) }
 
+    val debrid: com.zapp.tv.data.Debrid by lazy { com.zapp.tv.data.Debrid(httpClient, settings) }
+
     val simkl: com.zapp.tv.data.SimklSync by lazy {
         com.zapp.tv.data.SimklSync(database, com.zapp.tv.data.SimklClient(httpClient, settings), settings)
     }

@@ -519,6 +519,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     if (url.isBlank()) fail("Paste the playlist link first.")
                     repo.addM3u(name, url, epg)
                 }
+                "debrid" -> {
+                    val key = body.optString("debridKey").trim()
+                    if (key.length < 8) fail("Paste the API key first.")
+                    when (body.optString("debridService")) {
+                        "pm" -> settings.setSecret("pmKey", key)
+                        "tb" -> settings.setSecret("tbKey", key)
+                        else -> fail("Choose Premiumize or TorBox.")
+                    }
+                    val name = if (body.optString("debridService") == "pm") "Premiumize" else "TorBox"
+                    showToast("$name connected from your phone")
+                    return@withContext "$name is connected. Torrent sources will play through it."
+                }
                 "simkl" -> {
                     val id = body.optString("simklClientId").filter { it.isLetterOrDigit() }
                     if (id.length < 10) fail("That doesn't look like a Simkl Client ID.")

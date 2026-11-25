@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0 (debrid services)
+
+**New**
+- Debrid services (Settings, Accounts and sync): Real-Debrid and AllDebrid sign in with a code or QR on your
+  phone; Premiumize and TorBox take your API key on the phone page (new Debrid tab). Keys and tokens are
+  stored encrypted.
+- Torrent sources from your add-ons now play: Zapp sends the torrent to your debrid service, picks the
+  right file (by name, position, or the biggest video) and plays the link it returns. With several
+  services connected they're tried in order. The source list shows "Through Real-Debrid" (etc.).
+- Clear messages when a service doesn't have something ready yet, needs premium, or has signed Zapp out.
+
+**Note**
+- Many add-ons can use your debrid account themselves when you configure them with it; their sources
+  then play directly without this step.
+
 ## 0.7.0 (Simkl sync)
 
 **New**

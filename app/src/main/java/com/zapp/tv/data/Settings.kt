@@ -179,6 +179,20 @@ class Settings(context: Context) {
             prefs.edit().putLong("simklLastSync", value).apply()
         }
 
+    // ---------------------------------------------------------------- debrid services (all stored encrypted)
+
+    private val debridTick = mutableIntStateOf(0)
+
+    /** Changes whenever a debrid sign-in changes, so screens can refresh. */
+    val debridVersion: Int get() = debridTick.intValue
+
+    fun secret(key: String): String = Secrets.decrypt(prefs.getString(key, "")).orEmpty()
+
+    fun setSecret(key: String, value: String) {
+        prefs.edit().putString(key, if (value.isEmpty()) "" else Secrets.encrypt(value) ?: "").apply()
+        debridTick.intValue++
+    }
+
     var lastUpdateCheck: Long
         get() = prefs.getLong("lastUpdateCheck", 0L)
         set(value) {
