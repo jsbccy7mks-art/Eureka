@@ -205,13 +205,13 @@ fun FocusSurface(
 ) {
     val pulse = LocalFocusPulse.current
     val ownRequester = remember { FocusRequester() }
-    val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
     var focused by remember { mutableStateOf(false) }
     val press = remember { PressState() }
     val clickState by rememberUpdatedState(onClick)
     val longState by rememberUpdatedState(onLongClick)
     val focusState by rememberUpdatedState(onFocusChange)
     val scale by animateFloatAsState(if (focused) focusScale else 1f, tween(110), label = "scale")
+    val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
     val fill by animateColorAsState(
         when {
             focused -> focusColor
