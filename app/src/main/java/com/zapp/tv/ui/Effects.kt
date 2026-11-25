@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -153,22 +154,38 @@ fun DialogBlurBehind() {
 object NavShortcuts {
     var search: () -> Unit = {}
     var settings: () -> Unit = {}
+    /** The Search button, so Up from the top row of a page can land on it. */
+    val requester = androidx.compose.ui.focus.FocusRequester()
 }
 
 /** Small Search and Settings buttons beside the clock (Up from the top of a page reaches them). */
 @Composable
 fun HeaderShortcuts() {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf(Glyph.Search to { NavShortcuts.search() }, Glyph.Settings to { NavShortcuts.settings() }).forEach { (g, go) ->
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(Glyph.Search to { NavShortcuts.search() }, Glyph.Settings to { NavShortcuts.settings() }).forEachIndexed { i, (g, go) ->
+            // Just the icon with a soft drop shadow; on focus it brightens and grows a little.
             FocusSurface(
                 onClick = go,
-                modifier = Modifier.size(32.dp),
+                modifier = Modifier.size(34.dp),
+                focusRequester = if (i == 0) NavShortcuts.requester else null,
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                focusScale = 1.06f,
-                restColor = ZappColors.Glass,
+                focusScale = 1.18f,
+                restColor = Color.Transparent,
+                focusColor = Color.Transparent,
             ) { focused ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    GlyphIcon(g, if (focused) ZappColors.OnFocus else ZappColors.Dim, 16.dp)
+                    GlyphIcon(
+                        g,
+                        Color.Black.copy(alpha = if (focused) 0.75f else 0.6f),
+                        18.dp,
+                        Modifier
+                            .graphicsLayer {
+                                translationX = 0.8.dp.toPx()
+                                translationY = 1.5.dp.toPx()
+                            }
+                            .blur(3.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded),
+                    )
+                    GlyphIcon(g, if (focused) Color.White else ZappColors.Text.copy(alpha = 0.85f), 18.dp)
                 }
             }
         }

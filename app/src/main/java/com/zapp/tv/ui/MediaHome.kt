@@ -126,7 +126,8 @@ fun ImmersiveLayout(
                 modifier = Modifier
                     .fillMaxSize()
                     .fadeAbove(heroHeight)
-                    .trapVertical(),
+                    // Down never leaves the rows; Up from the top row goes to Search and Settings.
+                    .trapVertical(up = if (topRight != null) NavShortcuts.requester else null),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(top = heroHeight + 4.dp, bottom = screenHeight * 0.5f),
                 content = rows,

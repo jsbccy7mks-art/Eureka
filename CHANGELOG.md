@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.2
+
+**Changed**
+- Up from the top row (Continue watching) goes to the Search and Settings buttons beside the clock.
+- Those buttons are just the icons now, with a soft drop shadow (no circles).
+
 ## 0.26.1
 
 **Fixed**

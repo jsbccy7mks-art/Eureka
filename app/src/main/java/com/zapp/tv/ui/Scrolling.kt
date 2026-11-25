@@ -113,6 +113,20 @@ fun Modifier.trapVertical(): Modifier = this
     }
     .focusGroup()
 
+/** Like [trapVertical], but Up from the top goes to [up] (the Search and Settings buttons). */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.trapVertical(up: FocusRequester?): Modifier = this
+    .focusProperties {
+        exit = { d ->
+            when (d) {
+                FocusDirection.Up -> up ?: FocusRequester.Cancel
+                FocusDirection.Down -> FocusRequester.Cancel
+                else -> FocusRequester.Default
+            }
+        }
+    }
+    .focusGroup()
+
 /**
  * The arrow keys never move focus out of this (an overlay over other screens). Only arrows are
  * blocked: something opened on top (the player, a dialog) can still take focus.
