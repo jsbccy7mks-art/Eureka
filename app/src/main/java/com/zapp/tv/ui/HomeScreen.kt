@@ -129,6 +129,7 @@ fun HomeScreen(
         focused = focused,
         header = if (rows.isEmpty()) ({ EmptyHero(emptyFocus, onOpenAddons) }) else null,
         scrollToTop = if (moves <= 1) firstRowId else null,
+        topRight = { ClockAndAvatar(mvm) },
     ) {
         items(rows, key = { it.id }) { row ->
             if (row.id == CONTINUE_ROW) {
@@ -162,6 +163,7 @@ fun HomeScreen(
                     onPendingDone = { pending = null },
                     size = row.size,
                     landscape = row.landscape,
+                    top10 = row.top10 == true,
                     showTitles = false,
                     onLongPress = { options = RowOptions(row.id) },
                 )

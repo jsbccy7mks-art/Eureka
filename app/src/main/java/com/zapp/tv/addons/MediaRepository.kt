@@ -23,9 +23,12 @@ import java.util.concurrent.ConcurrentHashMap
 data class InstalledAddon(val addon: Addon, val manifest: Manifest, val base: String)
 
 /** A catalogue row: which add-on, which catalogue. */
-data class CatalogRef(val addon: InstalledAddon, val def: CatalogDef) {
-    /** Stable id used by the Home layout settings. */
-    val key: String get() = "catalog:${addon.addon.addonId}:${def.type}:${def.id}"
+data class CatalogRef(val addon: InstalledAddon, val def: CatalogDef, val genre: String? = null) {
+    /** Stable id used by the Home layout settings (a genre filter adds to it). */
+    val key: String get() = "catalog:${addon.addon.addonId}:${def.type}:${def.id}" + (genre?.let { ":genre=$it" } ?: "")
+
+    /** Genres this catalogue can be filtered by. */
+    val genres: List<String> get() = def.extras.firstOrNull { it.name == "genre" }?.options.orEmpty()
     val title: String
         get() = when (def.type) {
             "movie" -> "${def.name} (films)"
@@ -133,7 +136,10 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
     suspend fun catalogPage(ref: CatalogRef, skip: Int): List<MetaPreview> {
         val key = "${ref.key}|$skip"
         catalogCache[key]?.let { (time, items) -> if (System.currentTimeMillis() - time < 30 * 60_000L) return items }
-        val extra = if (skip > 0) mapOf("skip" to skip.toString()) else emptyMap()
+        val extra = buildMap {
+            ref.genre?.let { put("genre", it) }
+            if (skip > 0) put("skip", skip.toString())
+        }
         val items = ref.addon.let { client.catalog(it.base, ref.def, extra) }
         catalogCache[key] = System.currentTimeMillis() to items
         return items

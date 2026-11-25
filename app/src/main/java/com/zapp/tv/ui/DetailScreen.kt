@@ -114,12 +114,13 @@ fun DetailScreen(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 alignment = Alignment.TopCenter,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().drift(),
             )
         }
+        DelayedTrailer(detail?.trailerYoutube, request.id, Modifier.fillMaxSize(), waitMs = 3_000)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(*easedFade(start = 0f, end = 0.55f))))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(*easedFade(start = 1f, end = 0.45f))))
-        AmbientGlow(0.6f)
+        AmbientGlow(0.6f, tint = rememberArtColor(meta?.poster ?: meta?.background))
 
         if (!done && meta == null) {
             ZappLoader(44.dp, Modifier.align(Alignment.Center))

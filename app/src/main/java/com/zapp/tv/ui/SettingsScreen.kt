@@ -774,6 +774,7 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
     val field = remember { FocusRequester() }
     LaunchedEffect(Unit) { field.tryRequest() }
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        DialogBlurBehind()
         Column(
             Modifier
                 .width(500.dp)
@@ -873,6 +874,21 @@ private fun AppearancePane(vm: AppViewModel) {
             body = "How thick the outline is around the card you're on.",
             value = SettingValue.Choice(listOf("Thin", "Medium", "Thick")[s.focusRing.coerceIn(0, 2)]),
             onClick = { s.focusRing = (s.focusRing + 1) % 3 },
+        )
+        Spacer(Modifier.height(14.dp))
+        Text("Motion and colour", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        SettingRow(
+            title = "Colour from artwork",
+            body = "The background glow takes its colour from the title you're on.",
+            value = SettingValue.Toggle(s.artGlow),
+            onClick = { s.artGlow = !s.artGlow },
+        )
+        SettingRow(
+            title = "Trailers",
+            body = "After a moment on a title, its trailer plays silently behind the header on Home and the details page.",
+            value = SettingValue.Toggle(s.trailers),
+            onClick = { s.trailers = !s.trailers },
         )
         SettingRow(
             title = "Pulsing glow",

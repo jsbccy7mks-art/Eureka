@@ -197,11 +197,33 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.glow = value
         }
 
+    private val artGlowState = mutableStateOf(prefs.getBoolean("artGlow", true))
+    /** Tint the background glow with the colour of the title you're on. */
+    var artGlow: Boolean
+        get() = artGlowState.value
+        set(value) {
+            artGlowState.value = value
+            prefs.edit().putBoolean("artGlow", value).apply()
+            com.zapp.tv.ui.FocusStyle.artGlow = value
+        }
+
+    private val trailersState = mutableStateOf(prefs.getBoolean("trailers", true))
+    /** Muted trailers behind the header on Home and details. */
+    var trailers: Boolean
+        get() = trailersState.value
+        set(value) {
+            trailersState.value = value
+            prefs.edit().putBoolean("trailers", value).apply()
+            com.zapp.tv.ui.FocusStyle.trailers = value
+        }
+
     private fun ringWidthFor(v: Int) = when (v) { 0 -> 1.5f; 2 -> 3.5f; else -> 2.5f }
 
     init {
         com.zapp.tv.ui.FocusStyle.ringWidth = ringWidthFor(prefs.getInt("focusRing", 1))
         com.zapp.tv.ui.FocusStyle.glow = prefs.getBoolean("focusGlow", true)
+        com.zapp.tv.ui.FocusStyle.artGlow = prefs.getBoolean("artGlow", true)
+        com.zapp.tv.ui.FocusStyle.trailers = prefs.getBoolean("trailers", true)
     }
 
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))

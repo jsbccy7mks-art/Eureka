@@ -46,6 +46,8 @@ data class HomeRowSetting(
     val on: Boolean,
     val size: Int = 1,
     val landscape: Boolean = false,
+    /** Shown as a Top 10: big numbers beside the first ten posters. Null means not chosen yet. */
+    val top10: Boolean? = null,
 )
 
 class MediaViewModel(app: Application) : AndroidViewModel(app) {
@@ -502,6 +504,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         for ((id, title) in available) {
             if (result.none { it.id == id }) result.add(HomeRowSetting(id, title, true, landscape = id == CONTINUE_ROW))
         }
+        // A first "top" or "trending" catalogue becomes a Top 10 until you choose otherwise.
+        val firstTop = result.firstOrNull { it.id != CONTINUE_ROW && Regex("\\b(top|trending)\\b", RegexOption.IGNORE_CASE).containsMatchIn(it.title) }?.id
+        for (i in result.indices) if (result[i].top10 == null) result[i] = result[i].copy(top10 = result[i].id == firstTop)
         // Continue watching is always the first row.
         val cont = result.first { it.id == CONTINUE_ROW }
         result.remove(cont)
@@ -512,7 +517,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun saveLayout(rows: List<HomeRowSetting>) {
         val arr = JSONArray()
         rows.forEach {
-            arr.put(JSONObject().put("id", it.id).put("on", it.on).put("size", it.size).put("landscape", it.landscape))
+            arr.put(JSONObject().put("id", it.id).put("on", it.on).put("size", it.size).put("landscape", it.landscape).apply { it.top10?.let { t -> put("top10", t) } })
         }
         settings.homeRowsJson = arr.toString()
     }
@@ -545,6 +550,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                         on = it.optBoolean("on", true),
                         size = it.optInt("size", 1).coerceIn(0, 2),
                         landscape = it.optBoolean("landscape", id == CONTINUE_ROW),
+                        top10 = if (it.has("top10")) it.optBoolean("top10") else null,
                     )
                 }
             }

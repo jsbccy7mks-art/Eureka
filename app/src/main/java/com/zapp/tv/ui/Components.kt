@@ -210,7 +210,17 @@ fun FocusSurface(
     val clickState by rememberUpdatedState(onClick)
     val longState by rememberUpdatedState(onLongClick)
     val focusState by rememberUpdatedState(onFocusChange)
-    val scale by animateFloatAsState(if (focused) focusScale else 1f, tween(110), label = "scale")
+    var pressed by remember { mutableStateOf(false) }
+    // A subtle dip while OK is held, then back up: feels like a real button.
+    val scale by animateFloatAsState(
+        when {
+            focused && pressed -> focusScale * 0.96f
+            focused -> focusScale
+            else -> 1f
+        },
+        tween(if (pressed) 80 else 140),
+        label = "scale",
+    )
     val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
     val fill by animateColorAsState(
         when {
@@ -237,6 +247,7 @@ fun FocusSurface(
                     focusState(it.isFocused)
                 }
                 if (!it.isFocused) {
+                    pressed = false
                     press.down = false
                     press.longFired = false
                 }
@@ -248,6 +259,7 @@ fun FocusSurface(
                         if (e.nativeKeyEvent.repeatCount == 0) {
                             press.down = true
                             press.longFired = false
+                            pressed = true
                         } else if (press.down && !press.longFired && longState != null) {
                             press.longFired = true
                             longState?.invoke()
@@ -255,6 +267,7 @@ fun FocusSurface(
                         true
                     }
                     KeyEventType.KeyUp -> {
+                        pressed = false
                         val fire = press.down && !press.longFired
                         press.down = false
                         press.longFired = false
@@ -287,6 +300,10 @@ object FocusStyle {
     /** Ring thickness in dp. */
     var ringWidth by mutableStateOf(2.5f)
     var glow by mutableStateOf(true)
+    /** Tint the page glow with the colour of the title you're on. */
+    var artGlow by mutableStateOf(true)
+    /** Play muted trailers behind the header on Home and details. */
+    var trailers by mutableStateOf(true)
 }
 
 /** One shared, slow pulse (0..1) for the focus glow, so cards don't each run an animation. */
@@ -579,20 +596,22 @@ fun AmbientBackground() {
 
 /** Just the glow, to lay over artwork so every screen shares the same light. */
 @Composable
-fun AmbientGlow(strength: Float = 1f, modifier: Modifier = Modifier) {
+fun AmbientGlow(strength: Float = 1f, modifier: Modifier = Modifier, tint: Color? = null) {
+    val c1 by animateColorAsState(tint ?: ZappColors.Brand1, tween(900), label = "glow1")
+    val c2 by animateColorAsState(if (tint != null) androidx.compose.ui.graphics.lerp(tint, ZappColors.Brand2, 0.45f) else ZappColors.Brand2, tween(900), label = "glow2")
     Canvas(modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
         drawRect(
             Brush.radialGradient(
-                listOf(ZappColors.Brand1.copy(alpha = 0.16f * strength), Color.Transparent),
+                listOf(c1.copy(alpha = (if (tint != null) 0.22f else 0.16f) * strength), Color.Transparent),
                 center = Offset(w * 0.05f, h * 0.02f),
                 radius = w * 0.6f,
             ),
         )
         drawRect(
             Brush.radialGradient(
-                listOf(ZappColors.Brand2.copy(alpha = 0.12f * strength), Color.Transparent),
+                listOf(c2.copy(alpha = 0.12f * strength), Color.Transparent),
                 center = Offset(w * 0.95f, h * 1.02f),
                 radius = w * 0.6f,
             ),

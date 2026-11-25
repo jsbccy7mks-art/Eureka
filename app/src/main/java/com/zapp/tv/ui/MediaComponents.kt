@@ -332,6 +332,7 @@ fun CatalogRow(
     showTitles: Boolean = true,
     onLongPress: ((MetaPreview) -> Unit)? = null,
     subtitle: String? = null,
+    top10: Boolean = false,
 ) {
     val items = remember(ref.key) { mutableStateListOf<MetaPreview>() }
     var loading by remember(ref.key) { mutableStateOf(true) }
@@ -362,7 +363,7 @@ fun CatalogRow(
 
     Column {
         RowHeader(title, subtitle)
-        val extra = width + 24.dp
+        val extra = (if (top10) width * 1.62f else width) + 24.dp
         PivotScrolling(RowInset + extra) {
             LazyRow(
                 state = listState,
@@ -380,11 +381,11 @@ fun CatalogRow(
                                 .width(width)
                                 .aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(ZappColors.Glass),
+                                .background(shimmerBrush()),
                         )
                     }
                 }
-                itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
+                itemsIndexed(if (top10) items.take(10) else items, key = { _, m -> m.id }) { index, meta ->
                     val requester = remember { FocusRequester() }
                     // An empty id means "the first card" (first start, nothing remembered yet).
                     if (pendingId == meta.id || (pendingId == "" && index == 0)) {
@@ -393,24 +394,49 @@ fun CatalogRow(
                             onPendingDone()
                         }
                     }
-                    PosterCard(
-                        meta = meta,
-                        modifier = Modifier
-                            .rememberFocus(memory, meta.id)
-                            .focusRequesterSafe(requester),
-                        onFocus = {
-                            onFocusItem(meta)
-                            if (index >= items.size - 8 && !loading && !exhausted) requestMore++
-                        },
-                        onClick = { onOpen(meta) },
-                        onLongClick = onLongPress?.let { f -> { f(meta) } },
-                        width = width,
-                        landscape = landscape,
-                        showTitle = showTitles,
-                    )
+                    val card: @Composable () -> Unit = {
+                        PosterCard(
+                            meta = meta,
+                            modifier = Modifier
+                                .rememberFocus(memory, meta.id)
+                                .focusRequesterSafe(requester),
+                            onFocus = {
+                                onFocusItem(meta)
+                                if (!top10 && index >= items.size - 8 && !loading && !exhausted) requestMore++
+                            },
+                            onClick = { onOpen(meta) },
+                            onLongClick = onLongPress?.let { f -> { f(meta) } },
+                            width = width,
+                            landscape = landscape && !top10,
+                            showTitle = showTitles,
+                        )
+                    }
+                    if (top10) TopTenItem(index + 1, width, card) else card()
                 }
             }
         }
+    }
+}
+
+/** A Top 10 place: a tall outlined number with the poster overlapping its right side. */
+@Composable
+private fun TopTenItem(rank: Int, width: Dp, card: @Composable () -> Unit) {
+    val h = width * 1.5f
+    Box(Modifier.width(width * 1.62f).height(h)) {
+        Text(
+            rank.toString(),
+            style = androidx.compose.ui.text.TextStyle(
+                fontFamily = TitleFont,
+                fontSize = (h.value * 0.78f).sp,
+                lineHeight = (h.value * 0.8f).sp,
+                drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f),
+                color = Color(0x80FFFFFF),
+                letterSpacing = (-4).sp,
+            ),
+            maxLines = 1,
+            modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 0.dp),
+        )
+        Box(Modifier.align(Alignment.BottomEnd)) { card() }
     }
 }
 

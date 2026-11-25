@@ -182,6 +182,7 @@ fun PinPad(title: String, subtitle: String?, check: (String) -> Boolean, onDone:
         }
     }
     androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        DialogBlurBehind()
         Column(
             Modifier
                 .width(340.dp)
@@ -351,6 +352,7 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
     }
 
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        DialogBlurBehind()
         Column(
             Modifier
                 .width(520.dp)

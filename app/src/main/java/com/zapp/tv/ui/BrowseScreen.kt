@@ -82,10 +82,12 @@ fun BrowseScreen(
 
     val layout = remember(list, mvm.settings.homeRowsJson) { mvm.homeLayout(list.orEmpty()) }
     var options by remember(type) { mutableStateOf<String?>(null) }
+    var genre by remember(type) { mutableStateOf<String?>(null) }
 
     ImmersiveLayout(
         mvm = mvm,
         focused = hero,
+        topRight = { ClockAndAvatar(mvm) },
         placeholder = {
             Column(Modifier.align(Alignment.BottomStart).padding(start = RowInset, bottom = 24.dp)) {
                 Text(label, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
@@ -94,6 +96,25 @@ fun BrowseScreen(
             }
         },
     ) {
+        // Genres: chips that open a row for the chosen genre right below them.
+        val genreRef = list.orEmpty().firstOrNull { it.genres.isNotEmpty() }
+        if (genreRef != null) {
+            item(key = "genres") {
+                GenreChips(genreRef.genres, genre) { g -> genre = if (g == genre) null else g }
+            }
+            genre?.let { g ->
+                item(key = "genre:$g") {
+                    CatalogRow(
+                        mvm = mvm,
+                        ref = genreRef.copy(genre = g),
+                        title = g,
+                        onFocusItem = { hero = HeroItem(it, g) },
+                        onOpen = onOpen,
+                        showTitles = false,
+                    )
+                }
+            }
+        }
         items(list.orEmpty(), key = { it.key }) { ref ->
             val title = if (list.orEmpty().count { it.def.name == ref.def.name } > 1) "${ref.def.name} from ${ref.addon.manifest.name}" else ref.def.name
             val row = layout.firstOrNull { it.id == ref.key }
@@ -110,6 +131,7 @@ fun BrowseScreen(
                 onPendingDone = { pending = null },
                 size = row?.size ?: 1,
                 landscape = row?.landscape ?: false,
+                top10 = row?.top10 == true,
                 showTitles = false,
                 onLongPress = { options = ref.key },
             )
@@ -181,6 +203,41 @@ fun LibraryScreen(
                         onFocus = {},
                         onClick = { onOpen(meta) },
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenreChips(genres: List<String>, selected: String?, onPick: (String) -> Unit) {
+    Column {
+        RowHeader("Genres")
+        MinimalScrolling {
+            androidx.compose.foundation.lazy.LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = RowInset),
+            ) {
+                items(genres, key = { it }) { g ->
+                    val chosen = g == selected
+                    FocusSurface(
+                        onClick = { onPick(g) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                        focusScale = 1.04f,
+                        restColor = if (chosen) ZappColors.GlassHigh else ZappColors.Glass,
+                    ) { focused ->
+                        Text(
+                            g,
+                            color = when {
+                                focused -> ZappColors.OnFocus
+                                chosen -> ZappColors.Text
+                                else -> ZappColors.Dim
+                            },
+                            fontSize = 12.5.sp,
+                            fontWeight = if (chosen || focused) FontWeight.SemiBold else FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
                 }
             }
         }

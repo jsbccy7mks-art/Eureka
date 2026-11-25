@@ -2,6 +2,7 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -78,6 +79,7 @@ fun ImmersiveLayout(
     placeholder: (@Composable BoxScope.() -> Unit)? = null,
     /** Changing this scrolls back to the first row (e.g. when Continue watching appears). */
     scrollToTop: Any? = null,
+    topRight: (@Composable () -> Unit)? = null,
     rows: LazyListScope.() -> Unit,
 ) {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -102,8 +104,13 @@ fun ImmersiveLayout(
     ) {
         val screenHeight = maxHeight
         val heroHeight = screenHeight * 0.47f
-        Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
-        AmbientGlow(0.8f)
+        val backdropUrl = hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster }
+        Backdrop(
+            backdropUrl,
+            trailer = detail?.takeIf { it.preview.id == hero?.meta?.id }?.trailerYoutube,
+            trailerKey = hero?.meta?.id,
+        )
+        AmbientGlow(0.8f, tint = rememberArtColor(hero?.meta?.poster ?: backdropUrl))
 
         // The rows run the full height of the screen but are hidden above the header line. The row
         // above the one you're on is therefore still laid out (just invisible), so Up always finds it
@@ -131,6 +138,9 @@ fun ImmersiveLayout(
                 else -> HeroInfo(hero, detail)
             }
         }
+        if (topRight != null) {
+            Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 40.dp)) { topRight() }
+        }
     }
 }
 
@@ -153,7 +163,7 @@ fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
 
 /** Artwork of the title you're on, filling the top right and fading into the page. */
 @Composable
-private fun Backdrop(url: String?) {
+private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = null) {
     Box(Modifier.fillMaxSize()) {
         Crossfade(
             targetState = url,
@@ -162,7 +172,8 @@ private fun Backdrop(url: String?) {
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .fillMaxWidth(0.8f)
-                .fillMaxHeight(0.8f),
+                .fillMaxHeight(0.8f)
+                .clipToBounds(),
         ) { u ->
             Box(Modifier.fillMaxSize()) {
                 if (u != null) {
@@ -171,11 +182,19 @@ private fun Backdrop(url: String?) {
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         alignment = Alignment.TopCenter,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().drift(),
                     )
                 }
             }
         }
+        DelayedTrailer(
+            trailer,
+            trailerKey,
+            Modifier
+                .align(Alignment.TopEnd)
+                .fillMaxWidth(0.8f)
+                .fillMaxHeight(0.8f),
+        )
         // Fade the picture into the page on the left and at the bottom.
         Box(
             Modifier
@@ -314,6 +333,7 @@ fun RowOptionsDialog(
         first.tryRequest()
     }
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        DialogBlurBehind()
         Column(
             Modifier
                 .width(440.dp)
@@ -338,9 +358,13 @@ fun RowOptionsDialog(
             if (row.id != CONTINUE_ROW) {
                 OptionLine("Cards") {
                     Segmented(
-                        listOf("poster" to "Posters", "landscape" to "Landscape"),
-                        if (row.landscape) "landscape" else "poster",
-                    ) { v -> onChange { it.copy(landscape = v == "landscape") } }
+                        listOf("poster" to "Posters", "landscape" to "Landscape", "top10" to "Top 10"),
+                        when {
+                            row.top10 == true -> "top10"
+                            row.landscape -> "landscape"
+                            else -> "poster"
+                        },
+                    ) { v -> onChange { it.copy(landscape = v == "landscape", top10 = v == "top10") } }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

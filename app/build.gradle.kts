@@ -15,7 +15,7 @@ android {
         targetSdk = 34
         // Each GitHub build number becomes the version code, so the in-app updater can compare builds.
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 3
-        versionName = "0.11.1"
+        versionName = "0.12.0"
         // Optional: a Simkl app ID built in from the SIMKL_CLIENT_ID GitHub secret (it can also be set on the phone page).
         buildConfigField("String", "SIMKL_CLIENT_ID", "\"" + (System.getenv("SIMKL_CLIENT_ID") ?: "").filter { it.isLetterOrDigit() } + "\"")
     }
@@ -76,6 +76,7 @@ dependencies {
     // Networking + images
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     // Player
     implementation("androidx.media3:media3-exoplayer:1.4.1")

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.12.0 (polish)
+
+**New**
+- Colour from artwork: the background glow takes its colour from the title you're on (Settings,
+  Appearance).
+- Artwork slowly drifts (a gentle zoom and pan) on Home, Movies, Series and details.
+- Trailers: after a moment on a title, its trailer plays silently behind the header (Home, Movies,
+  Series) and on the details page. It only appears once it's actually playing. Switch off in
+  Settings, Appearance.
+- Top 10 rows: big outlined numbers beside the first ten posters. Your first "Top" or "Trending"
+  catalogue becomes one automatically; hold OK on any row to choose Posters, Landscape or Top 10.
+- Genre chips on Movies and Series: choose one and a row of that genre appears below.
+- Loading shimmer instead of blank boxes while rows load.
+- Frosted glass: the page blurs behind the open sidebar and behind dialogs (Android 12 and newer).
+- Clock (and your profile, with more than one) in the top right of Home, Movies and Series.
+- Buttons and cards dip slightly when you press OK.
+
+
 ## 0.11.1
 
 **Fixed**
