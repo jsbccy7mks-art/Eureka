@@ -157,7 +157,10 @@ fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentSca
     }
 }
 
-/** A film or episode you started, with how far you got. */
+/**
+ * A title you're part-way through: the show's own wide artwork with its logo (or name) bottom left,
+ * how much is left bottom right, and a thin progress line along the bottom edge.
+ */
 @Composable
 fun ContinueCard(
     progress: WatchProgress,
@@ -166,46 +169,68 @@ fun ContinueCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     width: Dp = 220.dp,
+    art: MediaViewModel.ShowArt? = null,
 ) {
-    Column(Modifier.width(width)) {
-        FocusSurface(
-            onClick = onClick,
-            onLongClick = onLongClick,
-            modifier = modifier
+    val name = art?.name?.takeIf { progress.name.isBlank() || progress.name.startsWith("tt") } ?: progress.name
+    FocusSurface(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = modifier
+            .width(width)
+            .aspectRatio(1.9f),
+        onFocusChange = { if (it) onFocus() },
+        shape = RoundedCornerShape(12.dp),
+        focusScale = 1f,
+        restColor = ZappColors.Glass,
+        focusColor = ZappColors.Glass,
+        ring = true,
+        ringCorner = 12.dp,
+    ) {
+        Artwork(art?.background ?: progress.background ?: progress.poster, name)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Color(0xD9000000))),
+        )
+        Row(
+            Modifier
+                .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f),
-            onFocusChange = { if (it) onFocus() },
-            shape = RoundedCornerShape(10.dp),
-            focusScale = 1f,
-            restColor = ZappColors.Glass,
-            focusColor = ZappColors.Glass,
-            ring = true,
-        ) { focused ->
-            Artwork(progress.background ?: progress.poster, progress.name)
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xCC000000))),
-            )
-            ProgressLine(
-                if (progress.duration > 1) (progress.position.toFloat() / progress.duration).coerceIn(0f, 1f)
-                else ((progress.percent ?: 0.0) / 100).toFloat().coerceIn(0f, 1f),
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 10.dp, vertical = 9.dp)
-                    .fillMaxWidth(),
-                track = Color(0x66FFFFFF),
-                fill = Color.White,
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Box(Modifier.weight(1f)) {
+                if (art?.logo != null) {
+                    AsyncImage(
+                        model = art.logo,
+                        contentDescription = name,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.BottomStart,
+                        modifier = Modifier.heightIn(max = width * 0.17f).widthIn(max = width * 0.5f),
+                    )
+                } else {
+                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                listOfNotNull(progress.episodeLabel?.substringBefore(","), minutesLeft(progress)).joinToString("  ·  "),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1f), 4f)),
             )
         }
-        Spacer(Modifier.height(7.dp))
-        Text(progress.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(
-            listOfNotNull(progress.episodeLabel, minutesLeft(progress)).joinToString(", "),
-            color = ZappColors.Dim,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        ProgressLine(
+            if (progress.duration > 1) (progress.position.toFloat() / progress.duration).coerceIn(0f, 1f)
+            else ((progress.percent ?: 0.0) / 100).toFloat().coerceIn(0f, 1f),
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 12.dp, vertical = 5.dp)
+                .fillMaxWidth(),
+            track = Color(0x40FFFFFF),
+            fill = Color.White,
         )
     }
 }
@@ -214,7 +239,7 @@ fun minutesLeft(p: WatchProgress): String {
     if ((p.percent ?: 0.0) < 0) return "Up next"
     if (p.duration <= 1) return "${(p.percent ?: 0.0).toInt()}% watched"
     val left = ((p.duration - p.position) / 60_000).coerceAtLeast(1)
-    return if (left >= 60) "${left / 60} h ${left % 60} min left" else "$left min left"
+    return if (left >= 60) "${left / 60}h ${left % 60}m left" else "${left}m left"
 }
 
 /** Big artwork header for films and series, used on Home, Movies and Series. */

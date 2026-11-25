@@ -160,12 +160,14 @@ fun HomeScreen(
         items(rows, key = { it.id }) { row ->
             if (row.id == CONTINUE_ROW) {
                 ContinueRow(
+                    art = mvm.showArt,
                     items = continueItems,
                     size = row.size,
                     pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
                     onPendingDone = { pending = null },
                     onFocusItem = { p ->
-                        focused = HeroItem(p.asPreview(), "Continue watching", p)
+                        val a = mvm.showArt[p.metaId]
+                        focused = HeroItem(p.asPreview().copy(name = a?.name?.takeIf { p.name.startsWith("tt") || p.name.isBlank() } ?: p.name, logo = a?.logo, background = a?.background ?: p.background), "Continue watching", p)
                         lastFocus = HomeFocus(row.id, p.videoId)
                         moves++
                     },
@@ -186,7 +188,7 @@ fun HomeScreen(
                 MetaRow(
                     title = title,
                     items = items,
-                    badges = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "NEW · ${it.second}" } else emptyMap(),
+                    badges = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "New · ${it.second}" } else emptyMap(),
                     size = row.size,
                     landscape = row.landscape,
                     pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
@@ -271,6 +273,7 @@ private fun EmptyHero(focus: FocusRequester, onOpenAddons: () -> Unit) {
 
 @Composable
 private fun ContinueRow(
+    art: Map<String, MediaViewModel.ShowArt>,
     items: List<WatchProgress>,
     size: Int,
     pendingId: String?,
@@ -282,7 +285,7 @@ private fun ContinueRow(
     val memory = rememberFocusMemory()
     Column {
         RowHeader("Continue watching")
-        val extra = cardWidth(size, true) + 24.dp
+        val extra = cardWidth(size, true) * 1.18f + 24.dp
         PivotScrolling(RowInset + extra) {
             LazyRow(
                 modifier = Modifier
@@ -301,6 +304,7 @@ private fun ContinueRow(
                         }
                     }
                     ContinueCard(
+                        art = art[p.metaId],
                         progress = p,
                         modifier = Modifier
                             .rememberFocus(memory, p.videoId)
@@ -308,7 +312,7 @@ private fun ContinueRow(
                         onFocus = { onFocusItem(p) },
                         onClick = { onClick(p) },
                         onLongClick = { onLongPress(p) },
-                        width = cardWidth(size, true),
+                        width = cardWidth(size, true) * 1.18f,
                     )
                 }
             }
@@ -422,18 +426,21 @@ private fun MetaRow(
                             landscape = landscape,
                             showTitle = false,
                         )
+                        // Minimal: a small line of text over a soft shade at the bottom of the card.
                         badges[meta.id]?.let { b ->
+                            Box(
+                                Modifier
+                                    .matchParentSize()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to Color(0xCC000000))),
+                            )
                             Text(
                                 b,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.6.sp,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = Color.White,
-                                modifier = Modifier
-                                    .padding(6.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2)))
-                                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
                             )
                         }
                     }

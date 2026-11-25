@@ -68,20 +68,30 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     // Titles synced from Simkl or Stremio often arrive without pictures: fill them in from your
     // add-ons once, and save them so Continue watching always has artwork.
     private val artworkTried = HashSet<String>()
+
+    /** The show's own artwork and logo for Continue watching cards (by title id). */
+    data class ShowArt(val background: String?, val logo: String?, val name: String)
+    val showArt = androidx.compose.runtime.mutableStateMapOf<String, ShowArt>()
+
     init {
         viewModelScope.launch {
             continueWatching.collect { list ->
                 for (p in list) {
-                    if (p.background != null && p.poster != null) continue
-                    if (!artworkTried.add(p.videoId)) continue
+                    if (!artworkTried.add(p.metaId)) continue
                     val d = runCatching { repo.meta(p.type, p.metaId) }.getOrNull() ?: continue
-                    val thumb = d.videos.firstOrNull { it.id == p.videoId }?.thumbnail
-                    repo.saveProgress(
-                        p.copy(
-                            poster = p.poster ?: d.preview.poster,
-                            background = p.background ?: thumb ?: d.preview.background,
-                        ),
-                    )
+                    showArt[p.metaId] = ShowArt(d.preview.background, d.preview.logo, d.preview.name)
+                    // Synced titles sometimes arrive with no picture, or with only their id as a name.
+                    val badName = p.name.isBlank() || Regex("^tt\\d+").containsMatchIn(p.name)
+                    if (p.background == null || p.poster == null || badName) {
+                        val thumb = d.videos.firstOrNull { it.id == p.videoId }?.thumbnail
+                        repo.saveProgress(
+                            p.copy(
+                                name = if (badName) d.preview.name else p.name,
+                                poster = p.poster ?: d.preview.poster,
+                                background = p.background ?: thumb ?: d.preview.background,
+                            ),
+                        )
+                    }
                 }
             }
         }

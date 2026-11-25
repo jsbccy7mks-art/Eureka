@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.22.1
+
+**Changed**
+- Continue watching cards: wider, with the show's own artwork and logo bottom left, the episode and
+  time left bottom right ("S1 E5 · 46m left") and a thin progress line along the bottom edge.
+- Titles that came through sync with only their id ("tt…") now show their real name and logo.
+- New episodes: a small, quiet "New · S2 E3" line on the card instead of a coloured badge.
+
+
 ## 0.22.0 (new details page, same source)
 
 **New**
