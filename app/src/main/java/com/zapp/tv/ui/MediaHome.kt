@@ -309,9 +309,15 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
     }
 }
 
+/**
+ * Hold OK on a title: library, watched, (Continue watching) remove, and the row's own settings,
+ * which open in place. [row] null: no row settings (Library, Search and so on).
+ */
 @Composable
 fun RowOptionsDialog(
-    row: HomeRowSetting,
+    mvm: MediaViewModel,
+    meta: MetaPreview?,
+    row: HomeRowSetting?,
     progress: WatchProgress?,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
@@ -322,10 +328,13 @@ fun RowOptionsDialog(
     canHide: Boolean = true,
 ) {
     val first = remember { FocusRequester() }
+    var rowOpen by remember { mutableStateOf(meta == null) }
     LaunchedEffect(Unit) {
         delay(60)
         first.tryRequest()
     }
+    val inLibrary by (meta?.let { mvm.inLibrary(it.id) } ?: kotlinx.coroutines.flow.flowOf(false)).collectAsState(false)
+    val watched = meta?.id in WatchedMarks.ids
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         DialogBlurBehind()
         Column(
@@ -333,55 +342,111 @@ fun RowOptionsDialog(
                 .width(440.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(ZappColors.Panel)
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 14.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Column {
-                Text(row.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text("Changes apply straight away.", color = ZappColors.Faint, fontSize = 12.sp)
-            }
-            OptionLine("Card size") {
-                Box(Modifier.focusRequester(first).focusGroup()) {
-                    Segmented(
-                        listOf("0" to "Small", "1" to "Medium", "2" to "Large"),
-                        row.size.toString(),
-                    ) { v -> onChange { it.copy(size = v.toInt()) } }
+            Column(Modifier.padding(horizontal = 10.dp)) {
+                Text(meta?.name ?: row?.title.orEmpty(), fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val sub = listOfNotNull(progress?.episodeLabel?.substringBefore(","), row?.title?.takeIf { meta != null }).joinToString("  ·  ")
+                if (sub.isNotBlank()) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(sub, color = ZappColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (row.id != CONTINUE_ROW) {
-                OptionLine("Cards") {
-                    Segmented(
-                        listOf("poster" to "Posters", "landscape" to "Landscape"),
-                        if (row.landscape) "landscape" else "poster",
-                    ) { v -> onChange { it.copy(landscape = v == "landscape") } }
-                }
-                OptionLine("Ranked") {
-                    Segmented(
-                        listOf("off" to "Off", "on" to "Top 10"),
-                        if (row.top10 == true) "on" else "off",
-                    ) { v -> onChange { it.copy(top10 = v == "on") } }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (canMoveUp) ZButton("Move up", { onMove(-1) })
-                if (canMoveDown) ZButton("Move down", { onMove(1) })
-                if (canHide) ZButton("Hide row", {
-                    onChange { it.copy(on = false) }
+            Spacer(Modifier.height(8.dp))
+            var firstUsed = false
+            fun firstOnce(): FocusRequester? = if (!firstUsed) { firstUsed = true; first } else null
+            if (meta != null) {
+                MenuItem(if (inLibrary) "✓" else "+", if (inLibrary) "Remove from library" else "Add to library", firstOnce()) {
+                    mvm.toggleLibrary(meta, inLibrary)
                     onClose()
-                }, style = ButtonStyle.Quiet)
+                }
+                val episode = progress?.takeIf { it.type == "series" }
+                if (episode != null) {
+                    MenuItem("◉", "Mark ${episode.episodeLabel?.substringBefore(",") ?: "episode"} as watched", firstOnce()) {
+                        mvm.markContinueWatched(episode)
+                        onClose()
+                    }
+                } else {
+                    MenuItem(if (watched) "○" else "◉", if (watched) "Mark as unwatched" else "Mark as watched", firstOnce()) {
+                        if (progress != null) mvm.markContinueWatched(progress) else mvm.setWatched(meta, !watched)
+                        onClose()
+                    }
+                }
+                if (progress != null) {
+                    MenuItem("✕", "Remove from Continue watching", firstOnce()) { onRemoveTitle(progress) }
+                }
             }
-            if (progress != null) {
-                ZButton("Remove ${progress.name} from this row", { onRemoveTitle(progress) }, style = ButtonStyle.Danger)
+            if (row != null) {
+                MenuItem("☰", "Row settings", firstOnce(), trailing = if (rowOpen) "▴" else "▾") { rowOpen = !rowOpen }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = rowOpen,
+                    enter = androidx.compose.animation.expandVertically() + fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically() + fadeOut(),
+                ) {
+                    Column(
+                        Modifier.padding(start = 10.dp, end = 10.dp, top = 6.dp, bottom = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        OptionLine("Card size") {
+                            Box(Modifier.focusGroup()) {
+                                Segmented(
+                                    listOf("0" to "Small", "1" to "Medium", "2" to "Large"),
+                                    row.size.toString(),
+                                ) { v -> onChange { it.copy(size = v.toInt()) } }
+                            }
+                        }
+                        if (row.id != CONTINUE_ROW) {
+                            OptionLine("Cards") {
+                                Segmented(
+                                    listOf("poster" to "Posters", "landscape" to "Landscape"),
+                                    if (row.landscape) "landscape" else "poster",
+                                ) { v -> onChange { it.copy(landscape = v == "landscape") } }
+                            }
+                            OptionLine("Ranked") {
+                                Segmented(
+                                    listOf("off" to "Off", "on" to "Top 10"),
+                                    if (row.top10 == true) "on" else "off",
+                                ) { v -> onChange { it.copy(top10 = v == "on") } }
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (canMoveUp) ZButton("Move up", { onMove(-1) })
+                            if (canMoveDown) ZButton("Move down", { onMove(1) })
+                            if (canHide) ZButton("Hide row", {
+                                onChange { it.copy(on = false) }
+                                onClose()
+                            }, style = ButtonStyle.Quiet)
+                        }
+                        if (canHide) {
+                            Text("Hidden rows can be switched back on in Settings, Home layout.", color = ZappColors.Faint, fontSize = 11.sp)
+                        }
+                    }
+                }
             }
-            if (canHide) {
-                Text(
-                    "Hidden rows can be switched back on in Settings, Home layout.",
-                    color = ZappColors.Faint,
-                    fontSize = 11.sp,
-                )
-            }
-            ZButton("Done", onClose, style = ButtonStyle.Primary)
+        }
+    }
+}
+
+/** The long-press menu for a title outside Home's rows (Library, Search, details pages). */
+@Composable
+fun TitleMenu(mvm: MediaViewModel, meta: MetaPreview, onClose: () -> Unit) =
+    RowOptionsDialog(mvm, meta, null, null, false, false, {}, {}, {}, onClose, canHide = false)
+
+/** One line of a long-press menu: a small symbol, the action, and optionally something on the right. */
+@Composable
+fun MenuItem(symbol: String, label: String, requester: FocusRequester?, trailing: String? = null, onClick: () -> Unit) {
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        focusRequester = requester,
+        shape = RoundedCornerShape(12.dp),
+        focusScale = 1f,
+    ) { focused ->
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(symbol, fontSize = 14.sp, color = if (focused) ZappColors.OnFocus else ZappColors.Dim, modifier = Modifier.width(28.dp))
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (focused) ZappColors.OnFocus else ZappColors.Text, modifier = Modifier.weight(1f))
+            trailing?.let { Text(it, fontSize = 12.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint) }
         }
     }
 }

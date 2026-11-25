@@ -839,6 +839,24 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     val watchedTitles: StateFlow<Set<String>> =
         repo.watchedTitles.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
 
+    private fun watchedRow(meta: MetaPreview, videoId: String, label: String?, existing: WatchProgress?, now: Long) = WatchProgress(
+        id = existing?.id ?: 0,
+        profileId = settings.profileId,
+        videoId = videoId,
+        metaId = meta.id,
+        type = meta.type,
+        name = meta.name,
+        episodeLabel = label,
+        poster = meta.poster,
+        background = existing?.background ?: meta.background,
+        position = existing?.duration?.takeIf { it > 0 } ?: 0,
+        duration = existing?.duration ?: 0,
+        watched = true,
+        hidden = false,
+        updatedAt = now,
+        percent = 100.0,
+    )
+
     /**
      * Marks a film or a whole series as watched (every episode out so far), or clears it again.
      * Goes to Nuvio and, for films, Simkl.
@@ -854,28 +872,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             flushNuvio()
             return@launch
         }
-        fun row(videoId: String, label: String?, existing: WatchProgress?) = WatchProgress(
-            id = existing?.id ?: 0,
-            profileId = pid,
-            videoId = videoId,
-            metaId = meta.id,
-            type = meta.type,
-            name = meta.name,
-            episodeLabel = label,
-            poster = meta.poster,
-            background = existing?.background ?: meta.background,
-            position = existing?.duration?.takeIf { it > 0 } ?: 0,
-            duration = existing?.duration ?: 0,
-            watched = true,
-            hidden = false,
-            updatedAt = now,
-            percent = 100.0,
-        )
         val rows = ArrayList<WatchProgress>()
         if (meta.type == "series") {
             val d = runCatching { repo.meta("series", meta.id) }.getOrNull()
             d?.videos?.filter { (it.season ?: 0) > 0 && (releasedAt(it.released) ?: 0) <= now }?.forEach { v ->
-                rows.add(row(v.id, episodeLabel(v), dao.progress(pid, v.id)))
+                rows.add(watchedRow(meta, v.id, episodeLabel(v), dao.progress(pid, v.id), now))
                 nuvio.queueWatched(pid, meta.id, "series", v.id, meta.name, true)
             }
         } else {
@@ -883,9 +884,59 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             if (simkl.client.signedIn) launch { runCatching { simkl.scrobble("stop", meta.id, meta.type, meta.name, 100.0) } }
         }
         // The title itself (for series, a marker meaning "all of it").
-        rows.add(row(meta.id, null, dao.progress(pid, meta.id)))
+        rows.add(watchedRow(meta, meta.id, null, dao.progress(pid, meta.id), now))
         dao.saveProgressList(rows)
         flushNuvio()
+    }
+
+    /** Marks some episodes watched or unwatched (from the details page or Continue watching). */
+    fun setEpisodesWatched(meta: MetaPreview, episodes: List<Video>, watched: Boolean) = viewModelScope.launch {
+        val pid = settings.profileId
+        val now = System.currentTimeMillis()
+        val dao = zapp.mediaDao
+        if (watched) {
+            dao.saveProgressList(episodes.map { v -> watchedRow(meta, v.id, episodeLabel(v), dao.progress(pid, v.id), now) })
+            episodes.forEach { v ->
+                nuvio.queueWatched(pid, meta.id, "series", v.id, meta.name, true)
+                if (simkl.client.signedIn) launch { runCatching { simkl.scrobble("stop", v.id, "series", meta.name, 100.0) } }
+            }
+        } else {
+            episodes.forEach { v ->
+                val p = dao.progress(pid, v.id) ?: return@forEach
+                if (!p.watched) return@forEach
+                dao.deleteProgressRow(p.id)
+                nuvio.queueWatched(pid, meta.id, "series", v.id, meta.name, false)
+            }
+            // Not all of it any more.
+            dao.progress(pid, meta.id)?.takeIf { it.watched }?.let { dao.deleteProgressRow(it.id) }
+        }
+        flushNuvio()
+    }
+
+    /**
+     * From Continue watching: marks that episode (or film) watched. For a series, the next episode
+     * then takes its place as Up next.
+     */
+    fun markContinueWatched(p: WatchProgress) = viewModelScope.launch {
+        val preview = p.asPreview()
+        if (p.type != "series") {
+            setWatched(preview, true)
+            return@launch
+        }
+        val d = runCatching { repo.meta("series", p.metaId) }.getOrNull()
+        val videos = d?.videos.orEmpty()
+        val v = videos.firstOrNull { it.id == p.videoId }
+        if (v == null) {
+            setEpisodesWatched(preview, listOf(Video(p.videoId, "", null, null, null, null, null)), true)
+            return@launch
+        }
+        setEpisodesWatched(d!!.preview, listOf(v), true).join()
+        val i = videos.indexOf(v)
+        videos.drop(i + 1).firstOrNull { (it.season ?: 0) > 0 }?.let { next ->
+            if ((releasedAt(next.released) ?: 0) <= System.currentTimeMillis()) {
+                markUpNext(MediaInfo(p.videoId, p.metaId, p.type, d.preview.name, null, d.preview.poster, d.preview.background, "", emptyMap()), next)
+            }
+        }
     }
 
     fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) = viewModelScope.launch {

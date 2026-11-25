@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
@@ -47,9 +48,41 @@ import com.zapp.tv.data.WatchProgress
 
 val PosterWidth = 122.dp
 
+/** Every wide card (landscape rows and Continue watching) has this shape. */
+const val WideAspect = 1.9f
+
+/** Titles marked or finished as watched (for the tick on cards), kept up to date by the app. */
+object WatchedMarks {
+    var ids by androidx.compose.runtime.mutableStateOf<Set<String>>(emptySet())
+}
+
+/** A tiny white circle with a thin tick in the theme's colours. */
+@Composable
+fun WatchedTick(modifier: Modifier = Modifier, size: Dp = 15.dp) {
+    androidx.compose.foundation.Canvas(modifier.size(size)) {
+        val d = this.size.width
+        drawCircle(Color(0x40000000), radius = d / 2f, center = center.copy(y = center.y + d * 0.04f))
+        drawCircle(Color.White, radius = d / 2f)
+        val tick = androidx.compose.ui.graphics.Path().apply {
+            moveTo(d * 0.29f, d * 0.52f)
+            lineTo(d * 0.44f, d * 0.66f)
+            lineTo(d * 0.72f, d * 0.36f)
+        }
+        drawPath(
+            tick,
+            Brush.linearGradient(listOf(ZappColors.Brand1, ZappColors.Brand2), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(d, d)),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = d * 0.1f,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                join = androidx.compose.ui.graphics.StrokeJoin.Round,
+            ),
+        )
+    }
+}
+
 /** Card width for a Home row: size 0 small, 1 medium, 2 large. */
 fun cardWidth(size: Int, landscape: Boolean): Dp = if (landscape) {
-    when (size) { 0 -> 176.dp; 2 -> 256.dp; else -> 210.dp }
+    when (size) { 0 -> 176.dp; 2 -> 248.dp; else -> 208.dp }
 } else {
     when (size) { 0 -> 94.dp; 2 -> 140.dp; else -> 114.dp }
 }
@@ -72,14 +105,14 @@ fun PosterCard(
     rank: Int? = null,
 ) {
     val wide = landscape || meta.posterShape == "landscape"
-    val w = width ?: if (wide) 216.dp else PosterWidth
+    val w = width ?: if (wide) 208.dp else PosterWidth
     Column(Modifier.width(w)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
                 .fillMaxWidth()
-                .aspectRatio(if (wide) 16f / 9f else 2f / 3f),
+                .aspectRatio(if (wide) WideAspect else 2f / 3f),
             onFocusChange = { if (it) onFocus() },
             shape = RoundedCornerShape(10.dp),
             focusScale = 1f,
@@ -114,6 +147,9 @@ fun PosterCard(
                 }
             } else {
                 Artwork(meta.poster, meta.name)
+            }
+            if (meta.id in WatchedMarks.ids) {
+                WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
             }
             if (rank != null) {
                 // Minimal: a small number on the left, with just a soft drop shadow.
@@ -177,7 +213,7 @@ fun ContinueCard(
         onLongClick = onLongClick,
         modifier = modifier
             .width(width)
-            .aspectRatio(1.9f),
+            .aspectRatio(WideAspect),
         onFocusChange = { if (it) onFocus() },
         shape = RoundedCornerShape(12.dp),
         focusScale = 1f,
@@ -434,7 +470,7 @@ fun CatalogRow(
                         Box(
                             Modifier
                                 .width(width)
-                                .aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
+                                .aspectRatio(if (landscape) WideAspect else 2f / 3f)
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(shimmerBrush()),
                         )

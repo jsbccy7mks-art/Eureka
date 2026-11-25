@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -78,6 +79,8 @@ fun SearchScreen(
     val query = vm.searchText
     fun type(t: String) = vm.setSearch((query + t).take(60))
     fun saveRecent(q: String) = mvm.addRecentSearch(q)
+    var menuFor by remember { mutableStateOf<com.zapp.tv.addons.MetaPreview?>(null) }
+    menuFor?.let { m -> TitleMenu(mvm, m) { menuFor = null } }
 
     // Voice: the TV's own speech recogniser, when it has one.
     val voice = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { res ->
@@ -256,6 +259,7 @@ fun SearchScreen(
                                                 saveRecent(query.trim())
                                                 onOpenTitle(meta)
                                             },
+                                            onLongClick = { menuFor = meta },
                                             width = cardWidth(1, false),
                                             showTitle = true,
                                         )

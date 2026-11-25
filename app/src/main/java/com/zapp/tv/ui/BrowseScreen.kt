@@ -81,7 +81,7 @@ fun BrowseScreen(
     }
 
     val layout = remember(list, mvm.settings.homeRowsJson) { mvm.homeLayout(list.orEmpty()) }
-    var options by remember(type) { mutableStateOf<String?>(null) }
+    var options by remember(type) { mutableStateOf<Pair<String, MetaPreview>?>(null) }
     var genre by remember(type) { mutableStateOf<String?>(null) }
 
     var topTick by remember(type) { mutableIntStateOf(0) }
@@ -141,17 +141,19 @@ fun BrowseScreen(
                 landscape = row?.landscape ?: false,
                 top10 = row?.top10 == true,
                 showTitles = false,
-                onLongPress = { options = ref.key },
+                onLongPress = { m -> options = ref.key to m },
             )
         }
     }
 
-    options?.let { key ->
+    options?.let { (key, m) ->
         val row = layout.firstOrNull { it.id == key }
         if (row == null) {
             options = null
         } else {
             RowOptionsDialog(
+                mvm = mvm,
+                meta = m,
                 row = row,
                 progress = null,
                 canMoveUp = false,
@@ -174,6 +176,8 @@ fun LibraryScreen(
     onOpen: (MetaPreview) -> Unit,
 ) {
     val library by mvm.library.collectAsState()
+    var menuFor by remember { mutableStateOf<MetaPreview?>(null) }
+    menuFor?.let { m -> TitleMenu(mvm, m) { menuFor = null } }
     var handledTick by remember { mutableIntStateOf(focusTick) }
     val first = remember { FocusRequester() }
     LaunchedEffect(focusTick) {
@@ -210,6 +214,7 @@ fun LibraryScreen(
                         modifier = if (item == library.firstOrNull()) Modifier.focusRequesterSafe(first) else Modifier,
                         onFocus = {},
                         onClick = { onOpen(meta) },
+                        onLongClick = { menuFor = meta },
                     )
                 }
             }

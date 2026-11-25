@@ -310,6 +310,8 @@ object FocusStyle {
     var trailerDelay by mutableStateOf(4)
     /** Trailers with sound. */
     var trailerSound by mutableStateOf(false)
+    /** Trailers in up to 4K. */
+    var trailerBest by mutableStateOf(true)
 }
 
 /** One shared, slow pulse (0..1) for the focus glow, so cards don't each run an animation. */

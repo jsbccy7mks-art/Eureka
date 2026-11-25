@@ -100,6 +100,7 @@ fun ZappRoot(vm: AppViewModel) {
     var playRequest by remember { mutableStateOf<PlayRequest?>(null) }
     var vodOpen by remember { mutableStateOf(false) }
     val railFocus = remember { FocusRequester() }
+    var launching by rememberSaveable { mutableStateOf(true) }
 
     /** Ask the visible screen to take focus once it has been drawn. */
     fun requestContentFocus(waitMs: Long = 120) {
@@ -114,6 +115,7 @@ fun ZappRoot(vm: AppViewModel) {
     // Trailers stop whenever something covers them.
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
     TrailerGate.detailOpen = detail != null
+    WatchedMarks.ids = mvm.watchedTitles.collectAsState().value
 
     // ---- profiles
     val profiles by mvm.profiles.collectAsState()
@@ -426,6 +428,17 @@ fun ZappRoot(vm: AppViewModel) {
                     requestContentFocus()
                 },
                 onCancel = { settingsPin = false },
+            )
+        }
+        // Opening animation (once per launch) while Home loads behind it.
+        if (launching) {
+            LaunchScreen(
+                sound = mvm.settings.startupSound,
+                ready = { mvm.addons.value.isNotEmpty() },
+                onDone = {
+                    launching = false
+                    requestContentFocus(0)
+                },
             )
         }
 

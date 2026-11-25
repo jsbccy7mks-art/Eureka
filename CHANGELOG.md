@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.25.0
+
+**New**
+- Hold OK on any title (Home, Movies, Series, Library, Search, More like this) for a menu: add to or
+  remove from your library, mark as watched or unwatched, and Row settings, which open in place.
+  On Continue watching it also offers "Remove from Continue watching", and "Mark as watched" marks
+  that episode so the next one becomes Up next.
+- Details page, episodes: hold OK on an episode to mark it watched or unwatched, mark everything
+  before it as watched, mark the whole season, or play it from the start.
+- Films get a second details page for the story: the full synopsis, key facts and Mark as watched.
+- A tiny white tick (in your theme's colours) on films and series you've watched.
+- New loading animation: the Zapp mark draws itself, then rests with a sweep of light and a glow in
+  the poster's colours, with a fun line underneath that changes every few seconds.
+- An opening animation with a short chime while Home loads (Settings, Appearance: Startup sound).
+- With a TMDB key: official trailers (often 4K), title logos and clean backdrops where add-ons
+  have none (this also fills Continue watching cards that had no picture).
+- Trailer quality setting: Best (up to 4K) or Auto for slower boxes.
+
+**Changed**
+- All wide cards (landscape rows and Continue watching) share one shape and size; Medium is the
+  size Continue watching used to have on Small.
+- Watched marks sync to Nuvio.
+
+**Fixed**
+- YouTube's play/pause and skip buttons no longer appear over trailers.
+- Trailer sound now starts only when the picture appears, and plays in step with it.
+
 ## 0.24.0
 
 **New**

@@ -1097,6 +1097,18 @@ private fun AppearancePane(vm: AppViewModel) {
                 value = SettingValue.Toggle(s.trailerSound),
                 onClick = { s.trailerSound = !s.trailerSound },
             )
+            SettingRow(
+                title = "Trailer quality",
+                body = "Best asks YouTube for up to 4K. Choose Auto on slower boxes if trailers stutter.",
+                value = SettingValue.Choice(if (s.trailerBest) "Best" else "Auto"),
+                onClick = { s.trailerBest = !s.trailerBest },
+            )
+            SettingRow(
+                title = "Startup sound",
+                body = "A short chime as Zapp opens.",
+                value = SettingValue.Toggle(s.startupSound),
+                onClick = { s.startupSound = !s.startupSound },
+            )
         }
         }
     }

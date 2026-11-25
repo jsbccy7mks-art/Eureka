@@ -65,9 +65,9 @@ private data class HomeFocus(val rowKey: String, val itemKey: String)
 
 
 /** A long press on a card: options for its row (and for that title, in Continue watching). */
-private data class RowOptions(val rowId: String, val progress: WatchProgress? = null)
+private data class RowOptions(val rowId: String, val progress: WatchProgress? = null, val meta: MetaPreview? = null)
 
-private fun WatchProgress.asPreview() =
+fun WatchProgress.asPreview() =
     MetaPreview(metaId, type, name, poster, "poster", background, null, null, null, null, emptyList())
 
 /**
@@ -172,7 +172,10 @@ fun HomeScreen(
                         moves++
                     },
                     onClick = onResume,
-                    onLongPress = { p -> options = RowOptions(row.id, p) },
+                    onLongPress = { p ->
+                        val a = mvm.showArt[p.metaId]
+                        options = RowOptions(row.id, p, p.asPreview().copy(name = a?.name?.takeIf { p.name.startsWith("tt") || p.name.isBlank() } ?: p.name))
+                    },
                 )
             } else if (row.id == BECAUSE_ROW || row.id == NEW_EPISODES_ROW || row.id == LIBRARY_ROW) {
                 val title = when (row.id) {
@@ -199,7 +202,7 @@ fun HomeScreen(
                         moves++
                     },
                     onOpen = onOpenTitle,
-                    onLongPress = { options = RowOptions(row.id) },
+                    onLongPress = { m -> options = RowOptions(row.id, meta = m) },
                 )
             } else {
                 val ref = catalogs.first { it.key == row.id }
@@ -220,7 +223,7 @@ fun HomeScreen(
                     landscape = row.landscape,
                     top10 = row.top10 == true,
                     showTitles = false,
-                    onLongPress = { options = RowOptions(row.id) },
+                    onLongPress = { m -> options = RowOptions(row.id, meta = m) },
                 )
             }
         }
@@ -232,6 +235,8 @@ fun HomeScreen(
             options = null
         } else {
             RowOptionsDialog(
+                mvm = mvm,
+                meta = o.meta,
                 row = row,
                 progress = o.progress,
                 canMoveUp = row.id != CONTINUE_ROW && layout.indexOf(row) > 1,
@@ -285,7 +290,7 @@ private fun ContinueRow(
     val memory = rememberFocusMemory()
     Column {
         RowHeader("Continue watching")
-        val extra = cardWidth(size, true) * 1.18f + 24.dp
+        val extra = cardWidth(size, true) + 24.dp
         PivotScrolling(RowInset + extra) {
             LazyRow(
                 modifier = Modifier
@@ -312,7 +317,7 @@ private fun ContinueRow(
                         onFocus = { onFocusItem(p) },
                         onClick = { onClick(p) },
                         onLongClick = { onLongPress(p) },
-                        width = cardWidth(size, true) * 1.18f,
+                        width = cardWidth(size, true),
                     )
                 }
             }
@@ -389,7 +394,7 @@ private fun MetaRow(
     onPendingDone: () -> Unit,
     onFocusItem: (MetaPreview) -> Unit,
     onOpen: (MetaPreview) -> Unit,
-    onLongPress: () -> Unit,
+    onLongPress: (MetaPreview) -> Unit,
 ) {
     val memory = rememberFocusMemory()
     val width = cardWidth(size, landscape)
@@ -421,7 +426,7 @@ private fun MetaRow(
                                 .focusRequesterSafe(requester),
                             onFocus = { onFocusItem(meta) },
                             onClick = { onOpen(meta) },
-                            onLongClick = onLongPress,
+                            onLongClick = { onLongPress(meta) },
                             width = width,
                             landscape = landscape,
                             showTitle = false,

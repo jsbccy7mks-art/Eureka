@@ -149,7 +149,8 @@ fun DetailScreen(
     val seasons = remember(videos) { seasonsOf(videos) }
     var season by remember(request.id, nextUp.first?.season) { mutableStateOf(nextUp.first?.season ?: seasons.firstOrNull()) }
     var focusedEpisode by remember(request.id) { mutableStateOf<Video?>(null) }
-    var section by remember(request.id) { mutableIntStateOf(0) } // 0 title, 1 episodes, 2 more
+    var section by remember(request.id) { mutableIntStateOf(0) } // 0 title, 1 episodes or story, 2 cast, 3 more
+    var episodeMenu by remember(request.id) { mutableStateOf<Video?>(null) }
 
     fun playEpisode(v: Video) {
         val p = progress.firstOrNull { it.videoId == v.id }
@@ -241,7 +242,7 @@ fun DetailScreen(
                         when (sec) {
                             0 -> 0
                             1 -> px
-                            2 -> (if (isSeries) 2 * px else px).coerceAtMost(scroll.maxValue)
+                            2 -> (2 * px).coerceAtMost(scroll.maxValue)
                             else -> scroll.maxValue
                         },
                         androidx.compose.animation.core.tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing),
@@ -323,7 +324,7 @@ fun DetailScreen(
                             }
                             Spacer(Modifier.height(26.dp))
                             Text(
-                                "↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "CAST, CREDITS AND MORE",
+                                "↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "STORY, CAST AND MORE",
                                 color = ZappColors.Faint,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -465,6 +466,7 @@ fun DetailScreen(
                                                 Modifier.rememberFocus(memory, v.id),
                                                 upNext = v.id == nextUp.first?.id,
                                                 onFocus = { focusedEpisode = v },
+                                                onLongClick = { episodeMenu = v },
                                             ) { playEpisode(v) }
                                         }
                                     }
@@ -473,7 +475,22 @@ fun DetailScreen(
                         }
                     }
 
-                    // ================================================= 3. cast, credits and more
+                    // ================================================= 2. the story (films)
+                    if (!isSeries) {
+                        StorySection(
+                            mvm = mvm,
+                            meta = meta,
+                            detail = detail,
+                            tmdb = tmdb,
+                            watched = meta.id in WatchedMarks.ids,
+                            playLabel = playLabel,
+                            onPlay = { playMain() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(screenHeight)
+                                .onFocusChanged { if (it.hasFocus && section != 1) goTo(1) },
+                        )
+                    }
                     // ================================================= 3. cast, credits and reviews
                     CastSection(
                         meta = meta,
@@ -520,6 +537,20 @@ fun DetailScreen(
             }
         }
 
+        episodeMenu?.let { v ->
+            EpisodeMenu(
+                mvm = mvm,
+                meta = meta,
+                episode = v,
+                videos = videos,
+                progress = progress,
+                onPlayFromStart = {
+                    onPlay(PlayRequest(meta, v, videos, 0, mvm.settings.autoPlayFirst))
+                },
+                onClose = { episodeMenu = null },
+            )
+        }
+
         // Trailer with sound, full screen.
         if (trailerOpen && detail?.trailerYoutube != null) {
             BackHandler { trailerOpen = false }
@@ -527,6 +558,134 @@ fun DetailScreen(
                 ZappLoader(40.dp, Modifier.align(Alignment.Center))
                 TrailerBackground(detail.trailerYoutube, Modifier.fillMaxSize(), sound = true)
                 Text("Back to close", color = Color(0x99FFFFFF), fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp))
+            }
+        }
+    }
+}
+
+/** Hold OK on an episode: watched marks, including everything before it, and play from the start. */
+@Composable
+private fun EpisodeMenu(
+    mvm: MediaViewModel,
+    meta: MetaPreview,
+    episode: Video,
+    videos: List<Video>,
+    progress: List<WatchProgress>,
+    onPlayFromStart: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(60)
+        first.tryRequest()
+    }
+    val p = progress.firstOrNull { it.videoId == episode.id }
+    val watched = p?.watched == true
+    // Everything before this one, specials aside.
+    val regular = videos.filter { (it.season ?: 0) > 0 }
+    val idx = regular.indexOfFirst { it.id == episode.id }
+    val before = if (idx > 0) regular.take(idx) else emptyList()
+    val unwatchedBefore = before.count { v -> progress.none { it.videoId == v.id && it.watched } }
+    val seasonEps = videos.filter { it.season == episode.season }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        DialogBlurBehind()
+        Column(
+            Modifier
+                .width(440.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(ZappColors.Panel)
+                .padding(horizontal = 14.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 10.dp)) {
+                Text(episode.title.ifBlank { "Episode ${episode.episode}" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(3.dp))
+                Text("${meta.name}  ·  ${shortLabel(episode)}", color = ZappColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.height(8.dp))
+            MenuItem(if (watched) "○" else "◉", if (watched) "Mark as unwatched" else "Mark as watched", first) {
+                mvm.setEpisodesWatched(meta, listOf(episode), !watched)
+                onClose()
+            }
+            if (before.isNotEmpty()) {
+                MenuItem(
+                    "⇤",
+                    if (unwatchedBefore > 0) "Mark previous as watched" else "Previous episodes are watched",
+                    null,
+                    trailing = if (unwatchedBefore > 0) "$unwatchedBefore episode" + if (unwatchedBefore == 1) "" else "s" else null,
+                ) {
+                    if (unwatchedBefore > 0) mvm.setEpisodesWatched(meta, before, true)
+                    onClose()
+                }
+            }
+            if (seasonEps.size > 1 && episode.season != null) {
+                val seasonWatched = seasonEps.all { v -> progress.any { it.videoId == v.id && it.watched } }
+                MenuItem("☰", if (seasonWatched) "Mark ${seasonName(episode.season)} as unwatched" else "Mark all of ${seasonName(episode.season)} as watched", null) {
+                    mvm.setEpisodesWatched(meta, seasonEps, !seasonWatched)
+                    onClose()
+                }
+            }
+            if (p != null && !p.watched && p.position > 30_000) {
+                MenuItem("↺", "Play from the start", null) {
+                    onClose()
+                    onPlayFromStart()
+                }
+            }
+        }
+    }
+}
+
+/** Page two for films: the whole story, with the key facts beside it. */
+@Composable
+private fun StorySection(
+    mvm: MediaViewModel,
+    meta: MetaPreview,
+    detail: MetaDetail?,
+    tmdb: com.zapp.tv.data.TmdbDetails?,
+    watched: Boolean,
+    playLabel: String,
+    onPlay: () -> Unit,
+    modifier: Modifier,
+) {
+    Box(modifier) {
+        Row(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(start = 56.dp, end = 56.dp, bottom = 40.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Column(Modifier.weight(1.6f)) {
+                Text("THE STORY", color = ZappColors.Brand2.copy(alpha = 0.9f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+                Spacer(Modifier.height(12.dp))
+                tmdb?.tagline?.let {
+                    Text(it, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = ZappColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(12.dp))
+                }
+                Text(
+                    meta.description?.takeIf { it.isNotBlank() } ?: "No synopsis yet for this film.",
+                    fontSize = 15.sp,
+                    lineHeight = 24.sp,
+                    color = Color(0xFFD6D9E2),
+                    maxLines = 9,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 640.dp),
+                )
+                Spacer(Modifier.height(22.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ZButton(playLabel, onPlay, style = ButtonStyle.Primary)
+                    ZButton(if (watched) "Mark as unwatched" else "Mark as watched", { mvm.setWatched(meta, !watched) })
+                }
+            }
+            Spacer(Modifier.width(48.dp))
+            Column(Modifier.weight(1f)) {
+                CreditLine("Directed by", detail?.directors?.take(2)?.joinToString(", ")?.ifBlank { null })
+                CreditLine("Starring", (tmdb?.cast?.map { it.name } ?: detail?.people?.map { it.name } ?: detail?.cast).orEmpty().take(3).joinToString(", ").ifBlank { null })
+                CreditLine("Genres", meta.genres.take(3).joinToString(", ").ifBlank { null })
+                CreditLine("Released", detail?.released?.take(10) ?: meta.releaseInfo)
+                CreditLine("Runtime", prettyRuntime(detail?.runtime))
+                CreditLine("Rated", tmdb?.certification)
+                CreditLine("IMDb", meta.imdbRating?.let { "★ $it / 10" })
             }
         }
     }
@@ -730,6 +889,8 @@ private fun MoreSection(
             .padding(top = 90.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
+        var menuFor by remember { mutableStateOf<MetaPreview?>(null) }
+        menuFor?.let { mm -> TitleMenu(mvm, mm) { menuFor = null } }
         if (lead != null && leadWork.isNotEmpty()) {
             TmdbRow("More with ${lead.name}", leadWork) { openTmdb(it) }
         }
@@ -752,6 +913,7 @@ private fun MoreSection(
                                 modifier = Modifier.rememberFocus(memory, m.id),
                                 onFocus = {},
                                 onClick = { onOpen(m) },
+                                onLongClick = { menuFor = m },
                                 width = cardWidth(1, false),
                                 showTitle = false,
                             )
@@ -892,13 +1054,14 @@ private fun seasonsOf(videos: List<Video>): List<Int> =
 private fun seasonName(s: Int) = if (s == 0) "Specials" else "Season $s"
 
 @Composable
-private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, onClick: () -> Unit) {
+private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     // The card you're on grows; the others stay compact.
     val w by androidx.compose.animation.core.animateDpAsState(if (focused) 290.dp else 190.dp, androidx.compose.animation.core.tween(220), label = "epw")
     Column(Modifier.width(w)) {
         FocusSurface(
             onClick = onClick,
+            onLongClick = onLongClick,
             onFocusChange = {
                 focused = it
                 if (it) onFocus()
@@ -933,19 +1096,8 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
                     fill = Color.White,
                 )
             }
-            if (p?.watched == true && !f) {
-                Text(
-                    "✓",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(7.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(ZappColors.Bg.copy(alpha = 0.75f))
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                )
+            if (p?.watched == true) {
+                WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
             }
         }
         if (!focused) {

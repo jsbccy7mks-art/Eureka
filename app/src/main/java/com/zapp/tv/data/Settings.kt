@@ -306,6 +306,25 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    private val trailerBestState = mutableStateOf(prefs.getBoolean("trailerBest", true))
+    /** Trailers in the best quality YouTube has (up to 4K); off lets YouTube choose for the screen. */
+    var trailerBest: Boolean
+        get() = trailerBestState.value
+        set(value) {
+            trailerBestState.value = value
+            prefs.edit().putBoolean("trailerBest", value).apply()
+            com.zapp.tv.ui.FocusStyle.trailerBest = value
+        }
+
+    private val startupSoundState = mutableStateOf(prefs.getBoolean("startupSound", true))
+    /** A short chime when Zapp opens. */
+    var startupSound: Boolean
+        get() = startupSoundState.value
+        set(value) {
+            startupSoundState.value = value
+            prefs.edit().putBoolean("startupSound", value).apply()
+        }
+
     private val sameSourceState = mutableStateOf(prefs.getBoolean("sameSource", true))
     /** Resuming (or the next episode) tries the source you used last time first. */
     var sameSource: Boolean
@@ -358,6 +377,7 @@ class Settings(context: Context) {
         com.zapp.tv.ui.FocusStyle.drift = prefs.getBoolean("drift", true)
         com.zapp.tv.ui.FocusStyle.trailerDelay = prefs.getInt("trailerDelay", 4)
         com.zapp.tv.ui.FocusStyle.trailerSound = prefs.getBoolean("trailerSound", false)
+        com.zapp.tv.ui.FocusStyle.trailerBest = prefs.getBoolean("trailerBest", true)
     }
 
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))

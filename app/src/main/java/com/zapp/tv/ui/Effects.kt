@@ -173,34 +173,40 @@ fun ClockAndAvatar(mvm: MediaViewModel) {
 fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false) {
     var playing by remember(youtubeId) { mutableStateOf(false) }
     val alpha by animateFloatAsState(if (playing) 1f else 0f, tween(900), label = "trailer")
-    val html = remember(youtubeId, sound) {
-        val muteFlag = if (sound) 0 else 1
-        val onReady = if (sound) "e.target.unMute();e.target.setVolume(70);" else "e.target.mute();"
+    val best = FocusStyle.trailerBest
+    val html = remember(youtubeId, sound, best) {
+        // Always starts muted: sound (if wanted) comes on at the moment the picture appears,
+        // so you never hear a trailer before you see it.
+        val unmute = if (sound) "P.unMute();P.setVolume(70);" else ""
         val id = youtubeId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }
+        // Best: the player is laid out at 4K so YouTube picks its sharpest stream; Auto: 720p-sized.
+        val w = if (best) 3840 else 1280
+        val h = if (best) 2160 else 720
+        val vq = if (best) "hd2160" else "default"
         """
         <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
         <style>html,body{margin:0;padding:0;background:#000;overflow:hidden;width:100%;height:100%}
-        /* The player is laid out at 4K size so YouTube picks its sharpest stream, then scaled down to
-           cover the box like artwork, zoomed a little to crop away YouTube's title bar and logo. */
-        #p{position:fixed;top:50%;left:50%;width:3840px;height:2160px;margin:-1080px 0 0 -1920px;pointer-events:none;border:0;transform-origin:50% 50%}
+        /* Scaled down to cover the box like artwork, zoomed a little to crop away YouTube's title bar and logo. */
+        #p{position:fixed;top:50%;left:50%;width:${w}px;height:${h}px;margin:-${h / 2}px 0 0 -${w / 2}px;pointer-events:none;border:0;transform-origin:50% 50%}
         /* Nothing can reach the player, so YouTube never shows its buttons. */
         #shield{position:fixed;left:0;top:0;right:0;bottom:0;z-index:5;background:transparent}</style></head>
         <body><div id="p"></div><div id="shield"></div>
         <script>
+        var P=null;
         function fit(){var el=document.getElementById('p');if(!el)return;
-          var k=Math.max(window.innerWidth/3840,window.innerHeight/2160)*1.32;el.style.transform='scale('+k+')';}
+          var k=Math.max(window.innerWidth/$w,window.innerHeight/$h)*1.32;el.style.transform='scale('+k+')';}
         window.addEventListener('resize',fit);
         </script>
         <script src="https://www.youtube.com/iframe_api"></script>
         <script>
         function onYouTubeIframeAPIReady(){
-          new YT.Player('p',{videoId:'$id',width:'3840',height:'2160',
-            playerVars:{autoplay:1,mute:$muteFlag,controls:0,showinfo:0,cc_load_policy:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4,vq:'hd2160'},
+          P=new YT.Player('p',{videoId:'$id',width:'$w',height:'$h',
+            playerVars:{autoplay:1,mute:1,controls:0,showinfo:0,cc_load_policy:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4,vq:'$vq'},
             events:{
-              onReady:function(e){fit();${onReady}try{e.target.setPlaybackQuality('hd2160');}catch(x){}e.target.playVideo();},
+              onReady:function(e){fit();e.target.mute();try{e.target.setPlaybackQuality('$vq');}catch(x){}e.target.playVideo();},
               onStateChange:function(e){
                 // Show only while really playing, and only after YouTube's start-up overlay has gone.
-                if(e.data==1){ if(!window.seen){window.seen=true;setTimeout(function(){Zapp.playing();},2600);} else {Zapp.playing();} }
+                if(e.data==1){ if(!window.seen){window.seen=true;setTimeout(function(){${unmute}Zapp.playing();},2600);} else {Zapp.playing();} }
                 if(e.data==0||e.data==2||e.data==3){Zapp.stopped();}
               },
               onError:function(){Zapp.stopped();}
@@ -210,8 +216,11 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
         </script></body></html>
         """.trimIndent()
     }
-    Box(modifier.graphicsLayer { this.alpha = alpha }) {
+    // The fade is applied to the web view itself and dropped once fully shown, so the video isn't
+    // drawn through an extra layer (which can put the sound out of step with the picture).
+    Box(modifier) {
         AndroidView(
+            update = { it.alpha = alpha },
             factory = { ctx ->
                 WebView(ctx).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
