@@ -52,6 +52,8 @@ data class MediaInfo(
     val background: String?,
     val url: String,
     val headers: Map<String, String>,
+    /** Subtitles from add-ons, added as extra tracks. */
+    val subtitles: List<com.zapp.tv.addons.ExternalSubtitle> = emptyList(),
 )
 
 /** One audio or subtitle choice in the player's menus. */
@@ -187,7 +189,20 @@ class Playback(
         cues = emptyList()
         applyPreferences()
         dataSourceFactory.setDefaultRequestProperties(info.headers)
-        player.setMediaItem(MediaItem.fromUri(info.url), startMs.coerceAtLeast(0))
+        val item = MediaItem.Builder()
+            .setUri(info.url)
+            .setSubtitleConfigurations(
+                info.subtitles.map { s ->
+                    val lang = com.zapp.tv.addons.normalizeLang(s.lang)
+                    MediaItem.SubtitleConfiguration.Builder(android.net.Uri.parse(s.url))
+                        .setMimeType(if (s.url.substringBefore('?').endsWith(".vtt", true)) MimeTypes.TEXT_VTT else MimeTypes.APPLICATION_SUBRIP)
+                        .setLanguage(lang.ifBlank { null })
+                        .setLabel((languageName(lang) ?: s.lang) + " · " + s.addonName)
+                        .build()
+                },
+            )
+            .build()
+        player.setMediaItem(item, startMs.coerceAtLeast(0))
         player.prepare()
         player.playWhenReady = true
     }

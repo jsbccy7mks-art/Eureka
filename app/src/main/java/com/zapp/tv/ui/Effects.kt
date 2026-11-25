@@ -231,13 +231,23 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
     }
 }
 
-/** Shows [TrailerBackground] once the same title has been on screen for a moment. */
+/** What's covering the page, so trailers underneath stop (and never play over a film). */
+object TrailerGate {
+    var appVisible by mutableStateOf(true)
+    /** The player or the sources screen is open. */
+    var playing by mutableStateOf(false)
+    /** A details page is open over Home, Movies or Series. */
+    var detailOpen by mutableStateOf(false)
+}
+
+/** Shows [TrailerBackground] once the same title has been on screen for a moment. [onDetail]: the details page's own trailer. */
 @Composable
-fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier) {
+fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier, onDetail: Boolean = false) {
     var show by remember(key) { mutableStateOf(false) }
-    LaunchedEffect(key, youtubeId, FocusStyle.trailers, FocusStyle.trailerDelay) {
+    val allowed = TrailerGate.appVisible && !TrailerGate.playing && (onDetail || !TrailerGate.detailOpen)
+    LaunchedEffect(key, youtubeId, FocusStyle.trailers, FocusStyle.trailerDelay, allowed) {
         show = false
-        if (youtubeId == null || !FocusStyle.trailers) return@LaunchedEffect
+        if (youtubeId == null || !FocusStyle.trailers || !allowed) return@LaunchedEffect
         delay(FocusStyle.trailerDelay * 1_000L)
         show = true
     }

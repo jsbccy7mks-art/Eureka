@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.0 (subtitles from add-ons, steadier navigation)
+
+**New**
+- Subtitles from your subtitle add-ons (OpenSubtitles and others): they're fetched while the sources
+  load and appear in the player's Subtitles menu, labelled with language and add-on. Your subtitle
+  language and English are offered, English first unless you chose another.
+
+**Fixed**
+- Trailers never play under a film or the live player, stop when a details page covers Home, and
+  stop when Zapp goes to the background.
+- Back on Home, Movies and Series first returns to the top row, then to the sidebar.
+- Back in Settings first returns to the section list.
+
+
 ## 0.13.2
 
 **Changed**

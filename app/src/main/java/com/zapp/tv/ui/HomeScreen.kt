@@ -124,11 +124,21 @@ fun HomeScreen(
         if (target != null) pending = target else if (rows.isEmpty()) emptyFocus.tryRequest()
     }
 
+    // Back from further down first returns to the top row; Back again goes to the sidebar.
+    var topTick by remember { mutableIntStateOf(0) }
+    val atTop = lastFocus == null || lastFocus?.rowKey == rows.firstOrNull()?.id
+    androidx.activity.compose.BackHandler(enabled = !atTop && rows.isNotEmpty()) {
+        val first = rows.first()
+        topTick++
+        pending = if (first.id == CONTINUE_ROW) HomeFocus(first.id, continueItems.first().videoId) else HomeFocus(first.id, "")
+    }
+
     ImmersiveLayout(
         mvm = mvm,
         focused = focused,
         header = if (rows.isEmpty()) ({ EmptyHero(emptyFocus, onOpenAddons) }) else null,
         scrollToTop = if (moves <= 1) firstRowId else null,
+        topTick = topTick,
         topRight = { ClockAndAvatar(mvm) },
     ) {
         items(rows, key = { it.id }) { row ->

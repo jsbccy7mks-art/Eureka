@@ -117,7 +117,7 @@ fun DetailScreen(
                 modifier = Modifier.fillMaxSize().drift(),
             )
         }
-        DelayedTrailer(detail?.trailerYoutube, request.id, Modifier.fillMaxSize())
+        DelayedTrailer(detail?.trailerYoutube, request.id, Modifier.fillMaxSize(), onDetail = true)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(*easedFade(start = 0f, end = 0.55f))))
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(*easedFade(start = 1f, end = 0.45f))))
         AmbientGlow(0.6f, tint = rememberArtColor(meta?.poster ?: meta?.background))

@@ -140,6 +140,16 @@ class AddonClient(private val http: OkHttpClient) {
         )
     }
 
+    suspend fun subtitles(base: String, addonName: String, type: String, id: String): List<ExternalSubtitle> = withContext(Dispatchers.IO) {
+        val text = get("$base/subtitles/${seg(type)}/${seg(id)}.json")
+        val arr = JSONObject(text).optJSONArray("subtitles") ?: return@withContext emptyList()
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val url = o.optString("url").takeIf { it.startsWith("http") } ?: return@mapNotNull null
+            ExternalSubtitle(url, o.optString("lang"), addonName)
+        }
+    }
+
     suspend fun streams(base: String, addonName: String, type: String, id: String): List<StreamItem> = withContext(Dispatchers.IO) {
         val text = get("$base/stream/${seg(type)}/${seg(id)}.json")
         val arr = JSONObject(text).optJSONArray("streams") ?: return@withContext emptyList()

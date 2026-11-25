@@ -110,6 +110,9 @@ fun ZappRoot(vm: AppViewModel) {
     }
 
     LaunchedEffect(Unit) { vm.onStremioSignedIn = { mvm.stremioSignedInFromPhone() } }
+    // Trailers stop whenever something covers them.
+    TrailerGate.playing = playRequest != null || vodOpen || playerOpen
+    TrailerGate.detailOpen = detail != null
 
     // ---- profiles
     val profiles by mvm.profiles.collectAsState()
@@ -160,6 +163,8 @@ fun ZappRoot(vm: AppViewModel) {
         detail = DetailRequest(meta.type, meta.id, meta)
     }
 
+    var starting by remember { mutableStateOf(false) }
+
     fun startStream(req: PlayRequest, stream: com.zapp.tv.addons.StreamItem, resolvedUrl: String? = null) {
         if (resolvedUrl == null && stream.url.isNullOrBlank() && stream.infoHash != null) {
             // Torrent source: ask the debrid service for a link first.
@@ -182,9 +187,20 @@ fun ZappRoot(vm: AppViewModel) {
             url = resolvedUrl ?: stream.url.orEmpty(),
             headers = stream.headers,
         )
-        playback.playMedia(info, req.resumeMs, req.resumePercent)
-        playRequest = req.copy(preferBingeGroup = stream.bingeGroup, autoPlay = false)
-        vodOpen = true
+        // Add-on subtitles were fetched while the sources loaded; wait a moment for them if needed.
+        if (starting) return
+        starting = true
+        coroutineScope.launch {
+            val subs = try {
+                mvm.subtitlesFor(req.meta.type, req.videoId)
+            } catch (e: Exception) {
+                emptyList()
+            }
+            playback.playMedia(info.copy(subtitles = subs), req.resumeMs, req.resumePercent)
+            playRequest = req.copy(preferBingeGroup = stream.bingeGroup, autoPlay = false)
+            vodOpen = true
+            starting = false
+        }
     }
 
     fun watchChannel(channel: com.zapp.tv.data.Channel) {
@@ -198,7 +214,9 @@ fun ZappRoot(vm: AppViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) TrailerGate.appVisible = true
             if (event == Lifecycle.Event.ON_STOP) {
+                TrailerGate.appVisible = false
                 playback.media?.let { m ->
                     val d = playback.player.duration
                     if (d > 0) mvm.saveProgress(m, playback.player.currentPosition, d)

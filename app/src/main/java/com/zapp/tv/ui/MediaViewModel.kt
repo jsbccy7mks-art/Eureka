@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import kotlinx.coroutines.async
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -461,6 +462,27 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun meta(type: String, id: String): MetaDetail? = repo.meta(type, id)
 
     fun streams(type: String, videoId: String): Flow<StreamBatch> = repo.streams(type, videoId)
+
+    // Subtitles are fetched while the sources load, so they're ready when playback starts.
+    private val subtitleJobs = HashMap<String, kotlinx.coroutines.Deferred<List<com.zapp.tv.addons.ExternalSubtitle>>>()
+
+    fun prefetchSubtitles(type: String, videoId: String) {
+        if (subtitleJobs.containsKey(videoId)) return
+        val langs = setOf("en", com.zapp.tv.addons.normalizeLang(settings.subtitleLanguage.ifBlank { "en" }))
+        subtitleJobs[videoId] = viewModelScope.async {
+            try {
+                repo.subtitles(type, videoId, langs)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+    }
+
+    /** The prefetched subtitles, waiting at most [waitMs] for them. */
+    suspend fun subtitlesFor(type: String, videoId: String, waitMs: Long = 1_500): List<com.zapp.tv.addons.ExternalSubtitle> {
+        prefetchSubtitles(type, videoId)
+        return kotlinx.coroutines.withTimeoutOrNull(waitMs) { subtitleJobs[videoId]?.await() }.orEmpty()
+    }
 
     // ------------------------------------------------------------ search
 

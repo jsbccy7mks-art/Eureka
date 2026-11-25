@@ -82,11 +82,14 @@ fun ImmersiveLayout(
     placeholder: (@Composable BoxScope.() -> Unit)? = null,
     /** Changing this scrolls back to the first row (e.g. when Continue watching appears). */
     scrollToTop: Any? = null,
+    /** Bumping this scrolls back to the first row (Back from further down). */
+    topTick: Int = 0,
     topRight: (@Composable () -> Unit)? = null,
     rows: LazyListScope.() -> Unit,
 ) {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(scrollToTop) { if (scrollToTop != null) listState.scrollToItem(0) }
+    LaunchedEffect(topTick) { if (topTick > 0) listState.animateScrollToItem(0) }
     var hero by remember { mutableStateOf<HeroItem?>(null) }
     // The header follows focus after a short pause, so scrolling quickly along a row stays smooth.
     LaunchedEffect(focused) {

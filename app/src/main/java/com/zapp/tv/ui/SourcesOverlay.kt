@@ -73,6 +73,7 @@ fun SourcesOverlay(
     val expected = addons.count { it.addon.enabled && it.manifest.supports("stream", request.meta.type, request.videoId) }
 
     LaunchedEffect(request.videoId) {
+        mvm.prefetchSubtitles(request.meta.type, request.videoId)
         withTimeoutOrNull(30_000) {
             mvm.streams(request.meta.type, request.videoId)
                 .take(expected.coerceAtLeast(1))

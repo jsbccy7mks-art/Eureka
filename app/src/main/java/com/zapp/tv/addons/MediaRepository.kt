@@ -187,6 +187,28 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
     }
 
     /** Asks every add-on that offers streams for this title; each answer arrives as its own batch. */
+    /**
+     * Subtitles from every subtitles add-on, limited to the languages you want (your subtitle
+     * language and English), a few of each.
+     */
+    suspend fun subtitles(type: String, videoId: String, languages: Set<String>): List<ExternalSubtitle> = coroutineScope {
+        val sources = enabledAddons().filter { it.manifest.supports("subtitles", type, videoId) }
+        sources.map { a ->
+            async {
+                withTimeoutOrNull(8_000) {
+                    try {
+                        client.subtitles(a.base, a.manifest.name, type, videoId)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }.orEmpty()
+            }
+        }.awaitAll().flatten()
+            .filter { s -> normalizeLang(s.lang) in languages }
+            .groupBy { normalizeLang(it.lang) }
+            .flatMap { (_, list) -> list.distinctBy { it.url }.take(4) }
+    }
+
     fun streams(type: String, videoId: String): Flow<StreamBatch> = channelFlow {
         val sources = enabledAddons().filter { it.manifest.supports("stream", type, videoId) }
         if (sources.isEmpty()) {
@@ -240,5 +262,24 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
         } else {
             dao.addToLibrary(LibraryItem(profileId = profile, metaId = meta.id, type = meta.type, name = meta.name, poster = meta.poster, addedAt = System.currentTimeMillis()))
         }
+    }
+}
+
+/** "eng", "en", "en-GB" and "English" all become "en" (and so on for other languages). */
+fun normalizeLang(code: String): String {
+    val c = code.trim().lowercase()
+    if (c.isEmpty()) return ""
+    val two = c.substringBefore('-').substringBefore('_')
+    if (two.length == 2) return two
+    return try {
+        java.util.Locale.getAvailableLocales().firstOrNull { l ->
+            try { l.isO3Language == two } catch (e: Exception) { false }
+        }?.language ?: when (two) {
+            "fre" -> "fr"; "ger" -> "de"; "dut" -> "nl"; "gre" -> "el"; "chi" -> "zh"; "per" -> "fa"; "rum" -> "ro"; "cze" -> "cs"
+            "english" -> "en"; "spanish" -> "es"; "french" -> "fr"; "german" -> "de"; "italian" -> "it"; "portuguese" -> "pt"; "arabic" -> "ar"; "turkish" -> "tr"
+            else -> two
+        }
+    } catch (e: Exception) {
+        two
     }
 }

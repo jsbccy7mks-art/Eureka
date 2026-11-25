@@ -151,3 +151,6 @@ data class StreamItem(
             }
         }
 }
+
+/** A subtitle file offered by a subtitles add-on (OpenSubtitles and similar). */
+data class ExternalSubtitle(val url: String, val lang: String, val addonName: String)

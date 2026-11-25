@@ -84,10 +84,18 @@ fun BrowseScreen(
     var options by remember(type) { mutableStateOf<String?>(null) }
     var genre by remember(type) { mutableStateOf<String?>(null) }
 
+    var topTick by remember(type) { mutableIntStateOf(0) }
+    val firstKey = list?.firstOrNull()?.key
+    androidx.activity.compose.BackHandler(enabled = last != null && last?.first != firstKey && firstKey != null) {
+        topTick++
+        pending = firstKey!! to ""
+    }
+
     ImmersiveLayout(
         mvm = mvm,
         focused = hero,
         topRight = { ClockAndAvatar(mvm) },
+        topTick = topTick,
         placeholder = {
             Column(Modifier.align(Alignment.BottomStart).padding(start = RowInset, bottom = 24.dp)) {
                 Text(label, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)

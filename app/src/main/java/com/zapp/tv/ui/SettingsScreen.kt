@@ -88,6 +88,8 @@ fun SettingsScreen(
     var handledTick by remember { mutableIntStateOf(focusTick) }
 
     var hasFocusInside by remember { mutableStateOf(false) }
+    var sectionsHaveFocus by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = hasFocusInside && !sectionsHaveFocus) { firstFocus.tryRequest() }
     val firstItem = remember { FocusRequester() }
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
@@ -118,7 +120,9 @@ fun SettingsScreen(
             Text("Settings", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
             Spacer(Modifier.height(18.dp))
             LazyColumn(
-                modifier = Modifier.restoreFocus(sectionMemory),
+                modifier = Modifier
+                    .onFocusChanged { sectionsHaveFocus = it.hasFocus }
+                    .restoreFocus(sectionMemory),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 items(SettingsSection.entries, key = { it.name }) { s ->
