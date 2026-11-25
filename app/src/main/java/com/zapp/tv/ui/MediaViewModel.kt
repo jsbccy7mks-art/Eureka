@@ -78,7 +78,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             continueWatching.collect { list ->
                 for (p in list) {
                     if (!artworkTried.add(p.metaId)) continue
-                    val d = runCatching { repo.meta(p.type, p.metaId) }.getOrNull() ?: continue
+                    val d = runCatching { meta(p.type, p.metaId) }.getOrNull() ?: continue
                     showArt[p.metaId] = ShowArt(d.preview.background, d.preview.logo, d.preview.name)
                     // Synced titles sometimes arrive with no picture, or with only their id as a name.
                     val badName = p.name.isBlank() || Regex("^tt\\d+").containsMatchIn(p.name)
@@ -613,7 +613,19 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun page(ref: CatalogRef, skip: Int): List<MetaPreview> =
         repo.catalogPage(ref, skip).let { list -> if (isKids) list.filter { com.zapp.tv.data.ProfileStore.kidsSafe(it.genres) } else list }
 
-    suspend fun meta(type: String, id: String): MetaDetail? = repo.meta(type, id)
+    suspend fun meta(type: String, id: String): MetaDetail? {
+        val m = repo.meta(type, id) ?: return null
+        if (!tmdb.enabled || !id.startsWith("tt")) return m
+        val t = runCatching { tmdb.details(id, type) }.getOrNull() ?: return m
+        // TMDB's official trailer (often 4K) over the add-on's, and its art where the add-on has none.
+        return m.copy(
+            trailerYoutube = t.trailerKey ?: m.trailerYoutube,
+            preview = m.preview.copy(
+                logo = m.preview.logo ?: t.logo,
+                background = m.preview.background ?: t.backdrop,
+            ),
+        )
+    }
 
     fun streams(type: String, videoId: String): Flow<StreamBatch> = repo.streams(type, videoId)
 
@@ -822,6 +834,59 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)
+
+    /** Films and series you've marked (or finished) as watched, for the little tick on cards. */
+    val watchedTitles: StateFlow<Set<String>> =
+        repo.watchedTitles.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /**
+     * Marks a film or a whole series as watched (every episode out so far), or clears it again.
+     * Goes to Nuvio and, for films, Simkl.
+     */
+    fun setWatched(meta: MetaPreview, watched: Boolean) = viewModelScope.launch {
+        val pid = settings.profileId
+        val now = System.currentTimeMillis()
+        val dao = zapp.mediaDao
+        if (!watched) {
+            val rows = dao.progressOfMeta(pid, meta.id).filter { it.watched }
+            rows.forEach { nuvio.queueWatched(pid, meta.id, meta.type, it.videoId, meta.name, false) }
+            dao.deleteWatched(pid, meta.id)
+            flushNuvio()
+            return@launch
+        }
+        fun row(videoId: String, label: String?, existing: WatchProgress?) = WatchProgress(
+            id = existing?.id ?: 0,
+            profileId = pid,
+            videoId = videoId,
+            metaId = meta.id,
+            type = meta.type,
+            name = meta.name,
+            episodeLabel = label,
+            poster = meta.poster,
+            background = existing?.background ?: meta.background,
+            position = existing?.duration?.takeIf { it > 0 } ?: 0,
+            duration = existing?.duration ?: 0,
+            watched = true,
+            hidden = false,
+            updatedAt = now,
+            percent = 100.0,
+        )
+        val rows = ArrayList<WatchProgress>()
+        if (meta.type == "series") {
+            val d = runCatching { repo.meta("series", meta.id) }.getOrNull()
+            d?.videos?.filter { (it.season ?: 0) > 0 && (releasedAt(it.released) ?: 0) <= now }?.forEach { v ->
+                rows.add(row(v.id, episodeLabel(v), dao.progress(pid, v.id)))
+                nuvio.queueWatched(pid, meta.id, "series", v.id, meta.name, true)
+            }
+        } else {
+            nuvio.queueWatched(pid, meta.id, meta.type, meta.id, meta.name, true)
+            if (simkl.client.signedIn) launch { runCatching { simkl.scrobble("stop", meta.id, meta.type, meta.name, 100.0) } }
+        }
+        // The title itself (for series, a marker meaning "all of it").
+        rows.add(row(meta.id, null, dao.progress(pid, meta.id)))
+        dao.saveProgressList(rows)
+        flushNuvio()
+    }
 
     fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) = viewModelScope.launch {
         repo.toggleLibrary(meta, currentlyIn)

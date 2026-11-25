@@ -180,17 +180,24 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
         """
         <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
         <style>html,body{margin:0;padding:0;background:#000;overflow:hidden;width:100%;height:100%}
-        /* Cover the box like artwork, and zoom in enough to crop away YouTube's title bar and logo. */
-        #p{position:fixed;top:50%;left:50%;width:177.78vh;min-width:100vw;height:56.25vw;min-height:100vh;
-           transform:translate(-50%,-50%) scale(1.32);pointer-events:none;border:0}</style></head>
-        <body><div id="p"></div>
+        /* The player is laid out at 4K size so YouTube picks its sharpest stream, then scaled down to
+           cover the box like artwork, zoomed a little to crop away YouTube's title bar and logo. */
+        #p{position:fixed;top:50%;left:50%;width:3840px;height:2160px;margin:-1080px 0 0 -1920px;pointer-events:none;border:0;transform-origin:50% 50%}
+        /* Nothing can reach the player, so YouTube never shows its buttons. */
+        #shield{position:fixed;left:0;top:0;right:0;bottom:0;z-index:5;background:transparent}</style></head>
+        <body><div id="p"></div><div id="shield"></div>
+        <script>
+        function fit(){var el=document.getElementById('p');if(!el)return;
+          var k=Math.max(window.innerWidth/3840,window.innerHeight/2160)*1.32;el.style.transform='scale('+k+')';}
+        window.addEventListener('resize',fit);
+        </script>
         <script src="https://www.youtube.com/iframe_api"></script>
         <script>
         function onYouTubeIframeAPIReady(){
-          new YT.Player('p',{videoId:'$id',width:'100%',height:'100%',
-            playerVars:{autoplay:1,mute:$muteFlag,controls:0,showinfo:0,cc_load_policy:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4},
+          new YT.Player('p',{videoId:'$id',width:'3840',height:'2160',
+            playerVars:{autoplay:1,mute:$muteFlag,controls:0,showinfo:0,cc_load_policy:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4,vq:'hd2160'},
             events:{
-              onReady:function(e){${onReady}e.target.playVideo();},
+              onReady:function(e){fit();${onReady}try{e.target.setPlaybackQuality('hd2160');}catch(x){}e.target.playVideo();},
               onStateChange:function(e){
                 // Show only while really playing, and only after YouTube's start-up overlay has gone.
                 if(e.data==1){ if(!window.seen){window.seen=true;setTimeout(function(){Zapp.playing();},2600);} else {Zapp.playing();} }
@@ -198,6 +205,7 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
               },
               onError:function(){Zapp.stopped();}
             }});
+          fit();
         }
         </script></body></html>
         """.trimIndent()
@@ -213,6 +221,10 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
                     settings.javaScriptEnabled = true
                     settings.mediaPlaybackRequiresUserGesture = false
                     settings.domStorageEnabled = true
+                    // The desktop player: with controls off it shows no buttons at all (the phone
+                    // player still pops up play/pause and skip arrows), and it offers 4K streams.
+                    settings.userAgentString = DESKTOP_UA
+                    settings.useWideViewPort = false
                     webChromeClient = WebChromeClient()
                     addJavascriptInterface(
                         object {
@@ -236,6 +248,9 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
         )
     }
 }
+
+private const val DESKTOP_UA =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 /** What's covering the page, so trailers underneath stop (and never play over a film). */
 object TrailerGate {

@@ -316,6 +316,24 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
         }
     }
 
+    /** Marked (or unmarked) as watched by hand. [videoId] is the film id or "show:season:episode". */
+    fun queueWatched(pid: Long, metaId: String, type: String, videoId: String, title: String, watched: Boolean) {
+        val ids = idsOf(metaId, type, videoId) ?: return
+        val key = JSONObject().put("content_id", ids.contentId)
+            .put("season", ids.season ?: JSONObject.NULL).put("episode", ids.episode ?: JSONObject.NULL)
+        val op = if (watched) {
+            JSONObject().put("op", "watched").put(
+                "item",
+                JSONObject().put("content_id", ids.contentId).put("content_type", ids.type).put("title", title)
+                    .put("season", ids.season ?: JSONObject.NULL).put("episode", ids.episode ?: JSONObject.NULL)
+                    .put("watched_at", System.currentTimeMillis()),
+            )
+        } else {
+            JSONObject().put("op", "watchedDelete").put("key", key)
+        }
+        enqueue(pid, "w:${ids.progressKey}", op)
+    }
+
     fun queueLibrary(pid: Long, metaId: String, type: String, name: String, poster: String?, inLibrary: Boolean) {
         if (metaId.isBlank() || (type != "movie" && type != "series")) return
         val op = if (inLibrary) {
@@ -344,6 +362,8 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
         val progressDeletes = JSONArray()
         val libraryAdds = JSONArray()
         val libraryDeletes = JSONArray()
+        val watchedAdds = JSONArray()
+        val watchedDeletes = JSONArray()
         snapshot.keys().forEach { k ->
             val o = snapshot.optJSONObject(k) ?: return@forEach
             when (o.optString("op")) {
@@ -351,6 +371,8 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
                 "progressDelete" -> progressDeletes.put(o.optString("key"))
                 "libraryAdd" -> o.optJSONObject("item")?.let { libraryAdds.put(it) }
                 "libraryDelete" -> o.optJSONObject("key")?.let { libraryDeletes.put(it) }
+                "watched" -> o.optJSONObject("item")?.let { watchedAdds.put(it) }
+                "watchedDelete" -> o.optJSONObject("key")?.let { watchedDeletes.put(it) }
             }
         }
         val origin = settings.installId
@@ -358,6 +380,8 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
         if (progress.length() > 0) rpc(pid, "sync_push_watch_progress", base().put("p_entries", progress).put("p_origin_client_id", origin))
         if (progressDeletes.length() > 0) rpc(pid, "sync_delete_watch_progress", base().put("p_keys", progressDeletes).put("p_origin_client_id", origin))
         if (libraryAdds.length() > 0) rpc(pid, "sync_push_library_items", base().put("p_items", libraryAdds).put("p_origin_client_id", origin))
+        if (watchedAdds.length() > 0) rpc(pid, "sync_push_watched_items", base().put("p_items", watchedAdds).put("p_origin_client_id", origin))
+        if (watchedDeletes.length() > 0) rpc(pid, "sync_delete_watched_items", base().put("p_keys", watchedDeletes).put("p_origin_client_id", origin))
         if (libraryDeletes.length() > 0) rpc(pid, "sync_delete_library_items", base().put("p_keys", libraryDeletes).put("p_origin_client_id", origin))
         // Drop only what was sent and hasn't changed since.
         synchronized(queueLock) {

@@ -30,6 +30,8 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
 
     private val database: AppDatabase by lazy { AppDatabase.build(this) }
 
+    val mediaDao get() = database.mediaDao()
+
     val repository: PlaylistRepository by lazy { PlaylistRepository(database, httpClient) }
 
     val media: MediaRepository by lazy { MediaRepository(database, httpClient, settings) }

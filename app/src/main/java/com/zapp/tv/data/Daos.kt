@@ -372,6 +372,13 @@ interface MediaDao {
     @Query("DELETE FROM watch_progress WHERE id = :id")
     suspend fun deleteProgressRow(id: Long)
 
+    /** Films marked watched, and series marked watched as a whole (a row keyed by the series id). */
+    @Query("SELECT DISTINCT metaId FROM watch_progress WHERE profileId = :profileId AND watched = 1 AND videoId = metaId")
+    fun observeWatchedTitles(profileId: Long): Flow<List<String>>
+
+    @Query("DELETE FROM watch_progress WHERE profileId = :profileId AND metaId = :metaId AND watched = 1")
+    suspend fun deleteWatched(profileId: Long, metaId: String)
+
     @Query("SELECT * FROM library WHERE profileId = :profileId")
     suspend fun allLibrary(profileId: Long): List<LibraryItem>
 

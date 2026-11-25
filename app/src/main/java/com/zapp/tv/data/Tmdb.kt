@@ -29,6 +29,12 @@ data class TmdbDetails(
     val cast: List<TmdbPerson>,
     val reviews: List<TmdbReview>,
     val recommendations: List<TmdbItem>,
+    /** The best official YouTube trailer (highest resolution, official, newest). */
+    val trailerKey: String? = null,
+    /** English title logo. */
+    val logo: String? = null,
+    /** A backdrop without text, in high resolution. */
+    val backdrop: String? = null,
 )
 
 /**
@@ -74,7 +80,11 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
                 return@withContext null
             }
         val kind = if (tv) "tv" else "movie"
-        val o = get("$kind/$id", mapOf("append_to_response" to "credits,reviews,recommendations," + if (tv) "content_ratings" else "release_dates")) ?: return@withContext null
+        val o = get("$kind/$id", mapOf(
+                "append_to_response" to "credits,reviews,recommendations,videos,images," + if (tv) "content_ratings" else "release_dates",
+                "include_image_language" to "en,null",
+                "include_video_language" to "en,null",
+            )) ?: return@withContext null
 
         val cast = o.optJSONObject("credits")?.optJSONArray("cast").objects().take(16).map {
             TmdbPerson(it.optLong("id"), it.optString("name"), it.optString("character").takeIf { c -> c.isNotBlank() }, img(it.optString("profile_path"), "w185"))
@@ -99,6 +109,23 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             )
         }.filter { it.text.isNotBlank() }
         val recs = o.optJSONObject("recommendations")?.optJSONArray("results").objects().take(20).map { item(it, kind) }
+        // Trailers: official YouTube trailers first, then the sharpest (TMDB records 2160 for 4K), then newest.
+        val trailer = o.optJSONObject("videos")?.optJSONArray("results").objects()
+            .filter { it.optString("site") == "YouTube" && it.optString("key").isNotBlank() && it.optString("type") in setOf("Trailer", "Teaser") }
+            .sortedWith(
+                compareByDescending<JSONObject> { it.optString("type") == "Trailer" }
+                    .thenByDescending { it.optBoolean("official") }
+                    .thenByDescending { it.optInt("size") }
+                    .thenByDescending { it.optString("published_at") },
+            ).firstOrNull()?.optString("key")
+        val images = o.optJSONObject("images")
+        val logo = images?.optJSONArray("logos").objects()
+            .filter { it.optString("iso_639_1") == "en" }
+            .maxByOrNull { it.optDouble("vote_average") }?.optString("file_path")
+        val backdrop = images?.optJSONArray("backdrops").objects()
+            .filter { it.isNull("iso_639_1") || it.optString("iso_639_1").isBlank() }
+            .maxByOrNull { it.optDouble("vote_average") }?.optString("file_path")
+            ?: o.optString("backdrop_path").takeIf { it.isNotBlank() }
         val d = TmdbDetails(
             tmdbId = id,
             type = kind,
@@ -112,6 +139,9 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             cast = cast,
             reviews = reviews,
             recommendations = recs,
+            trailerKey = trailer,
+            logo = img(logo, "w500"),
+            backdrop = img(backdrop, "w1280"),
         )
         details[cacheKey] = d
         d
