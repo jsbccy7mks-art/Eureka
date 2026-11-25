@@ -720,6 +720,18 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
         SettingsGroup("Nuvio", "Import your Nuvio add-ons") {
             NuvioSection(mvm)
         }
+        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected: cast photos, reviews and recommendations" else "Optional: cast photos, reviews and recommendations on details pages") {
+            Text(
+                "With your own free TMDB key, details pages show cast photos, age ratings, reviews, \"More with…\" and \"People also watched\".",
+                color = ZappColors.Dim,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton(if (mvm.tmdb.enabled) "Change key on my phone" else "Add key on my phone", { onPhone("tmdb") }, style = ButtonStyle.Primary)
+                if (mvm.tmdb.enabled) ZButton("Remove key", { mvm.settings.setSecret("tmdbKey", "") }, style = ButtonStyle.Quiet)
+            }
+        }
         SettingsGroup("Debrid services", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ")?.let { "Connected: $it" } ?: "Real-Debrid, AllDebrid, Premiumize, TorBox") {
             DebridSection(vm, mvm)
         }
@@ -1188,7 +1200,7 @@ private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
             listOf(
                 "Playlist" to "Xtream logins and M3U links, with a TV guide link",
                 "Add-on" to "Stremio add-ons by their install link",
-                "Accounts" to "Stremio sign-in, the Simkl app ID, Premiumize and TorBox keys",
+                "Accounts" to "Stremio sign-in, the Simkl app ID, TMDB, Premiumize and TorBox keys",
                 "Help" to "The crash report, to copy into your chat about the app",
             ).forEach { (t, b) ->
                 Row {

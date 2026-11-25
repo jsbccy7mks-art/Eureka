@@ -691,6 +691,17 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         null
     }
 
+    // ---- TMDB (optional, with your own key)
+    val tmdb get() = zapp.tmdb
+    suspend fun tmdbDetails(id: String, type: String): com.zapp.tv.data.TmdbDetails? = if (tmdb.enabled) tmdb.details(id, type) else null
+    suspend fun tmdbPersonWork(personId: Long, except: Long) = tmdb.personWork(personId, except)
+
+    /** Opens a TMDB title in Zapp (finding its IMDb id first). */
+    suspend fun tmdbToPreview(item: com.zapp.tv.data.TmdbItem): MetaPreview? {
+        val imdb = tmdb.imdbId(item) ?: return null
+        return MetaPreview(imdb, item.type, item.name, item.poster, "poster", item.backdrop, null, null, item.year, null, emptyList())
+    }
+
     fun hideFromContinue(metaId: String) = viewModelScope.launch { repo.hideFromContinue(metaId) }
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)

@@ -132,6 +132,8 @@ fun DetailScreen(
     }
     val (done, detail) = loaded
     val meta = detail?.preview ?: request.preview
+    // Optional extras from TMDB (with your own key): photos, rating, reviews, recommendations.
+    val tmdb by produceState<com.zapp.tv.data.TmdbDetails?>(null, request.id) { value = runCatching { mvm.tmdbDetails(request.id, request.type) }.getOrNull() }
     val progress by remember(request.id) { mvm.progressFor(request.id) }.collectAsState(initial = emptyList<WatchProgress>())
     val inLibrary by remember(request.id) { mvm.inLibrary(request.id) }.collectAsState(initial = false)
     val playFocus = remember { FocusRequester() }
@@ -239,13 +241,14 @@ fun DetailScreen(
                         when (sec) {
                             0 -> 0
                             1 -> px
+                            2 -> (if (isSeries) 2 * px else px).coerceAtMost(scroll.maxValue)
                             else -> scroll.maxValue
                         },
                         androidx.compose.animation.core.tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing),
                     )
                 }
             }
-            val dim by androidx.compose.animation.core.animateFloatAsState(if (section == 2) 0.88f else 0f, androidx.compose.animation.core.tween(500), label = "dim")
+            val dim by androidx.compose.animation.core.animateFloatAsState(if (section >= 2) 0.88f else 0f, androidx.compose.animation.core.tween(500), label = "dim")
             Box(Modifier.fillMaxSize().background(ZappColors.Bg.copy(alpha = dim)))
 
             NoAutoScroll {
@@ -264,12 +267,13 @@ fun DetailScreen(
                                 .padding(start = 56.dp, end = 48.dp, bottom = 30.dp),
                         ) {
                             val credit = when {
+                                tmdb?.createdBy?.isNotEmpty() == true -> "CREATED BY " + tmdb!!.createdBy.take(2).joinToString(", ").uppercase()
                                 isSeries && detail?.writers?.isNotEmpty() == true -> "CREATED BY " + detail.writers.first().uppercase()
                                 detail?.directors?.isNotEmpty() == true -> "DIRECTED BY " + detail.directors.take(2).joinToString(", ").uppercase()
                                 else -> null
                             }
                             Text(
-                                listOfNotNull(if (isSeries) "SERIES" else "FILM", credit).joinToString("   ·   "),
+                                listOfNotNull(tmdb?.network?.uppercase() ?: if (isSeries) "SERIES" else "FILM", credit).joinToString("   ·   "),
                                 color = ZappColors.Brand2.copy(alpha = 0.9f),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -280,7 +284,7 @@ fun DetailScreen(
                             Spacer(Modifier.height(10.dp))
                             MovieTitle(meta.name, if (meta.name.length > 24) 38.sp else 48.sp, maxLines = 2, modifier = Modifier.widthIn(max = 600.dp))
                             // Tagline: the first sentence of the story, after a short accent line.
-                            val tagline = meta.description?.let { d -> d.split(Regex("(?<=[.!?])\\s")).firstOrNull()?.trim() }?.takeIf { it.length in 8..140 }
+                            val tagline = tmdb?.tagline ?: meta.description?.let { d -> d.split(Regex("(?<=[.!?])\\s")).firstOrNull()?.trim() }?.takeIf { it.length in 8..140 }
                             if (tagline != null) {
                                 Spacer(Modifier.height(12.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -296,6 +300,19 @@ fun DetailScreen(
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            tmdb?.certification?.let { c ->
+                                Text(
+                                    c,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ZappColors.Text,
+                                    modifier = Modifier
+                                        .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            }
                             FactsLine(
                                 meta.releaseInfo,
                                 meta.imdbRating,
@@ -303,6 +320,7 @@ fun DetailScreen(
                                 meta.genres,
                                 size = 12.sp,
                             )
+                            }
                             Spacer(Modifier.height(26.dp))
                             Text(
                                 "↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "CAST, CREDITS AND MORE",
@@ -339,8 +357,8 @@ fun DetailScreen(
                                 Spacer(Modifier.weight(1f))
                                 // A few of the cast, quietly, on the right.
                                 Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                                    detail?.people.orEmpty().take(2).forEach {
-                                        Text(it.name.uppercase(), color = ZappColors.Dim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.8.sp, maxLines = 1)
+                                    (tmdb?.cast?.map { it.name } ?: detail?.people.orEmpty().map { it.name }).take(2).forEach { name ->
+                                        Text(name.uppercase(), color = ZappColors.Dim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.8.sp, maxLines = 1)
                                     }
                                 }
                             }
@@ -456,19 +474,29 @@ fun DetailScreen(
                     }
 
                     // ================================================= 3. cast, credits and more
+                    // ================================================= 3. cast, credits and reviews
+                    CastSection(
+                        meta = meta,
+                        detail = detail,
+                        tmdb = tmdb,
+                        modifier = Modifier
+                            .heightIn(min = screenHeight)
+                            .onFocusChanged { if (it.hasFocus && section != 2) goTo(2) },
+                    )
+                    // ================================================= 4. more with, people also watched, more like this
                     MoreSection(
                         mvm = mvm,
                         meta = meta,
-                        detail = detail,
+                        tmdb = tmdb,
                         onOpen = onOpenTitle,
-                        modifier = Modifier.onFocusChanged { if (it.hasFocus && section != 2) goTo(2) },
+                        modifier = Modifier.onFocusChanged { if (it.hasFocus && section != 3) goTo(3) },
                     )
                 }
             }
 
             // Slim header over the last page, so you always know where you are.
             androidx.compose.animation.AnimatedVisibility(
-                visible = section == 2,
+                visible = section >= 2,
                 enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { -it / 2 },
                 exit = androidx.compose.animation.fadeOut(),
             ) {
@@ -538,39 +566,22 @@ private fun EpisodeThread(count: Int, focusedIndex: Int, watched: List<Boolean>,
     }
 }
 
-/**
- * The last page: cast (with photos when the add-on has them) beside the credits, then more like this.
- */
+/** Page three: the cast (with photos when there are any) beside the credits, then reviews. */
 @Composable
-private fun MoreSection(
-    mvm: MediaViewModel,
+private fun CastSection(
     meta: MetaPreview,
     detail: MetaDetail?,
-    onOpen: (MetaPreview) -> Unit,
+    tmdb: com.zapp.tv.data.TmdbDetails?,
     modifier: Modifier = Modifier,
 ) {
-    val similar by produceState(emptyList<MetaPreview>(), meta.id) {
-        val genres = meta.genres.map { it.lowercase() }.toSet()
-        val found = LinkedHashMap<String, MetaPreview>()
-        for (ref in mvm.catalogs(meta.type).take(8)) {
-            val page = runCatching { mvm.page(ref, 0) }.getOrNull() ?: continue
-            for (m in page) {
-                if (m.id == meta.id || found.containsKey(m.id)) continue
-                if (genres.isEmpty() || m.genres.any { it.lowercase() in genres }) found[m.id] = m
-            }
-            value = found.values.take(20)
-            if (found.size >= 20) break
-        }
-    }
+    val people = tmdb?.cast?.takeIf { it.isNotEmpty() }?.map { com.zapp.tv.addons.Person(it.name, it.role, it.photo) } ?: detail?.people.orEmpty()
     Column(
         modifier
             .fillMaxWidth()
-            .padding(top = 86.dp, bottom = 40.dp),
+            .padding(top = 86.dp, bottom = 30.dp),
     ) {
         Row(Modifier.padding(horizontal = 56.dp)) {
-            // Cast.
             Column(Modifier.weight(1.5f)) {
-                val people = detail?.people.orEmpty()
                 if (people.isNotEmpty()) {
                     Text("Cast", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(12.dp))
@@ -610,40 +621,190 @@ private fun MoreSection(
                 }
             }
             Spacer(Modifier.width(36.dp))
-            // Credits, with dotted leaders.
             Column(Modifier.weight(1f)) {
                 Text("Credits", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
-                CreditLine(if (meta.type == "series") "Created by" else "Directed by", (if (meta.type == "series") detail?.writers?.take(2) else detail?.directors?.take(2))?.joinToString(", ")?.ifBlank { null })
-                CreditLine("Written by", detail?.writers?.take(2)?.joinToString(", ")?.ifBlank { null }?.takeIf { meta.type != "series" })
+                val creators = tmdb?.createdBy?.takeIf { it.isNotEmpty() } ?: if (meta.type == "series") detail?.writers else null
+                CreditLine("Created by", creators?.take(2)?.joinToString(", ")?.ifBlank { null })
+                CreditLine("Network", tmdb?.network?.takeIf { meta.type == "series" })
+                CreditLine("Directed by", detail?.directors?.take(2)?.joinToString(", ")?.ifBlank { null })
+                CreditLine("Written by", (tmdb?.writers?.takeIf { it.isNotEmpty() } ?: detail?.writers?.takeIf { meta.type != "series" })?.take(2)?.joinToString(", ")?.ifBlank { null })
+                CreditLine("Music by", tmdb?.music?.take(2)?.joinToString(", ")?.ifBlank { null })
                 CreditLine("Released", detail?.released?.take(10) ?: meta.releaseInfo)
                 CreditLine("Runtime", prettyRuntime(detail?.runtime))
-                CreditLine("Genres", meta.genres.take(3).joinToString(", ").ifBlank { null })
+                CreditLine("Rated", tmdb?.certification)
                 CreditLine("Country", detail?.country)
                 CreditLine("IMDb", meta.imdbRating?.let { "★ $it / 10" })
                 CreditLine("Awards", detail?.awards)
             }
         }
 
-        if (similar.isNotEmpty()) {
+        val reviews = tmdb?.reviews.orEmpty()
+        if (reviews.isNotEmpty()) {
             Spacer(Modifier.height(30.dp))
-            Text("More like this", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
+            Text("Reviews", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 12.dp))
             val memory = rememberFocusMemory()
             PivotScrolling(56.dp) {
                 LazyRow(
                     modifier = Modifier.restoreFocus(memory),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                     contentPadding = PaddingValues(horizontal = 56.dp),
                 ) {
-                    items(similar, key = { it.id }) { m ->
-                        PosterCard(
-                            meta = m,
-                            modifier = Modifier.rememberFocus(memory, m.id),
-                            onFocus = {},
-                            onClick = { onOpen(m) },
-                            width = cardWidth(1, false),
-                            showTitle = false,
-                        )
+                    items(reviews.size) { i -> ReviewCard(reviews[i], Modifier.rememberFocus(memory, i)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewCard(r: com.zapp.tv.data.TmdbReview, modifier: Modifier) {
+    FocusSurface(
+        onClick = {},
+        modifier = modifier
+            .width(330.dp)
+            .height(160.dp)
+            .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        focusScale = 1f,
+        restColor = ZappColors.Glass,
+        focusColor = ZappColors.GlassHigh,
+        ring = true,
+        ringCorner = 16.dp,
+    ) {
+        Column(Modifier.fillMaxSize().padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                r.rating?.let { rating ->
+                    val stars = (rating / 2).coerceIn(0.0, 5.0)
+                    Text("★".repeat(stars.toInt()) + "☆".repeat(5 - stars.toInt()), color = ZappColors.Star, fontSize = 12.sp, letterSpacing = 1.sp)
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text("TMDB", color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+                Spacer(Modifier.weight(1f))
+                Text("“", fontFamily = TitleFont, fontSize = 26.sp, color = ZappColors.Brand2.copy(alpha = 0.7f))
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(r.text, color = ZappColors.Text, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(r.author, color = ZappColors.Dim, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        }
+    }
+}
+
+/** Page four: more with the lead actor, what people also watched, and more like this. */
+@Composable
+private fun MoreSection(
+    mvm: MediaViewModel,
+    meta: MetaPreview,
+    tmdb: com.zapp.tv.data.TmdbDetails?,
+    onOpen: (MetaPreview) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val similar by produceState(emptyList<MetaPreview>(), meta.id) {
+        val genres = meta.genres.map { it.lowercase() }.toSet()
+        val found = LinkedHashMap<String, MetaPreview>()
+        for (ref in mvm.catalogs(meta.type).take(8)) {
+            val page = runCatching { mvm.page(ref, 0) }.getOrNull() ?: continue
+            for (m in page) {
+                if (m.id == meta.id || found.containsKey(m.id)) continue
+                if (genres.isEmpty() || m.genres.any { it.lowercase() in genres }) found[m.id] = m
+            }
+            value = found.values.take(20)
+            if (found.size >= 20) break
+        }
+    }
+    val lead = tmdb?.cast?.firstOrNull()
+    val leadWork by produceState(emptyList<com.zapp.tv.data.TmdbItem>(), lead?.id) {
+        value = if (lead != null && tmdb != null) runCatching { mvm.tmdbPersonWork(lead.id, tmdb.tmdbId) }.getOrDefault(emptyList()) else emptyList()
+    }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun openTmdb(item: com.zapp.tv.data.TmdbItem) {
+        scope.launch {
+            val m = mvm.tmdbToPreview(item)
+            if (m != null) onOpen(m) else android.widget.Toast.makeText(context, "Couldn't find ${item.name} in your add-ons", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    Column(
+        modifier
+            .fillMaxWidth()
+            .padding(top = 90.dp, bottom = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(28.dp),
+    ) {
+        if (lead != null && leadWork.isNotEmpty()) {
+            TmdbRow("More with ${lead.name}", leadWork) { openTmdb(it) }
+        }
+        if (tmdb?.recommendations?.isNotEmpty() == true) {
+            TmdbRow("People also watched", tmdb.recommendations) { openTmdb(it) }
+        }
+        if (similar.isNotEmpty()) {
+            Column {
+                Text("More like this", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
+                val memory = rememberFocusMemory()
+                PivotScrolling(56.dp) {
+                    LazyRow(
+                        modifier = Modifier.restoreFocus(memory),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 56.dp),
+                    ) {
+                        items(similar, key = { it.id }) { m ->
+                            PosterCard(
+                                meta = m,
+                                modifier = Modifier.rememberFocus(memory, m.id),
+                                onFocus = {},
+                                onClick = { onOpen(m) },
+                                width = cardWidth(1, false),
+                                showTitle = false,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        if (similar.isEmpty() && leadWork.isEmpty() && tmdb?.recommendations.isNullOrEmpty()) {
+            // Something to land on, so the page above can still be reached.
+            Box(Modifier.padding(start = 56.dp)) { ZButton("Back to top", {}, style = ButtonStyle.Quiet) }
+        }
+    }
+}
+
+/** A row of TMDB titles; the one you're on opens wide, like the episodes. */
+@Composable
+private fun TmdbRow(title: String, items: List<com.zapp.tv.data.TmdbItem>, onOpen: (com.zapp.tv.data.TmdbItem) -> Unit) {
+    Column {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
+        val memory = rememberFocusMemory()
+        PivotScrolling(56.dp) {
+            LazyRow(
+                modifier = Modifier.restoreFocus(memory),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 56.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                items(items, key = { it.type + it.id }) { item ->
+                    var focused by remember { mutableStateOf(false) }
+                    val wide = focused && item.backdrop != null
+                    val w by androidx.compose.animation.core.animateDpAsState(if (wide) 300.dp else 114.dp, androidx.compose.animation.core.tween(220), label = "tw")
+                    FocusSurface(
+                        onClick = { onOpen(item) },
+                        onFocusChange = { focused = it },
+                        modifier = Modifier
+                            .rememberFocus(memory, item.type + item.id)
+                            .width(w)
+                            .height(171.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        focusScale = 1f,
+                        restColor = ZappColors.Glass,
+                        focusColor = ZappColors.Glass,
+                        ring = true,
+                    ) {
+                        Artwork(if (wide) item.backdrop else item.poster ?: item.backdrop, item.name)
+                        if (wide) {
+                            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xD9000000))))
+                            Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+                                Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                item.year?.let { Text(it, fontSize = 11.sp, color = Color(0xCCFFFFFF)) }
+                            }
+                        }
                     }
                 }
             }

@@ -535,6 +535,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     showToast("$name connected from your phone")
                     return@withContext "$name is connected. Torrent sources will play through it."
                 }
+                "tmdb" -> {
+                    val key = body.optString("tmdbKey").trim()
+                    if (key.length < 16) fail("Paste your TMDB API key or read access token.")
+                    settings.setSecret("tmdbKey", key)
+                    if (!zapp.tmdb.check()) {
+                        settings.setSecret("tmdbKey", "")
+                        fail("TMDB didn't accept that key. Copy it again from themoviedb.org/settings/api.")
+                    }
+                    showToast("TMDB connected from your phone")
+                    return@withContext "TMDB is connected. Details pages now show cast photos, reviews and more."
+                }
                 "stremio" -> {
                     val email = body.optString("stremioEmail").trim()
                     val pass = body.optString("stremioPassword")

@@ -104,6 +104,7 @@
     <button type="button" data-type="stremio" aria-pressed="true">Stremio</button>
     <button type="button" data-type="simkl" aria-pressed="false">Simkl</button>
     <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
+    <button type="button" data-type="tmdb" aria-pressed="false">TMDB</button>
   </div>
 
   <form id="form" class="card" autocomplete="off">
@@ -191,6 +192,16 @@
       </div>
     </div>
 
+    <!-- TMDB -->
+    <div data-for="tmdb" hidden>
+      <h2>TMDB</h2>
+      <p>Adds cast photos, age ratings, reviews, "More with…" and "People also watched" to details pages. Get a free key at themoviedb.org/settings/api (the API key or the read access token both work).</p>
+      <div class="field">
+        <label for="tmdbKey">API key or read access token</label>
+        <input id="tmdbKey" autocapitalize="off" spellcheck="false">
+      </div>
+    </div>
+
     <!-- Debrid -->
     <div data-for="debrid" hidden>
       <h2>Debrid service</h2>
@@ -233,7 +244,7 @@
   let format = 'ts';
   let debridService = 'pm';
   const remembered = { playlist: 'xtream', accounts: 'stremio' };
-  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', simkl: 'Save', debrid: 'Connect' };
+  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect' };
 
   if (!token) $('codeBox').hidden = false;
   function currentToken() { return token || $('code').value.trim().toUpperCase(); }
@@ -278,7 +289,7 @@
   // The TV can open a particular part of this page (?tab=stremio and so on).
   const want = params.get('tab');
   if (want === 'xtream' || want === 'm3u') { remembered.playlist = want; choose('playlist'); }
-  else if (want === 'stremio' || want === 'simkl' || want === 'debrid') { remembered.accounts = want; choose('accounts'); }
+  else if (want === 'stremio' || want === 'simkl' || want === 'debrid' || want === 'tmdb') { remembered.accounts = want; choose('accounts'); }
   else if (want === 'addon' || want === 'help') { choose(want); }
   else { show(); }
 
@@ -318,6 +329,7 @@
     stremio: (b) => (!b.stremioEmail.trim() || !b.stremioPassword) && 'Enter your Stremio email and password.',
     simkl: (b) => !b.simklClientId.trim() && 'Paste the Client ID first.',
     debrid: (b) => !b.debridKey.trim() && 'Paste the API key first.',
+    tmdb: (b) => !b.tmdbKey.trim() && 'Paste your TMDB key first.',
   };
   const working = {
     xtream: 'Adding the playlist. Big playlists can take a minute…',
@@ -326,6 +338,7 @@
     stremio: 'Signing in to Stremio…',
     simkl: 'Saving…',
     debrid: 'Connecting…',
+    tmdb: 'Checking the key with TMDB…',
   };
 
   $('form').addEventListener('submit', async (e) => {
@@ -347,6 +360,7 @@
       debridKey: $('debridKey').value,
       stremioEmail: $('stremioEmail').value,
       stremioPassword: $('stremioPassword').value,
+      tmdbKey: $('tmdbKey').value,
     };
     const problem = missing[type] && missing[type](body);
     if (problem) { setStatus('err', problem); return; }

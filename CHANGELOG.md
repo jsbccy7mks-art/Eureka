@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.23.0
+
+**Fixed**
+- Player controls (and every key) didn't work when a film was started from a details page: the
+  details page kept hold of the remote. It now lets the player take over.
+
+**New**
+- TMDB (optional, with your own free key; Settings, Accounts and sync, or the phone page's TMDB tab):
+  cast photos, the age rating, network and creators, writers and music, and a tagline on the title
+  page; reviews on the cast page; and a fourth page with "More with" the lead actor and "People also
+  watched" (the one you're on opens wide), above More like this.
+
+
 ## 0.22.1
 
 **Changed**

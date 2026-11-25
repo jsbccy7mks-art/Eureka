@@ -109,8 +109,19 @@ fun Modifier.trapVertical(): Modifier = this
     }
     .focusGroup()
 
-/** Focus never leaves this (an overlay over other screens). */
+/**
+ * The arrow keys never move focus out of this (an overlay over other screens). Only arrows are
+ * blocked: something opened on top (the player, a dialog) can still take focus.
+ */
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 fun Modifier.trapFocus(): Modifier = this
-    .focusProperties { exit = { FocusRequester.Cancel } }
+    .focusProperties {
+        exit = { d ->
+            if (d == FocusDirection.Up || d == FocusDirection.Down || d == FocusDirection.Left || d == FocusDirection.Right) {
+                FocusRequester.Cancel
+            } else {
+                FocusRequester.Default
+            }
+        }
+    }
     .focusGroup()
