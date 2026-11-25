@@ -36,3 +36,31 @@ fun PivotScrolling(pivot: Dp, content: @Composable () -> Unit) {
     val spec = remember(px) { PivotSpec(px) }
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec, content = content)
 }
+
+/** A scroller that doesn't move by itself when focus changes; the screen scrolls it on purpose. */
+private object NoScrollSpec : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f
+}
+
+@Composable
+fun NoAutoScroll(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides NoScrollSpec, content = content)
+}
+
+/** Scroll only as far as needed to show the focused item (for short lists such as season tabs). */
+private object MinimalSpec : BringIntoViewSpec {
+    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 220, easing = TvEasing)
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val end = offset + size
+        return when {
+            offset >= 0 && end <= containerSize -> 0f
+            offset < 0 -> offset
+            else -> end - containerSize
+        }
+    }
+}
+
+@Composable
+fun MinimalScrolling(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides MinimalSpec, content = content)
+}

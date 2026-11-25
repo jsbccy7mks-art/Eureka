@@ -144,6 +144,20 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("welcomeSkipped", value).apply()
         }
 
+    private val themeState = mutableStateOf(prefs.getString("theme", "aurora") ?: "aurora")
+    /** Colour theme id (see Palettes). Applying it recolours the whole app at once. */
+    var theme: String
+        get() = themeState.value
+        set(value) {
+            themeState.value = value
+            prefs.edit().putString("theme", value).apply()
+            com.zapp.tv.ui.ZappColors.palette = com.zapp.tv.ui.Palettes.byId(value)
+        }
+
+    init {
+        com.zapp.tv.ui.ZappColors.palette = com.zapp.tv.ui.Palettes.byId(prefs.getString("theme", "aurora"))
+    }
+
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))
     /** Only list sources that can play straight away (ready on your debrid service or add-on). */
     var cachedOnly: Boolean

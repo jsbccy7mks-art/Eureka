@@ -257,6 +257,46 @@ fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: Str
     }
 }
 
+/** A film or series title in poster lettering (Anton), large and tight. */
+@Composable
+fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: Int = 2, modifier: Modifier = Modifier) {
+    Text(
+        name,
+        fontFamily = TitleFont,
+        fontSize = size,
+        lineHeight = size * 1.02f,
+        letterSpacing = 0.4.sp,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        color = Color.White,
+        modifier = modifier,
+    )
+}
+
+/** "81 min" or "81" becomes "1 h 21 min"; anything else is left as it is. */
+fun prettyRuntime(runtime: String?): String? {
+    val r = runtime?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val mins = Regex("""^(\d+)\s*(min|mins|minutes|m)?$""", RegexOption.IGNORE_CASE).find(r)?.groupValues?.get(1)?.toIntOrNull() ?: return r
+    return if (mins >= 60) "${mins / 60} h ${mins % 60} min" else "$mins min"
+}
+
+/** Year, runtime, genres and rating on one quiet line. */
+@Composable
+fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<String>, modifier: Modifier = Modifier) {
+    val parts = listOfNotNull(year, prettyRuntime(runtime), genres.take(3).joinToString(", ").ifBlank { null })
+    val text = androidx.compose.ui.text.buildAnnotatedString {
+        append(parts.joinToString("   ·   "))
+        if (rating != null) {
+            if (parts.isNotEmpty()) append("   ·   ")
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = ZappColors.Star))
+            append("★ ")
+            pop()
+            append(rating)
+        }
+    }
+    Text(text, color = ZappColors.Dim, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+}
+
 /** Year, rating, runtime and genres as small tags. */
 @Composable
 fun MetaFacts(year: String?, rating: String?, runtime: String?, genres: List<String>) {

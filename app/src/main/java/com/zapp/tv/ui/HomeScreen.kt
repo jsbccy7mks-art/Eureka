@@ -101,23 +101,34 @@ fun HomeScreen(
     // Home never plays live TV in the background.
     LaunchedEffect(Unit) { if (playback.channel != null) playback.stop() }
 
-    // Startup, or back from a title or the player: return to the card you were on.
-    LaunchedEffect(focusTick, rows.isNotEmpty()) {
-        if (focusTick == handledTick && rows.isNotEmpty() && lastFocus != null) return@LaunchedEffect
+    // Where focus goes:
+    // - first start, and whenever Continue watching shows up before you've moved: its first card,
+    //   so the row is always in view at the top (it may load after the catalogues);
+    // - back from a title or the player: the card you were on.
+    var moves by remember { mutableIntStateOf(0) }
+    val firstRowId = rows.firstOrNull()?.id
+    LaunchedEffect(focusTick, firstRowId) {
+        val tickChanged = focusTick != handledTick
         handledTick = focusTick
         val first = rows.firstOrNull()
-        val target = lastFocus ?: when {
+        val start = when {
             first == null -> null
             first.id == CONTINUE_ROW -> HomeFocus(first.id, continueItems.first().videoId)
             else -> HomeFocus(first.id, "")
         }
-        if (target != null) pending = target else emptyFocus.tryRequest()
+        val target = when {
+            tickChanged && lastFocus != null && moves > 1 -> lastFocus
+            moves <= 1 -> start
+            else -> null
+        }
+        if (target != null) pending = target else if (rows.isEmpty()) emptyFocus.tryRequest()
     }
 
     ImmersiveLayout(
         mvm = mvm,
         focused = focused,
         header = if (rows.isEmpty()) ({ EmptyHero(emptyFocus, onOpenAddons) }) else null,
+        scrollToTop = if (moves <= 1) firstRowId else null,
     ) {
         items(rows, key = { it.id }) { row ->
             if (row.id == CONTINUE_ROW) {
@@ -129,6 +140,7 @@ fun HomeScreen(
                     onFocusItem = { p ->
                         focused = HeroItem(p.asPreview(), "Continue watching", p)
                         lastFocus = HomeFocus(row.id, p.videoId)
+                        moves++
                     },
                     onClick = onResume,
                     onLongPress = { p -> options = RowOptions(row.id, p) },
@@ -143,6 +155,7 @@ fun HomeScreen(
                     onFocusItem = { meta ->
                         focused = HeroItem(meta, row.title)
                         lastFocus = HomeFocus(row.id, meta.id)
+                        moves++
                     },
                     onOpen = onOpenTitle,
                     pendingId = p?.itemKey,

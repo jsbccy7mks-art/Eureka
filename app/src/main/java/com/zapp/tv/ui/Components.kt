@@ -280,38 +280,43 @@ fun ZButton(
     focusRequester: FocusRequester? = null,
     onFocusChange: (Boolean) -> Unit = {},
 ) {
+    // Minimal: primary is a soft filled pill, others a hairline outline; focus turns any of them white.
+    var isFocused by remember { mutableStateOf(false) }
     FocusSurface(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier
+            .then(
+                if (!isFocused && style != ButtonStyle.Primary && style != ButtonStyle.Quiet) {
+                    Modifier.border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(50))
+                } else {
+                    Modifier
+                },
+            ),
         focusRequester = focusRequester,
-        onFocusChange = onFocusChange,
+        onFocusChange = {
+            isFocused = it
+            onFocusChange(it)
+        },
         shape = RoundedCornerShape(50),
-        focusScale = 1.05f,
+        focusScale = 1.03f,
         restColor = when (style) {
-            ButtonStyle.Quiet -> Color.Transparent
-            else -> ZappColors.Glass
+            ButtonStyle.Primary -> Color(0x2EFFFFFF)
+            else -> Color.Transparent
         },
     ) { focused ->
-        if (style == ButtonStyle.Primary && !focused) {
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(Brush.linearGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
-            )
-        }
         Text(
             text = text,
             color = when {
                 focused && style == ButtonStyle.Danger -> Color(0xFFD6243F)
                 focused -> ZappColors.OnFocus
-                style == ButtonStyle.Primary -> Color.White
                 style == ButtonStyle.Quiet -> ZappColors.Dim
                 else -> ZappColors.Text
             },
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontSize = 12.5.sp,
+            fontWeight = if (style == ButtonStyle.Primary || focused) FontWeight.SemiBold else FontWeight.Medium,
+            letterSpacing = 0.1.sp,
             maxLines = 1,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
     }
 }
@@ -511,28 +516,34 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     }
 }
 
-/** Soft violet and cyan light behind everything, so the black never looks flat. */
+/** The page colour with the theme's glow: its first colour top left, melting into the second bottom right. */
 @Composable
 fun AmbientBackground() {
     Canvas(Modifier.fillMaxSize()) {
         drawRect(ZappColors.Bg)
-        drawCircle(
-            brush = Brush.radialGradient(
-                listOf(ZappColors.Brand1.copy(alpha = 0.20f), Color.Transparent),
-                center = Offset(0f, 0f),
-                radius = size.width * 0.55f,
+    }
+    AmbientGlow()
+}
+
+/** Just the glow, to lay over artwork so every screen shares the same light. */
+@Composable
+fun AmbientGlow(strength: Float = 1f, modifier: Modifier = Modifier) {
+    Canvas(modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        drawRect(
+            Brush.radialGradient(
+                listOf(ZappColors.Brand1.copy(alpha = 0.16f * strength), Color.Transparent),
+                center = Offset(w * 0.05f, h * 0.02f),
+                radius = w * 0.6f,
             ),
-            radius = size.width * 0.55f,
-            center = Offset(0f, 0f),
         )
-        drawCircle(
-            brush = Brush.radialGradient(
-                listOf(ZappColors.Brand2.copy(alpha = 0.09f), Color.Transparent),
-                center = Offset(size.width, size.height),
-                radius = size.width * 0.5f,
+        drawRect(
+            Brush.radialGradient(
+                listOf(ZappColors.Brand2.copy(alpha = 0.12f * strength), Color.Transparent),
+                center = Offset(w * 0.95f, h * 1.02f),
+                radius = w * 0.6f,
             ),
-            radius = size.width * 0.5f,
-            center = Offset(size.width, size.height),
         )
     }
 }

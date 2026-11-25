@@ -398,7 +398,7 @@ private fun VodTopBar(playback: Playback, info: MediaInfo) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color(0xE6070A14), Color.Transparent)))
+            .background(Brush.verticalGradient(listOf(ZappColors.Bg.copy(alpha = 0.90f), Color.Transparent)))
             .padding(start = 48.dp, end = 48.dp, top = 30.dp, bottom = 60.dp),
         verticalAlignment = Alignment.Top,
     ) {

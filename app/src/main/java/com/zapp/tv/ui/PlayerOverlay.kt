@@ -361,7 +361,7 @@ internal fun BottomScrim(content: @Composable () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9070A14), Color(0xF2070A14))))
+            .background(Brush.verticalGradient(listOf(Color.Transparent, ZappColors.Bg.copy(alpha = 0.85f), ZappColors.Bg.copy(alpha = 0.95f))))
             .padding(start = 48.dp, end = 48.dp, top = 70.dp, bottom = 28.dp),
     ) {
         content()
@@ -499,7 +499,7 @@ internal fun SidePanel(title: String, content: @Composable () -> Unit) {
         Modifier
             .width(360.dp)
             .fillMaxHeight()
-            .background(Brush.horizontalGradient(listOf(Color(0x000A0E1A), Color(0xE60A0E1A), Color(0xF20A0E1A))))
+            .background(Brush.horizontalGradient(listOf(ZappColors.Bg.copy(alpha = 0.00f), ZappColors.Bg.copy(alpha = 0.90f), ZappColors.Bg.copy(alpha = 0.95f))))
             .padding(start = 36.dp, end = 32.dp, top = 32.dp, bottom = 24.dp),
     ) {
         Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
@@ -785,7 +785,7 @@ private fun ChannelListPanel(
         Modifier
             .width(360.dp)
             .fillMaxHeight()
-            .background(Brush.horizontalGradient(listOf(Color(0xF20A0E1A), Color(0xE60A0E1A), Color(0x000A0E1A))))
+            .background(Brush.horizontalGradient(listOf(ZappColors.Bg.copy(alpha = 0.95f), ZappColors.Bg.copy(alpha = 0.90f), ZappColors.Bg.copy(alpha = 0.00f))))
             .padding(start = 28.dp, end = 24.dp, top = 28.dp, bottom = 20.dp)
             .onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight) {

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.10.0 (minimal look, themes, new details page)
+
+**New**
+- Themes (Settings, Appearance): Aurora (blue into pink, the new default), Ocean, Sunset, Emerald and
+  Monochrome. The whole app recolours straight away.
+- Details page redesigned: the artwork at full strength, with the title in large poster lettering and
+  everything pinned along the bottom. One line of facts, a sleek play button that shows how far you
+  got, and quieter buttons beside it. Series show minimal season tabs and episode cards below.
+- Scroll down on a details page for "More like this" (from your catalogues, matching genres) and the
+  full details: release, runtime, genres, rating, director, cast and description.
+- New sidebar: slim icons floating over the page with a small gradient bar for where you are; it opens
+  with labels over a soft fade.
+
+**Changed**
+- A more minimal look throughout: thinner outline buttons, quieter text, and a soft blue-to-pink glow
+  instead of plain blue.
+- Home and Movies/Series headers use the same poster lettering and one-line facts.
+- Continue watching now always appears at the top of Home, even when it loads after the catalogues.
+- Bundles the Anton font (SIL Open Font License, see licenses/).
+
+
 ## 0.9.1 (polish)
 
 **Changed**

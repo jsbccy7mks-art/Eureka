@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,7 +70,7 @@ enum class Dest(val label: String, val glyph: Glyph) {
     Settings("Settings", Glyph.Settings),
 }
 
-private val RailWidth = 76.dp
+private val RailWidth = 72.dp
 private val RailOpenWidth = 220.dp
 
 @Composable
@@ -301,6 +303,7 @@ fun ZappRoot(vm: AppViewModel) {
                 request = d,
                 focusTick = focusTick,
                 onPlay = { playRequest = it },
+                onOpenTitle = { m -> detail = DetailRequest(m.type, m.id, m) },
                 onClose = {
                     detail = null
                     requestContentFocus()
@@ -409,26 +412,39 @@ private fun Sidebar(
     onSelect: (Dest) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    val width by animateDpAsState(if (open) RailOpenWidth else RailWidth, tween(180), label = "rail")
+    val width by animateDpAsState(if (open) RailOpenWidth else RailWidth, tween(200), label = "rail")
+    val scrim by androidx.compose.animation.core.animateFloatAsState(if (open) 1f else 0f, tween(200), label = "scrim")
 
+    // Closed: a slim column of icons floating over the page. Open: labels slide out over a soft fade.
     Box(
         Modifier
-            .width(width)
-            .fillMaxHeight()
-            .background(
-                if (open) {
-                    Brush.horizontalGradient(listOf(Color(0xFA0A0E1A), Color(0xF00A0E1A), Color(0x000A0E1A)))
-                } else {
-                    Brush.horizontalGradient(listOf(Color(0x660A0E1A), Color(0x000A0E1A)))
-                },
-            ),
+            .width(RailOpenWidth + 120.dp)
+            .fillMaxHeight(),
     ) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .graphicsLayer { alpha = scrim }
+                .background(
+                    Brush.horizontalGradient(
+                        0f to ZappColors.Bg.copy(alpha = 0.97f),
+                        0.55f to ZappColors.Bg.copy(alpha = 0.85f),
+                        1f to Color.Transparent,
+                    ),
+                ),
+        )
         Column(
             Modifier
+                .width(width)
                 .fillMaxHeight()
-                .padding(start = 14.dp, end = 14.dp, top = 22.dp, bottom = 22.dp),
+                .padding(start = 16.dp, end = 12.dp, top = 26.dp, bottom = 26.dp),
         ) {
-            LogoMark(34.dp, Modifier.padding(start = 7.dp))
+            Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                LogoMark(24.dp)
+                AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
+                    Text("Zapp", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, modifier = Modifier.padding(start = 12.dp))
+                }
+            }
             Spacer(Modifier.weight(1f))
             Column(
                 Modifier
@@ -438,43 +454,53 @@ private fun Sidebar(
                     }
                     .focusProperties { enter = { railFocus } }
                     .focusGroup(),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Dest.entries.forEach { d ->
                     val selected = d == current
                     FocusSurface(
                         onClick = { onSelect(d) },
-                        modifier = Modifier.width(if (open) RailOpenWidth - 28.dp else 48.dp),
-                        selected = selected,
+                        modifier = Modifier.width(if (open) RailOpenWidth - 28.dp else 44.dp),
                         focusRequester = if (selected) railFocus else null,
-                        shape = RoundedCornerShape(14.dp),
-                        focusScale = 1.04f,
+                        shape = RoundedCornerShape(12.dp),
+                        focusScale = 1f,
                     ) { focused ->
-                        if (d == Dest.Settings && updateReady) {
-                            Box(
-                                Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(start = 31.dp, top = 9.dp)
-                                    .size(7.dp)
-                                    .background(ZappColors.Brand2, RoundedCornerShape(50)),
-                            )
-                        }
                         Row(
-                            Modifier
-                                .height(48.dp)
-                                .padding(start = 13.dp),
+                            Modifier.height(42.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            GlyphIcon(
-                                d.glyph,
-                                when {
-                                    focused -> ZappColors.OnFocus
-                                    selected -> ZappColors.Text
-                                    else -> ZappColors.Dim
-                                },
-                                22.dp,
+                            // The current page: a short gradient bar beside its icon.
+                            Box(
+                                Modifier
+                                    .padding(start = 3.dp)
+                                    .width(3.dp)
+                                    .height(16.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (selected && !focused) Brush.verticalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))
+                                        else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)),
+                                    ),
                             )
-                            AnimatedVisibility(visible = open, enter = fadeIn(tween(160)), exit = fadeOut(tween(80))) {
+                            Box(Modifier.padding(start = 8.dp)) {
+                                GlyphIcon(
+                                    d.glyph,
+                                    when {
+                                        focused -> ZappColors.OnFocus
+                                        selected -> ZappColors.Text
+                                        else -> ZappColors.Faint
+                                    },
+                                    20.dp,
+                                )
+                                if (d == Dest.Settings && updateReady) {
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(6.dp)
+                                            .background(ZappColors.Brand2, RoundedCornerShape(50)),
+                                    )
+                                }
+                            }
+                            AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
                                 Text(
                                     d.label,
                                     color = when {
@@ -482,10 +508,10 @@ private fun Sidebar(
                                         selected -> ZappColors.Text
                                         else -> ZappColors.Dim
                                     },
-                                    fontSize = 15.sp,
-                                    fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Normal,
                                     maxLines = 1,
-                                    modifier = Modifier.padding(start = 16.dp),
+                                    modifier = Modifier.padding(start = 14.dp),
                                 )
                             }
                         }

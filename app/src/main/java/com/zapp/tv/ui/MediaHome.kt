@@ -76,8 +76,12 @@ fun ImmersiveLayout(
     focused: HeroItem?,
     header: (@Composable BoxScope.() -> Unit)? = null,
     placeholder: (@Composable BoxScope.() -> Unit)? = null,
+    /** Changing this scrolls back to the first row (e.g. when Continue watching appears). */
+    scrollToTop: Any? = null,
     rows: LazyListScope.() -> Unit,
 ) {
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(scrollToTop) { if (scrollToTop != null) listState.scrollToItem(0) }
     var hero by remember { mutableStateOf<HeroItem?>(null) }
     // The header follows focus after a short pause, so scrolling quickly along a row stays smooth.
     LaunchedEffect(focused) {
@@ -99,6 +103,7 @@ fun ImmersiveLayout(
         val screenHeight = maxHeight
         val heroHeight = screenHeight * 0.47f
         Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
+        AmbientGlow(0.8f)
 
         Column(Modifier.fillMaxSize()) {
             Box(
@@ -115,6 +120,7 @@ fun ImmersiveLayout(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 PivotScrolling(26.dp) {
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 4.dp, bottom = screenHeight * 0.5f),
@@ -130,7 +136,7 @@ fun ImmersiveLayout(
  * Colour stops fading from solid page colour at [start] to clear at [end] (fractions of the box),
  * following a smooth curve rather than a straight line.
  */
-private fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
+fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
     val steps = 12
     val out = ArrayList<Pair<Float, Color>>()
     for (i in 0..steps) {
@@ -204,7 +210,6 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
             if (h == null) return@Box
             val d = detail?.takeIf { it.preview.id == h.meta.id }
             val m = h.meta
-            val logo = m.logo ?: d?.preview?.logo
             val description = m.description ?: d?.preview?.description
             Column(
                 Modifier
@@ -213,38 +218,18 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                     .widthIn(max = 460.dp),
             ) {
                 Text(
-                    (if (m.type == "series") "SERIES" else if (m.type == "movie") "FILM" else m.type.uppercase()) + "  ·  " + h.rowTitle,
-                    color = ZappColors.Brand2,
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
+                    (if (m.type == "series") "SERIES" else if (m.type == "movie") "FILM" else m.type.uppercase()) + "  ·  " + h.rowTitle.uppercase(),
+                    color = ZappColors.Faint,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.6.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                Spacer(Modifier.height(8.dp))
+                MovieTitle(m.name, 40.sp)
                 Spacer(Modifier.height(10.dp))
-                if (logo != null) {
-                    AsyncImage(
-                        model = logo,
-                        contentDescription = m.name,
-                        contentScale = ContentScale.Fit,
-                        alignment = Alignment.BottomStart,
-                        modifier = Modifier
-                            .heightIn(max = 78.dp)
-                            .widthIn(max = 330.dp),
-                    )
-                } else {
-                    Text(
-                        m.name,
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp,
-                        lineHeight = 34.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                MetaFacts(
+                FactsLine(
                     m.releaseInfo ?: d?.preview?.releaseInfo,
                     m.imdbRating ?: d?.preview?.imdbRating,
                     d?.runtime,

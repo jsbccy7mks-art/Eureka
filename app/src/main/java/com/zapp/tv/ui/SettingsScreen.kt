@@ -2,6 +2,8 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +50,7 @@ const val UPDATE_LINK = "github.com/jsbccy7mks-art/Eureka/releases/latest/downlo
 private enum class SettingsSection(val label: String) {
     Sources("Playlists"),
     Addons("Add-ons"),
+    Appearance("Appearance"),
     HomeLayout("Home screen"),
     Live("Live TV and guide"),
     Playback("Playback"),
@@ -135,6 +138,7 @@ fun SettingsScreen(
             when (section) {
                 SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist)
                 SettingsSection.Addons -> AddonsPane(vm, mvm)
+                SettingsSection.Appearance -> AppearancePane(vm)
                 SettingsSection.HomeLayout -> HomeLayoutPane(mvm)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
                 SettingsSection.Playback -> PlaybackSettingsPane(vm)
@@ -789,6 +793,48 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZButton("Install", { if (link.isNotBlank()) mvm.addAddon(link, onClose) }, style = ButtonStyle.Primary)
                 ZButton("Cancel", onClose, style = ButtonStyle.Quiet)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppearancePane(vm: AppViewModel) {
+    val s = vm.settings
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Theme", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text("Colours for the glow, highlights and progress bars across the app.", color = ZappColors.Dim, fontSize = 12.sp)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Palettes.all.forEach { p ->
+                val chosen = s.theme == p.id
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    FocusSurface(
+                        onClick = { s.theme = p.id },
+                        modifier = Modifier
+                            .width(110.dp)
+                            .height(70.dp)
+                            .then(if (chosen) Modifier.border(2.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier),
+                        shape = RoundedCornerShape(14.dp),
+                        focusScale = 1.05f,
+                        focusColor = Color.White,
+                    ) { focused ->
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(if (focused) 3.dp else 0.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(p.bg)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(p.brand1.copy(alpha = 0.85f), Color.Transparent, p.brand2.copy(alpha = 0.85f)),
+                                    ),
+                                ),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(p.name, fontSize = 12.sp, color = if (chosen) ZappColors.Text else ZappColors.Dim, fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
+                }
             }
         }
     }
