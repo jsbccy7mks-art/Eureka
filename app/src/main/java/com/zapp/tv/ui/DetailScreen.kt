@@ -60,6 +60,8 @@ data class PlayRequest(
     val resumeMs: Long,
     val autoPlay: Boolean,
     val preferBingeGroup: String? = null,
+    /** Where to start when only a percentage is known (synced from Simkl). */
+    val resumePercent: Double? = null,
 ) {
     val videoId: String get() = video?.id ?: meta.id
     val episodeLabel: String? get() = video?.let { episodeLabel(it) }
@@ -121,7 +123,7 @@ fun DetailScreen(
         val isSeries = request.type == "series" && !detail?.videos.isNullOrEmpty()
         val videos = detail?.videos.orEmpty()
         val nextUp = remember(videos, progress) { nextUp(videos, progress) }
-        val movieProgress = progress.firstOrNull { it.videoId == meta.id && !it.watched && it.position > 30_000 }
+        val movieProgress = progress.firstOrNull { it.videoId == meta.id && !it.watched && (it.position > 30_000 || (it.percent ?: 0.0) > 1) }
 
         Column(
             Modifier
@@ -170,7 +172,10 @@ fun DetailScreen(
                                 progress.isEmpty() -> "Play ${shortLabel(video)}"
                                 else -> "Next: ${shortLabel(video)}"
                             },
-                            { onPlay(PlayRequest(meta, video, videos, resume, mvm.settings.autoPlayFirst)) },
+                            {
+                                val pct = progress.firstOrNull { it.videoId == video.id && !it.watched }?.percent
+                                onPlay(PlayRequest(meta, video, videos, resume, mvm.settings.autoPlayFirst, resumePercent = pct))
+                            },
                             style = ButtonStyle.Primary,
                             focusRequester = playFocus,
                         )
@@ -180,7 +185,7 @@ fun DetailScreen(
                     val resume = movieProgress?.position ?: 0L
                     ZButton(
                         if (movieProgress != null) "Resume, ${minutesLeft(movieProgress)}" else "Play",
-                        { onPlay(PlayRequest(meta, null, emptyList(), resume, mvm.settings.autoPlayFirst)) },
+                        { onPlay(PlayRequest(meta, null, emptyList(), resume, mvm.settings.autoPlayFirst, resumePercent = movieProgress?.percent)) },
                         style = ButtonStyle.Primary,
                         focusRequester = playFocus,
                     )
@@ -197,7 +202,7 @@ fun DetailScreen(
                 SeasonsAndEpisodes(videos, progress, nextUp.first) { v ->
                     val p = progress.firstOrNull { it.videoId == v.id }
                     val resume = if (p != null && !p.watched) p.position else 0L
-                    onPlay(PlayRequest(meta, v, videos, resume, mvm.settings.autoPlayFirst))
+                    onPlay(PlayRequest(meta, v, videos, resume, mvm.settings.autoPlayFirst, resumePercent = p?.takeIf { !it.watched }?.percent))
                 }
             }
         }
@@ -211,7 +216,7 @@ private fun nextUp(videos: List<Video>, progress: List<WatchProgress>): Pair<Vid
     if (latest != null) {
         val i = videos.indexOfFirst { it.id == latest.videoId }
         if (i >= 0) {
-            if (!latest.watched && latest.position > 30_000) return videos[i] to latest.position
+            if (!latest.watched && (latest.position > 30_000 || (latest.percent ?: 0.0) > 1)) return videos[i] to latest.position
             videos.getOrNull(i + 1)?.let { return it to 0L }
         }
     }

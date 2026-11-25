@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.0 (Simkl sync)
+
+**New**
+- Simkl sync (Settings, Accounts and sync). Sign in by scanning a QR code and approving on your phone;
+  Zapp never sees your password. Uses Simkl's current sign-in (AUTH V2).
+- Brings in your Simkl watched history (films and episodes), paused progress (Continue watching)
+  and Plan to Watch / Watching lists (Library). Checks for changes when Zapp starts and every 30 minutes,
+  and only downloads what changed.
+- Sends what you watch in Zapp back to Simkl as it happens (start, pause, stop; 80 % or more counts as
+  watched). Adding to your Library also adds to your Simkl Plan to Watch list.
+- With Nuvio set to use Simkl for watch progress and library, the two apps stay in step.
+- The Simkl app ID can be pasted on the phone page (new Simkl tab), or built in from a SIMKL_CLIENT_ID secret.
+- Progress synced from Simkl resumes at the right point even before Zapp knows the film's length.
+
+**Changed**
+- Database version 7 (progress can be stored as a percentage). Upgrades keep all data.
+
+**Limits**
+- Removing something from your Library isn't sent to Simkl yet.
+- Titles need an IMDb id (as Cinemeta and most add-ons use) to sync.
+
 ## 0.6.0 (Stage 4: Stremio add-ons)
 
 **New**

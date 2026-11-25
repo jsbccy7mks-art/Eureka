@@ -34,4 +34,8 @@ class ZappApp : Application() {
     val settings: Settings by lazy { Settings(this) }
 
     val updater: Updater by lazy { Updater(this, httpClient) }
+
+    val simkl: com.zapp.tv.data.SimklSync by lazy {
+        com.zapp.tv.data.SimklSync(database, com.zapp.tv.data.SimklClient(httpClient, settings), settings)
+    }
 }

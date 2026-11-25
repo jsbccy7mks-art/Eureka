@@ -52,6 +52,7 @@ private enum class SettingsSection(val label: String) {
     Live("Live TV and guide"),
     Playback("Playback"),
     Subtitles("Subtitles"),
+    Accounts("Accounts and sync"),
     About("Updates and about"),
 }
 
@@ -138,6 +139,7 @@ fun SettingsScreen(
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
                 SettingsSection.Playback -> PlaybackSettingsPane(vm)
                 SettingsSection.Subtitles -> SubtitleSettingsPane(vm)
+                SettingsSection.Accounts -> AccountsPane(vm, mvm)
                 SettingsSection.About -> AboutPane(vm)
             }
         }
@@ -545,6 +547,105 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel) {
             item(key = "order-note") {
                 Text(
                     "Order matters: details come from the first add-on that has them, and sources are listed in this order.",
+                    color = ZappColors.Faint,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
+    LaunchedEffect(Unit) { mvm.refreshSimklState() }
+    val state = mvm.simklState
+    val focus = remember { FocusRequester() }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("Simkl", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Keeps what you've watched, where you got to, and your library in step with Simkl, and with Nuvio " +
+                "when Nuvio uses Simkl for watch progress and library. Films and series only; live channels aren't sent.",
+            color = ZappColors.Dim,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+        )
+        Spacer(Modifier.height(4.dp))
+        when (state) {
+            MediaViewModel.SimklState.NeedsAppId -> Panel(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PhoneSetupCard(vm, qrSize = 120, modifier = Modifier.width(170.dp), caption = "Open on your phone")
+                    Spacer(Modifier.width(22.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("First, a Simkl app ID", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "On your phone, create an app at simkl.com/settings/developer (choose a device or TV app). " +
+                                "Then scan this code, choose the Simkl tab and paste its Client ID. You only do this once.",
+                            color = ZappColors.Dim,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        ZButton("I've added it", { mvm.refreshSimklState() }, focusRequester = focus)
+                    }
+                }
+            }
+
+            MediaViewModel.SimklState.SignedOut, is MediaViewModel.SimklState.Failed -> {
+                if (state is MediaViewModel.SimklState.Failed) ErrorBanner(state.message)
+                SettingRow(
+                    title = "Connect Simkl",
+                    body = "Shows a code here; approve it on your phone. Zapp never sees your password.",
+                    value = SettingValue.Action,
+                    onClick = { mvm.connectSimkl() },
+                    focusRequester = focus,
+                )
+            }
+
+            is MediaViewModel.SimklState.WaitingForPhone -> Panel(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    QrCode(state.link, 140.dp)
+                    Spacer(Modifier.width(24.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Scan with your phone and approve Zapp", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Or go to ${state.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = 12.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Text(state.code, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Text("Waiting for you to approve…", color = ZappColors.Faint, fontSize = 12.sp)
+                        Spacer(Modifier.height(10.dp))
+                        ZButton("Cancel", { mvm.cancelSimklSignIn() }, style = ButtonStyle.Quiet, focusRequester = focus)
+                    }
+                }
+            }
+
+            is MediaViewModel.SimklState.SignedIn -> {
+                SettingRow(
+                    title = if (state.user.isNotBlank()) "Connected as ${state.user}" else "Connected",
+                    body = if (mvm.settings.simklLastSync > 0) {
+                        "Last synced ${java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(mvm.settings.simklLastSync)}"
+                    } else {
+                        "Not synced yet"
+                    },
+                    value = SettingValue.Choice(if (mvm.simklSyncing) "Syncing…" else "Sync now"),
+                    onClick = { mvm.syncSimkl(force = true) },
+                    focusRequester = focus,
+                )
+                mvm.simklMessage?.let { Text(it, color = ZappColors.Dim, fontSize = 12.sp) }
+                SettingRow(
+                    title = "Disconnect Simkl",
+                    body = "Zapp stops syncing and forgets the sign-in. What's already here stays.",
+                    value = SettingValue.Action,
+                    onClick = { mvm.disconnectSimkl() },
+                )
+                Text(
+                    "In Nuvio, connect the same Simkl account and choose Simkl for watch progress and library.",
                     color = ZappColors.Faint,
                     fontSize = 12.sp,
                 )

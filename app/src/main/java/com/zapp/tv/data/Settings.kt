@@ -134,6 +134,51 @@ class Settings(context: Context) {
             prefs.edit().putString("homeRows", value).apply()
         }
 
+    // ---------------------------------------------------------------- Simkl
+
+    private val simklClientIdState = stringState("simklClientId", "")
+    /** The Simkl app ID; from the phone page, or built in when the SIMKL_CLIENT_ID secret is set. */
+    var simklClientId: String
+        get() = simklClientIdState.value.ifBlank { com.zapp.tv.BuildConfig.SIMKL_CLIENT_ID }
+        set(value) {
+            simklClientIdState.value = value.trim()
+            prefs.edit().putString("simklClientId", value.trim()).apply()
+        }
+
+    private val simklUserState = stringState("simklUser", "")
+    var simklUser: String
+        get() = simklUserState.value
+        set(value) {
+            simklUserState.value = value
+            prefs.edit().putString("simklUser", value).apply()
+        }
+
+    /** Access and refresh tokens, encrypted. */
+    var simklAccess: String
+        get() = Secrets.decrypt(prefs.getString("simklAccess", "")).orEmpty()
+        set(value) {
+            prefs.edit().putString("simklAccess", Secrets.encrypt(value) ?: "").apply()
+        }
+    var simklRefresh: String
+        get() = Secrets.decrypt(prefs.getString("simklRefresh", "")).orEmpty()
+        set(value) {
+            prefs.edit().putString("simklRefresh", Secrets.encrypt(value) ?: "").apply()
+        }
+
+    var simklActivities: String
+        get() = prefs.getString("simklActivities", "") ?: ""
+        set(value) {
+            prefs.edit().putString("simklActivities", value).apply()
+        }
+
+    private val simklLastSyncState = mutableLongStateOf(prefs.getLong("simklLastSync", 0L))
+    var simklLastSync: Long
+        get() = simklLastSyncState.longValue
+        set(value) {
+            simklLastSyncState.longValue = value
+            prefs.edit().putLong("simklLastSync", value).apply()
+        }
+
     var lastUpdateCheck: Long
         get() = prefs.getLong("lastUpdateCheck", 0L)
         set(value) {

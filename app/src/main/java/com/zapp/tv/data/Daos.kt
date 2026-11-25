@@ -352,11 +352,23 @@ interface MediaDao {
 
     /** Unfinished films and episodes, newest first, one entry per film or series. */
     @Query(
-        "SELECT * FROM watch_progress WHERE hidden = 0 AND watched = 0 AND position > 30000 " +
+        "SELECT * FROM watch_progress WHERE hidden = 0 AND watched = 0 AND (position > 30000 OR percent > 1) " +
             "AND id IN (SELECT id FROM watch_progress w2 WHERE w2.metaId = watch_progress.metaId ORDER BY w2.updatedAt DESC LIMIT 1) " +
             "ORDER BY updatedAt DESC LIMIT :limit",
     )
     fun observeContinueWatching(limit: Int): Flow<List<WatchProgress>>
+
+    @Query("SELECT * FROM watch_progress")
+    suspend fun allProgress(): List<WatchProgress>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveProgressList(items: List<WatchProgress>)
+
+    @Query("SELECT metaId FROM library")
+    suspend fun libraryIds(): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun addToLibraryList(items: List<LibraryItem>)
 
     @Query("UPDATE watch_progress SET hidden = 1 WHERE metaId = :metaId")
     suspend fun hideFromContinue(metaId: String)

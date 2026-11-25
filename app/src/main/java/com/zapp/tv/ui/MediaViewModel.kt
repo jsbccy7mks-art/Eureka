@@ -25,6 +25,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -55,6 +57,125 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearMessage() {
         message = null
+    }
+
+    // ------------------------------------------------------------ Simkl
+
+    sealed interface SimklState {
+        data object NeedsAppId : SimklState
+        data object SignedOut : SimklState
+        data class WaitingForPhone(val code: String, val link: String, val shortLink: String) : SimklState
+        data class SignedIn(val user: String) : SimklState
+        data class Failed(val message: String) : SimklState
+    }
+
+    private val simkl = zapp.simkl
+
+    var simklState by mutableStateOf(currentSimklState())
+        private set
+    var simklSyncing by mutableStateOf(false)
+        private set
+    var simklMessage by mutableStateOf<String?>(null)
+        private set
+    private var signInJob: Job? = null
+
+    private fun currentSimklState(): SimklState = when {
+        settings.simklClientId.isBlank() -> SimklState.NeedsAppId
+        simkl.client.signedIn -> SimklState.SignedIn(settings.simklUser)
+        else -> SimklState.SignedOut
+    }
+
+    fun refreshSimklState() {
+        if (simklState !is SimklState.WaitingForPhone) simklState = currentSimklState()
+    }
+
+    /** Starts the device sign-in: shows a code and QR link, then waits for approval on the phone. */
+    fun connectSimkl() {
+        signInJob?.cancel()
+        signInJob = viewModelScope.launch {
+            try {
+                val code = simkl.client.deviceCode()
+                simklState = SimklState.WaitingForPhone(code.userCode, code.verificationUriComplete, code.verificationUri)
+                var interval = code.interval * 1000L
+                val deadline = System.currentTimeMillis() + code.expiresIn * 1000L
+                while (System.currentTimeMillis() < deadline) {
+                    delay(interval)
+                    when (val r = simkl.client.poll(code.deviceCode)) {
+                        is com.zapp.tv.data.SimklClient.Poll.Done -> {
+                            simkl.client.saveTokens(r.access, r.refresh)
+                            settings.simklUser = simkl.client.userName()
+                            simklState = SimklState.SignedIn(settings.simklUser)
+                            syncSimkl(force = true)
+                            return@launch
+                        }
+                        com.zapp.tv.data.SimklClient.Poll.SlowDown -> interval += 5_000
+                        com.zapp.tv.data.SimklClient.Poll.Expired -> break
+                        is com.zapp.tv.data.SimklClient.Poll.Failed -> {
+                            simklState = SimklState.Failed(r.message)
+                            return@launch
+                        }
+                        com.zapp.tv.data.SimklClient.Poll.Pending -> Unit
+                    }
+                }
+                simklState = SimklState.Failed("The code ran out of time. Try again.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                simklState = SimklState.Failed(e.message ?: "Couldn't reach Simkl.")
+            }
+        }
+    }
+
+    fun cancelSimklSignIn() {
+        signInJob?.cancel()
+        simklState = currentSimklState()
+    }
+
+    fun disconnectSimkl() {
+        simkl.client.signOut()
+        simklState = currentSimklState()
+        simklMessage = null
+    }
+
+    fun syncSimkl(force: Boolean = false) {
+        if (simklSyncing || !simkl.client.signedIn) return
+        simklSyncing = true
+        viewModelScope.launch {
+            try {
+                val s = simkl.pull(force)
+                simklMessage = when {
+                    s == null -> "Already up to date"
+                    s.watched + s.inProgress + s.library == 0 -> "Up to date"
+                    else -> "Brought in ${s.watched} watched, ${s.inProgress} in progress, ${s.library} for your library"
+                }
+            } catch (e: com.zapp.tv.data.SimklClient.NotSignedIn) {
+                simklState = currentSimklState()
+                simklMessage = "Simkl signed Zapp out. Connect it again."
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                simklMessage = e.message ?: "Couldn't reach Simkl."
+            } finally {
+                simklSyncing = false
+            }
+        }
+    }
+
+    /** Called by the player: "start", "pause" or "stop" with how far through the video it is. */
+    fun scrobble(event: String, info: MediaInfo, percent: Double) {
+        if (!simkl.client.signedIn) return
+        viewModelScope.launch { simkl.scrobble(event, info.videoId, info.type, info.title, percent) }
+    }
+
+    init {
+        // Sync with Simkl shortly after start and every 30 minutes while Zapp is open.
+        viewModelScope.launch {
+            delay(6_000)
+            while (true) {
+                if (simkl.client.signedIn) syncSimkl()
+                delay(30 * 60_000L)
+            }
+        }
     }
 
     // ------------------------------------------------------------ add-ons
@@ -145,6 +266,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                     watched = position >= duration * 0.9,
                     hidden = false,
                     updatedAt = System.currentTimeMillis(),
+                    percent = position * 100.0 / duration,
                 ),
             )
         }
@@ -154,7 +276,10 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)
 
-    fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) = viewModelScope.launch { repo.toggleLibrary(meta, currentlyIn) }
+    fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) = viewModelScope.launch {
+        repo.toggleLibrary(meta, currentlyIn)
+        if (!currentlyIn && simkl.client.signedIn) simkl.addToWatchlist(meta.id, meta.type)
+    }
 
     // ------------------------------------------------------------ Home layout
 

@@ -27,7 +27,7 @@
   header span { font-weight: 700; font-size: 22px; letter-spacing: -.02em; }
   h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 6px; }
   p.lead { color: var(--dim); margin: 0 0 24px; }
-  .seg { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
   .seg button { border: 0; background: transparent; color: var(--dim); font: inherit; font-weight: 600; padding: 10px; border-radius: 9px; }
   .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
   label { display: block; font-size: 13px; color: var(--dim); margin: 0 0 6px; }
@@ -82,12 +82,21 @@
     <button type="button" data-type="xtream" aria-pressed="true">Xtream login</button>
     <button type="button" data-type="m3u" aria-pressed="false">M3U link</button>
     <button type="button" data-type="addon" aria-pressed="false">Add-on</button>
+    <button type="button" data-type="simkl" aria-pressed="false">Simkl</button>
   </div>
 
   <form id="form" autocomplete="off">
     <div class="field" data-not="addon">
       <label for="name">Name (optional)</label>
       <input id="name" placeholder="My provider">
+    </div>
+
+    <div data-for="simkl" hidden>
+      <div class="field">
+        <label for="simklClientId">Simkl Client ID</label>
+        <input id="simklClientId" autocapitalize="off" spellcheck="false" placeholder="From simkl.com/settings/developer">
+        <div class="hint">Create an app at simkl.com/settings/developer (device or TV type), then copy its Client ID here. You only do this once.</div>
+      </div>
     </div>
 
     <div data-for="addon" hidden>
@@ -162,7 +171,7 @@
       type = b.dataset.type;
       document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
-      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type; });
+      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type || type === 'simkl'; });
       $('epgHint').textContent = type === 'xtream'
         ? "Leave empty to use your provider's own guide."
         : 'Leave empty to use the guide link inside the playlist, if it has one.';
@@ -220,7 +229,12 @@
       format,
       url: $('url').value,
       addonUrl: $('addonUrl').value,
+      simklClientId: $('simklClientId').value,
     };
+    if (type === 'simkl' && !body.simklClientId.trim()) {
+      setStatus('err', 'Paste the Client ID first.');
+      return;
+    }
     if (type === 'addon' && !body.addonUrl.trim()) {
       setStatus('err', 'Paste the add-on install link first.');
       return;
@@ -235,7 +249,7 @@
     }
 
     $('submit').disabled = true;
-    setStatus('work', type === 'addon' ? 'Installing the add-on…' : 'Adding the playlist. Big playlists can take a minute…');
+    setStatus('work', type === 'addon' ? 'Installing the add-on…' : type === 'simkl' ? 'Saving…' : 'Adding the playlist. Big playlists can take a minute…');
     try {
       const r = await fetch('/api/playlists?t=' + encodeURIComponent(t), {
         method: 'POST',

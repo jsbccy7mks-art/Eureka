@@ -102,6 +102,7 @@ class Playback(
 
     private var retries = 0
     private var retryJob: Job? = null
+    private var pendingPercent: Double? = null
 
     private val listener = object : Player.Listener {
         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -115,6 +116,12 @@ class Playback(
             if (playbackState == Player.STATE_READY) {
                 retries = 0
                 error = null
+                val pct = pendingPercent
+                val d = player.duration
+                if (pct != null && d > 0 && d != C.TIME_UNSET) {
+                    pendingPercent = null
+                    player.seekTo((d * pct / 100).toLong())
+                }
             }
         }
 
@@ -169,7 +176,8 @@ class Playback(
     }
 
     /** Plays a film or episode, optionally from where it was left. */
-    fun playMedia(info: MediaInfo, startMs: Long) {
+    fun playMedia(info: MediaInfo, startMs: Long, startPercent: Double? = null) {
+        pendingPercent = if (startMs <= 0 && startPercent != null && startPercent > 1 && startPercent < 95) startPercent else null
         retryJob?.cancel()
         retries = 0
         error = null

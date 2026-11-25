@@ -519,6 +519,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     if (url.isBlank()) fail("Paste the playlist link first.")
                     repo.addM3u(name, url, epg)
                 }
+                "simkl" -> {
+                    val id = body.optString("simklClientId").filter { it.isLetterOrDigit() }
+                    if (id.length < 10) fail("That doesn't look like a Simkl Client ID.")
+                    settings.simklClientId = id
+                    showToast("Simkl app ID saved. Connect Simkl in Settings, Accounts and sync.")
+                    return@withContext "Saved. On your TV, go to Settings, Accounts and sync, then Connect Simkl."
+                }
                 "addon" -> {
                     val link = body.optString("addonUrl")
                     if (link.isBlank()) fail("Paste the add-on install link first.")

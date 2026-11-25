@@ -44,6 +44,8 @@ jobs:
         run: gradle testReleaseUnitTest --no-daemon
 
       - name: Build APK
+        env:
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Name the APK

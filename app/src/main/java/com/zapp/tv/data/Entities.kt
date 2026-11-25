@@ -147,6 +147,8 @@ data class WatchProgress(
     /** Removed from Continue watching by the user. */
     val hidden: Boolean,
     val updatedAt: Long,
+    /** Progress in percent when only that is known (synced from Simkl before Zapp has played it). */
+    val percent: Double? = null,
 )
 
 /** Films and series saved to the library. */

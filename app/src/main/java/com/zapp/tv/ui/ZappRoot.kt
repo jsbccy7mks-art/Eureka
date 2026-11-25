@@ -128,7 +128,7 @@ fun ZappRoot(vm: AppViewModel) {
             url = stream.url.orEmpty(),
             headers = stream.headers,
         )
-        playback.playMedia(info, req.resumeMs)
+        playback.playMedia(info, req.resumeMs, req.resumePercent)
         playRequest = req.copy(preferBingeGroup = stream.bingeGroup, autoPlay = false)
         vodOpen = true
     }

@@ -130,7 +130,8 @@ fun ContinueCard(
                     .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xCC000000))),
             )
             ProgressLine(
-                (progress.position.toFloat() / progress.duration.coerceAtLeast(1)).coerceIn(0f, 1f),
+                if (progress.duration > 1) (progress.position.toFloat() / progress.duration).coerceIn(0f, 1f)
+                else ((progress.percent ?: 0.0) / 100).toFloat().coerceIn(0f, 1f),
                 Modifier
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 10.dp, vertical = 9.dp)
@@ -155,6 +156,7 @@ fun ContinueCard(
 }
 
 fun minutesLeft(p: WatchProgress): String {
+    if (p.duration <= 1) return "${(p.percent ?: 0.0).toInt()}% watched"
     val left = ((p.duration - p.position) / 60_000).coerceAtLeast(1)
     return if (left >= 60) "${left / 60} h ${left % 60} min left" else "$left min left"
 }

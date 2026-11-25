@@ -90,14 +90,21 @@ fun VodPlayer(
         if (d > 0 && d != C.TIME_UNSET) mvm.saveProgress(currentInfo, player.currentPosition, d)
     }
 
+    fun percentNow(): Double {
+        val d = player.duration
+        return if (d > 0 && d != C.TIME_UNSET) player.currentPosition * 100.0 / d else 0.0
+    }
+
     // Save before leaving: the player stops right after these, so the position must be read first.
     fun close() {
         save()
+        mvm.scrobble("stop", currentInfo, percentNow())
         onClose()
     }
 
     fun playNext(v: Video) {
         save()
+        mvm.scrobble("stop", currentInfo, percentNow())
         onPlayNext(v)
     }
 
@@ -108,7 +115,17 @@ fun VodPlayer(
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     save()
+                    mvm.scrobble("stop", currentInfo, 100.0)
                     ended = true
+                }
+            }
+
+            // Tell Simkl when watching starts and pauses, so Nuvio and other apps see it.
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    mvm.scrobble("start", currentInfo, percentNow())
+                } else if (player.playbackState == Player.STATE_READY && !player.playWhenReady) {
+                    mvm.scrobble("pause", currentInfo, percentNow())
                 }
             }
         }
