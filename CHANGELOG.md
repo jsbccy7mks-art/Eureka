@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.3
+
+**Fixed**
+- Left and Up could jump to the sidebar (or to the hidden page underneath) instead of moving to the
+  previous card or row. The card before the one you're on, and the row above, are now always laid
+  out (just hidden), so the move always lands where you expect. Details, episodes and sources keep
+  focus to themselves, and Up on the top row of Home stays put.
+
+
 ## 0.10.2
 
 **Changed**

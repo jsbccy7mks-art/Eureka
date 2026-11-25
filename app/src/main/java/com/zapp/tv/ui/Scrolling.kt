@@ -13,6 +13,18 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.focusGroup
 
 private val TvEasing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
 
@@ -64,3 +76,64 @@ private object MinimalSpec : BringIntoViewSpec {
 fun MinimalScrolling(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalBringIntoViewSpec provides MinimalSpec, content = content)
 }
+
+/** Hide everything above [line] (it stays laid out and focusable, just invisible). */
+fun Modifier.fadeAbove(line: Dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val px = line.toPx()
+        val h = size.height.coerceAtLeast(1f)
+        drawRect(
+            Brush.verticalGradient(
+                0f to Color.Transparent,
+                ((px - 18.dp.toPx()) / h).coerceIn(0f, 1f) to Color.Transparent,
+                ((px - 4.dp.toPx()) / h).coerceIn(0f, 1f) to Color.Black,
+                1f to Color.Black,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+/** Hide everything left of [line]. */
+fun Modifier.fadeLeftOf(line: Dp): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val px = line.toPx()
+        val w = size.width.coerceAtLeast(1f)
+        drawRect(
+            Brush.horizontalGradient(
+                0f to Color.Transparent,
+                ((px - 16.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Transparent,
+                ((px - 6.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Black,
+                1f to Color.Black,
+            ),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+/**
+ * Let a row reach [extra] further left than its slot (under the margin), so the card before the
+ * one you're on stays laid out and Left always finds it.
+ */
+fun Modifier.extendLeft(extra: Dp): Modifier = layout { measurable, constraints ->
+    val e = extra.roundToPx()
+    val w = if (constraints.hasBoundedWidth) constraints.maxWidth + e else constraints.maxWidth
+    val p = measurable.measure(constraints.copy(minWidth = w, maxWidth = w))
+    layout(constraints.maxWidth, p.height) { p.place(-e, 0) }
+}
+
+/** Up and Down never leave this list (no jumping to the sidebar from the top row). */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.trapVertical(): Modifier = this
+    .focusProperties {
+        exit = { d -> if (d == FocusDirection.Up || d == FocusDirection.Down) FocusRequester.Cancel else FocusRequester.Default }
+    }
+    .focusGroup()
+
+/** Focus never leaves this (an overlay over other screens). */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.trapFocus(): Modifier = this
+    .focusProperties { exit = { FocusRequester.Cancel } }
+    .focusGroup()

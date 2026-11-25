@@ -104,6 +104,7 @@ fun DetailScreen(
     Box(
         Modifier
             .fillMaxSize()
+            .trapFocus()
             .background(ZappColors.Bg),
     ) {
         // Artwork at full strength, fading into the page only where the text sits.
@@ -512,6 +513,7 @@ private fun EpisodesSheet(
     Box(
         Modifier
             .fillMaxSize()
+            .trapFocus()
             .background(ZappColors.Bg.copy(alpha = 0.94f)),
     ) {
         AmbientGlow(0.7f)

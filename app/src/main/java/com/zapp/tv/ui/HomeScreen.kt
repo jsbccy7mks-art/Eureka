@@ -227,11 +227,15 @@ private fun ContinueRow(
     val memory = rememberFocusMemory()
     Column {
         RowHeader("Continue watching")
-        PivotScrolling(RowInset) {
+        val extra = cardWidth(size, true) + 24.dp
+        PivotScrolling(RowInset + extra) {
             LazyRow(
-                modifier = Modifier.restoreFocus(memory),
+                modifier = Modifier
+                    .extendLeft(extra)
+                    .fadeLeftOf(extra + RowInset)
+                    .restoreFocus(memory),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(horizontal = RowInset),
+                contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
             ) {
                 items(items, key = { it.videoId }) { p ->
                     val requester = remember { FocusRequester() }

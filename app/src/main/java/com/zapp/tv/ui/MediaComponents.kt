@@ -362,12 +362,16 @@ fun CatalogRow(
 
     Column {
         RowHeader(title, subtitle)
-        PivotScrolling(RowInset) {
+        val extra = width + 24.dp
+        PivotScrolling(RowInset + extra) {
             LazyRow(
                 state = listState,
-                modifier = Modifier.restoreFocus(memory),
+                modifier = Modifier
+                    .extendLeft(extra)
+                    .fadeLeftOf(extra + RowInset)
+                    .restoreFocus(memory),
                 horizontalArrangement = Arrangement.spacedBy(if (size == 0) 10.dp else 12.dp),
-                contentPadding = PaddingValues(horizontal = RowInset),
+                contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
             ) {
                 if (items.isEmpty()) {
                     items(8) {

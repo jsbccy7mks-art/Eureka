@@ -142,7 +142,7 @@ fun SourcesOverlay(
     // Autoplay, or a debrid service fetching the chosen source: the Zapp starting screen, which the
     // player keeps showing until the first picture, so it all reads as one quick start.
     if (autoPlay || resolving != null) {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().trapFocus()) {
             StartingScreen(
                 background = request.video?.thumbnail ?: request.meta.background ?: request.meta.poster,
                 title = request.meta.name,
@@ -163,6 +163,7 @@ fun SourcesOverlay(
     Box(
         Modifier
             .fillMaxSize()
+            .trapFocus()
             .background(ZappColors.Bg),
     ) {
         (request.meta.background ?: request.meta.poster)?.let {

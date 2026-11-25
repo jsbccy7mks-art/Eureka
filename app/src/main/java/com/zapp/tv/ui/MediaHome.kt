@@ -105,28 +105,30 @@ fun ImmersiveLayout(
         Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
         AmbientGlow(0.8f)
 
-        Column(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(heroHeight),
-            ) {
-                when {
-                    header != null -> header()
-                    hero == null && placeholder != null -> placeholder()
-                    else -> HeroInfo(hero, detail)
-                }
-            }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                PivotScrolling(26.dp) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        contentPadding = PaddingValues(top = 4.dp, bottom = screenHeight * 0.5f),
-                        content = rows,
-                    )
-                }
+        // The rows run the full height of the screen but are hidden above the header line. The row
+        // above the one you're on is therefore still laid out (just invisible), so Up always finds it
+        // instead of jumping to the sidebar.
+        PivotScrolling(heroHeight + 30.dp) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .fadeAbove(heroHeight)
+                    .trapVertical(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(top = heroHeight + 4.dp, bottom = screenHeight * 0.5f),
+                content = rows,
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(heroHeight),
+        ) {
+            when {
+                header != null -> header()
+                hero == null && placeholder != null -> placeholder()
+                else -> HeroInfo(hero, detail)
             }
         }
     }
