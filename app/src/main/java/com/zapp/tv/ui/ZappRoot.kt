@@ -164,6 +164,8 @@ fun ZappRoot(vm: AppViewModel) {
     }
 
     var starting by remember { mutableStateOf(false) }
+    /** The source now playing (its link or torrent), so a failing one can be skipped. */
+    var currentSourceKey by remember { mutableStateOf<String?>(null) }
 
     fun startStream(req: PlayRequest, stream: com.zapp.tv.addons.StreamItem, resolvedUrl: String? = null) {
         if (resolvedUrl == null && stream.url.isNullOrBlank() && stream.infoHash != null) {
@@ -176,6 +178,7 @@ fun ZappRoot(vm: AppViewModel) {
             )
             return
         }
+        currentSourceKey = stream.url ?: stream.infoHash
         val info = MediaInfo(
             videoId = req.videoId,
             metaId = req.meta.id,
@@ -484,6 +487,13 @@ fun ZappRoot(vm: AppViewModel) {
                     vodOpen = false
                     playback.stop()
                     playRequest = pr.copy(resumeMs = at, autoPlay = false)
+                },
+                onSourceFailed = {
+                    val at = playback.player.currentPosition
+                    vodOpen = false
+                    playback.stop()
+                    vm.showToast("That source stopped working. Trying another…")
+                    playRequest = pr.copy(resumeMs = at, autoPlay = true, failed = pr.failed + listOfNotNull(currentSourceKey))
                 },
                 onPlayNext = { next ->
                     vodOpen = false

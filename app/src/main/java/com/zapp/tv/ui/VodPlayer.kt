@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import androidx.compose.foundation.layout.requiredSize
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -82,6 +83,7 @@ fun VodPlayer(
     onChooseSource: () -> Unit,
     onPlayNext: (Video) -> Unit,
     onClose: () -> Unit,
+    onSourceFailed: () -> Unit = {},
 ) {
     val info = playback.media ?: return
     val player = playback.player
@@ -187,7 +189,17 @@ fun VodPlayer(
     }
 
     LaunchedEffect(panel) { if (panel == VodPanel.None) focus.tryRequest() }
-    LaunchedEffect(playback.error) { if (playback.error != null) panel = VodPanel.Controls }
+    LaunchedEffect(playback.error) {
+        if (playback.error == null) return@LaunchedEffect
+        // With autoplay on, a source that stops working is swapped for the next one by itself.
+        if (mvm.settings.autoPlayFirst && !info.videoId.startsWith("catchup:")) {
+            delay(1_200)
+            save()
+            onSourceFailed()
+        } else {
+            panel = VodPanel.Controls
+        }
+    }
     LaunchedEffect(barTick) {
         barVisible = true
         delay(4_000)
@@ -263,9 +275,21 @@ fun VodPlayer(
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
+        val screen = androidx.compose.ui.platform.LocalConfiguration.current
+        val sw = screen.screenWidthDp.toFloat()
+        val sh = screen.screenHeightDp.toFloat()
         FullscreenVideo(
             playback = playback,
-            modifier = Modifier.aspectRatio(playback.aspect, matchHeightConstraintsFirst = playback.aspect < 16f / 9f + 0.01f),
+            modifier = when (playback.pictureMode) {
+                // Fill: cover the screen, cropping the edges (the parts off-screen are simply not seen).
+                1 -> if (playback.aspect > sw / sh) {
+                    Modifier.requiredSize((sh * playback.aspect).dp, sh.dp)
+                } else {
+                    Modifier.requiredSize(sw.dp, (sw / playback.aspect).dp)
+                }
+                2 -> Modifier.fillMaxSize()
+                else -> Modifier.aspectRatio(playback.aspect, matchHeightConstraintsFirst = playback.aspect < 16f / 9f + 0.01f)
+            },
         )
         SubtitleLayer(playback.cues, vm.settings, raisedForPanel = panel == VodPanel.Controls)
 
@@ -570,6 +594,8 @@ private fun VodControls(
                 ChipButton("Audio", audioNow ?: "Default", onAudio)
                 ChipButton("Subtitles", subsNow, onSubtitles)
                 ChipButton("Sources", null, onSources)
+                ChipButton("Picture", listOf("Fit", "Fill", "Stretch")[playback.pictureMode], { playback.pictureMode = (playback.pictureMode + 1) % 3 })
+                ChipButton("Boost", if (playback.boost) "On" else "Off", { playback.setBoost(!playback.boost) })
                 ChipButton("Info", null, onDetails)
                 if (next != null) ChipButton("Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, onNext, accent = true)
             }

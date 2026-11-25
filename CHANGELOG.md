@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.0 (player)
+
+**New**
+- Picture: Fit, Fill (covers the screen, cropping the edges) or Stretch, from the player controls.
+- Boost: louder, clearer sound for quiet films, from the player controls.
+- If a source stops working (and autoplay is on), Zapp switches to the next one by itself and carries
+  on from where you were.
+
+
 ## 0.17.1
 
 **New**

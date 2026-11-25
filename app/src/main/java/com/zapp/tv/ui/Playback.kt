@@ -102,6 +102,35 @@ class Playback(
     var videoHeight by mutableIntStateOf(0)
         private set
 
+    /** How the picture fills the screen: 0 fit, 1 fill (crop the edges), 2 stretch. */
+    var pictureMode by mutableIntStateOf(0)
+
+    /** Louder, clearer speech for quiet films (Android's loudness enhancer). */
+    var boost by mutableStateOf(false)
+        private set
+    private var enhancer: android.media.audiofx.LoudnessEnhancer? = null
+
+    fun setBoost(on: Boolean) {
+        boost = on
+        applyBoost()
+    }
+
+    private fun applyBoost() {
+        try {
+            enhancer?.release()
+            enhancer = null
+            if (!boost) return
+            val session = player.audioSessionId
+            if (session == C.AUDIO_SESSION_ID_UNSET) return
+            enhancer = android.media.audiofx.LoudnessEnhancer(session).apply {
+                setTargetGain(900)
+                enabled = true
+            }
+        } catch (e: Exception) {
+            enhancer = null
+        }
+    }
+
     /** True while the fullscreen player owns the video output. */
     var fullscreen by mutableStateOf(false)
 
@@ -110,6 +139,10 @@ class Playback(
     private var pendingPercent: Double? = null
 
     private val listener = object : Player.Listener {
+        override fun onAudioSessionIdChanged(audioSessionId: Int) {
+            if (boost) applyBoost()
+        }
+
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             if (videoSize.height > 0) videoHeight = videoSize.height
             if (videoSize.height > 0 && videoSize.width > 0) {
@@ -322,6 +355,11 @@ class Playback(
 
     fun release() {
         retryJob?.cancel()
+        try {
+            enhancer?.release()
+        } catch (e: Exception) {
+            // Already gone.
+        }
         player.removeListener(listener)
         player.release()
     }

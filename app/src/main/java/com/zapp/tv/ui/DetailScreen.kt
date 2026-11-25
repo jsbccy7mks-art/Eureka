@@ -68,6 +68,8 @@ data class PlayRequest(
     val preferBingeGroup: String? = null,
     /** Where to start when only a percentage is known (synced from Simkl). */
     val resumePercent: Double? = null,
+    /** Sources that already failed for this title, skipped by autoplay. */
+    val failed: Set<String> = emptySet(),
 ) {
     val videoId: String get() = video?.id ?: meta.id
     val episodeLabel: String? get() = video?.let { episodeLabel(it) }

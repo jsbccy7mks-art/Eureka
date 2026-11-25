@@ -116,7 +116,7 @@ fun SourcesOverlay(
         if (settings.bestFirst) kept.sortedByDescending(::rank) else kept
     }
     val hiddenCount = sorted.sumOf { it.streams.size } - all.size
-    fun canPlay(s: StreamItem) = s.playable || (viaDebrid && s.infoHash != null)
+    fun canPlay(s: StreamItem) = (s.playable || (viaDebrid && s.infoHash != null)) && (s.url ?: s.infoHash) !in request.failed
 
     // Autoplay: wait briefly for the add-ons to answer, then take the first playable source.
     LaunchedEffect(autoPlay, finished, batches.size) {
