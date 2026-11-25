@@ -325,6 +325,21 @@ private fun MoreSection(
             .fillMaxWidth()
             .padding(top = 8.dp, bottom = 48.dp),
     ) {
+        Text("Details", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 12.dp))
+        Row(Modifier.padding(horizontal = 56.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetailFact("Released", meta.releaseInfo)
+                DetailFact("Runtime", prettyRuntime(detail?.runtime))
+                DetailFact("Genres", meta.genres.joinToString(", ").ifBlank { null })
+                DetailFact("IMDb", meta.imdbRating?.let { "$it / 10" })
+            }
+            Column(Modifier.weight(1.4f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                DetailFact("Directed by", detail?.directors?.joinToString(", ")?.ifBlank { null })
+                DetailFact("Cast", detail?.cast?.take(12)?.joinToString(", ")?.ifBlank { null })
+                DetailFact("About", meta.description)
+            }
+        }
+        Spacer(Modifier.height(28.dp))
         if (similar.isNotEmpty()) {
             Text("More like this", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
             val memory = rememberFocusMemory()
@@ -346,25 +361,9 @@ private fun MoreSection(
                     }
                 }
             }
-            Spacer(Modifier.height(28.dp))
         } else {
-            // Something to land on, so the details below can still be reached.
-            Box(Modifier.padding(start = 56.dp, bottom = 16.dp)) { ZButton("Details", {}) }
-        }
-
-        Text("Details", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 12.dp))
-        Row(Modifier.padding(horizontal = 56.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetailFact("Released", meta.releaseInfo)
-                DetailFact("Runtime", prettyRuntime(detail?.runtime))
-                DetailFact("Genres", meta.genres.joinToString(", ").ifBlank { null })
-                DetailFact("IMDb", meta.imdbRating?.let { "$it / 10" })
-            }
-            Column(Modifier.weight(1.4f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetailFact("Directed by", detail?.directors?.joinToString(", ")?.ifBlank { null })
-                DetailFact("Cast", detail?.cast?.take(12)?.joinToString(", ")?.ifBlank { null })
-                DetailFact("About", meta.description)
-            }
+            // Something to land on, so the details above can still be reached.
+            Box(Modifier.padding(start = 56.dp)) { ZButton("Back to top", {}, style = ButtonStyle.Quiet) }
         }
     }
 }
@@ -375,7 +374,7 @@ private fun DetailFact(label: String, value: String?) {
     Column {
         Text(label.uppercase(), color = ZappColors.Faint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp)
         Spacer(Modifier.height(3.dp))
-        Text(value, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp)
+        Text(value, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
     }
 }
 

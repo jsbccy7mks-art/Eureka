@@ -75,7 +75,8 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
         val progressOut = ArrayList<WatchProgress>()
         for (i in 0 until items.length()) {
             val it = items.optJSONObject(i) ?: continue
-            val id = it.optString("_id").ifBlank { continue }
+            val id = it.optString("_id")
+            if (id.isBlank()) continue
             val type = it.optString("type")
             if (type != "movie" && type != "series") continue
             if (it.optBoolean("removed") && !it.optBoolean("temp")) continue

@@ -11,6 +11,8 @@
 - Home: text from the row above no longer shows under the synopsis, and the edge of the previous
   card no longer peeks out to the left of the focused one.
 - Home header titles without a logo sit on one line, sized to fit, instead of wrapping oddly.
+- Details page: the Details block now comes before More like this when you scroll down.
+- Home header: no cast line, so the synopsis gets three lines.
 - "Add profile" is now a full row at the top of Settings, Profiles, so it's easy to reach.
 
 

@@ -305,17 +305,8 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                     color = ZappColors.Dim,
                     fontSize = 12.sp,
                     lineHeight = 17.5.sp,
-                    minLines = 2,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    d?.cast.orEmpty().take(3).takeIf { it.isNotEmpty() }?.let { "With " + it.joinToString(", ") }.orEmpty(),
-                    color = ZappColors.Faint,
-                    fontSize = 11.sp,
-                    minLines = 1,
-                    maxLines = 1,
+                    minLines = 3,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
