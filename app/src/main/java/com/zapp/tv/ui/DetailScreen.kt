@@ -428,6 +428,7 @@ private fun nextUp(videos: List<Video>, progress: List<WatchProgress>): Pair<Vid
         val i = videos.indexOfFirst { it.id == latest.videoId }
         if (i >= 0) {
             if (!latest.watched && (latest.position > 30_000 || (latest.percent ?: 0.0) > 1)) return videos[i] to latest.position
+            if (!latest.watched && (latest.percent ?: 0.0) < 0) return videos[i] to 0L // "Up next"
             videos.getOrNull(i + 1)?.let { return it to 0L }
         }
     }

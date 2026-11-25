@@ -108,7 +108,10 @@ fun VodPlayer(
 
     fun save() {
         val d = player.duration
-        if (d > 0 && d != C.TIME_UNSET) mvm.saveProgress(currentInfo, player.currentPosition, d)
+        if (d > 0 && d != C.TIME_UNSET) {
+            mvm.saveProgress(currentInfo, player.currentPosition, d)
+            if (player.currentPosition >= d * 0.9) next?.let { mvm.markUpNext(currentInfo, it) }
+        }
     }
 
     fun percentNow(): Double {

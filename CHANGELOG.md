@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.0 (smarter Home)
+
+**New**
+- Up next: finish an episode and the next one appears at the front of Continue watching, marked
+  "Up next"; choosing it starts that episode.
+- "Because you watched …": titles from your catalogues that share genres with what you watched last.
+- New episodes: series in your library with an episode out in the last 10 days that you haven't seen,
+  with a NEW badge.
+- Your library as a row on Home.
+- All of these can be resized, moved or hidden like any row (hold OK, or Settings, Home screen).
+
+
 ## 0.16.0 (catch-up)
 
 **New**

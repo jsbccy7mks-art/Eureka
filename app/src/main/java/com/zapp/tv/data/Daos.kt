@@ -352,9 +352,9 @@ interface MediaDao {
 
     /** Unfinished films and episodes, newest first, one entry per film or series. */
     @Query(
-        "SELECT * FROM watch_progress WHERE profileId = :profileId AND hidden = 0 AND watched = 0 AND (position > 30000 OR percent > 1) " +
+        "SELECT * FROM watch_progress WHERE profileId = :profileId AND hidden = 0 AND watched = 0 AND (position > 30000 OR percent > 1 OR percent < 0) " +
             "AND id = (SELECT w2.id FROM watch_progress w2 WHERE w2.profileId = :profileId AND w2.metaId = watch_progress.metaId " +
-            "AND w2.hidden = 0 AND w2.watched = 0 AND (w2.position > 30000 OR w2.percent > 1) " +
+            "AND w2.hidden = 0 AND w2.watched = 0 AND (w2.position > 30000 OR w2.percent > 1 OR w2.percent < 0) " +
             "ORDER BY w2.updatedAt DESC LIMIT 1) " +
             "ORDER BY updatedAt DESC LIMIT :limit",
     )

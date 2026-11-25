@@ -40,6 +40,9 @@ const val CINEMETA_URL = "https://v3-cinemeta.strem.io/manifest.json"
  * cards are posters or landscape artwork.
  */
 const val CONTINUE_ROW = "continue"
+const val BECAUSE_ROW = "because"
+const val NEW_EPISODES_ROW = "newEpisodes"
+const val LIBRARY_ROW = "library"
 
 data class HomeRowSetting(
     val id: String,
@@ -545,6 +548,77 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * After an episode is finished, its next episode goes to the front of Continue watching
+     * ("Up next"). Marked with percent -1 until you start it.
+     */
+    fun markUpNext(info: MediaInfo, next: Video) = viewModelScope.launch {
+        if (repo.progress(next.id) != null) return@launch
+        repo.saveProgress(
+            WatchProgress(
+                videoId = next.id,
+                metaId = info.metaId,
+                type = info.type,
+                name = info.title,
+                episodeLabel = episodeLabel(next),
+                poster = info.poster,
+                background = next.thumbnail ?: info.background,
+                position = 0,
+                duration = 0,
+                watched = false,
+                hidden = false,
+                updatedAt = System.currentTimeMillis() + 1,
+                percent = -1.0,
+            ),
+        )
+    }
+
+    // ------------------------------------------------------------ smarter Home rows
+
+    /** "Because you watched …": titles from your catalogues sharing a genre with what you watched last. */
+    suspend fun becauseYouWatched(seed: MetaPreview?): Pair<String, List<MetaPreview>>? {
+        val s = seed ?: return null
+        val genres = (repo.meta(s.type, s.id)?.preview?.genres ?: s.genres).map { it.lowercase() }.toSet()
+        if (genres.isEmpty()) return null
+        val found = LinkedHashMap<String, MetaPreview>()
+        for (ref in catalogs(s.type).take(6)) {
+            val page = runCatching { page(ref, 0) }.getOrNull() ?: continue
+            for (m in page) if (m.id != s.id && m.genres.any { it.lowercase() in genres }) found.putIfAbsent(m.id, m)
+            if (found.size >= 20) break
+        }
+        return if (found.size < 3) null else s.name to found.values.take(20).toList()
+    }
+
+    /** Series in your library with an episode out in the last 10 days that you haven't watched. */
+    suspend fun newEpisodes(library: List<LibraryItem>): List<Pair<MetaPreview, String>> {
+        val now = System.currentTimeMillis()
+        val out = ArrayList<Pair<MetaPreview, String>>()
+        for (item in library.filter { it.type == "series" }.take(15)) {
+            val d = runCatching { repo.meta("series", item.metaId) }.getOrNull() ?: continue
+            val latest = d.videos.filter { (it.season ?: 0) > 0 }
+                .mapNotNull { v -> releasedAt(v.released)?.let { v to it } }
+                .filter { it.second <= now }
+                .maxByOrNull { it.second } ?: continue
+            if (now - latest.second > 10 * 86_400_000L) continue
+            val p = repo.progress(latest.first.id)
+            if (p?.watched == true) continue
+            out.add(d.preview to "S${latest.first.season} E${latest.first.episode}")
+        }
+        return out
+    }
+
+    private fun releasedAt(text: String?): Long? {
+        if (text.isNullOrBlank()) return null
+        for (f in listOf("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd")) {
+            try {
+                return java.text.SimpleDateFormat(f, java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(text)?.time
+            } catch (e: Exception) {
+                // next
+            }
+        }
+        return null
+    }
+
     fun hideFromContinue(metaId: String) = viewModelScope.launch { repo.hideFromContinue(metaId) }
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)
@@ -564,7 +638,10 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun homeLayout(catalogs: List<CatalogRef>): List<HomeRowSetting> {
         val available = LinkedHashMap<String, String>()
         available[CONTINUE_ROW] = "Continue watching"
+        available[BECAUSE_ROW] = "Because you watched…"
+        available[NEW_EPISODES_ROW] = "New episodes"
         catalogs.forEach { available[it.key] = it.title }
+        available[LIBRARY_ROW] = "Your library"
 
         val saved = parseLayout(settings.homeRowsJson)
         val result = ArrayList<HomeRowSetting>()
@@ -573,7 +650,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             result.add(r.copy(title = title))
         }
         for ((id, title) in available) {
-            if (result.none { it.id == id }) result.add(HomeRowSetting(id, title, true, landscape = id == CONTINUE_ROW))
+            if (result.none { it.id == id }) {
+                val row = HomeRowSetting(id, title, true, landscape = id == CONTINUE_ROW)
+                // New smart rows go just below Continue watching; everything else at the end.
+                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW) result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row) else result.add(row)
+            }
         }
         // A first "top" or "trending" catalogue becomes a Top 10 until you choose otherwise.
         val firstTop = result.firstOrNull { it.id != CONTINUE_ROW && Regex("\\b(top|trending)\\b", RegexOption.IGNORE_CASE).containsMatchIn(it.title) }?.id

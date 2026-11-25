@@ -2,6 +2,7 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -89,7 +90,22 @@ fun HomeScreen(
     val catalogs by produceState(emptyList<CatalogRef>(), addons) { value = mvm.catalogs(null) }
 
     val layout = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
-    val rows = layout.filter { r -> r.on && (if (r.id == CONTINUE_ROW) continueItems.isNotEmpty() else catalogs.any { it.key == r.id }) }
+    // Smart rows: what to suggest from what you've watched and saved.
+    val libraryItems by mvm.library.collectAsState()
+    val seed = continueItems.firstOrNull()?.asPreview() ?: libraryItems.firstOrNull()?.let { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
+    val because by produceState<Pair<String, List<MetaPreview>>?>(null, seed?.id) { value = runCatching { mvm.becauseYouWatched(seed) }.getOrNull() }
+    val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
+    val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
+
+    val rows = layout.filter { r ->
+        r.on && when (r.id) {
+            CONTINUE_ROW -> continueItems.isNotEmpty()
+            BECAUSE_ROW -> because != null
+            NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
+            LIBRARY_ROW -> libraryPreviews.isNotEmpty()
+            else -> catalogs.any { it.key == r.id }
+        }
+    }
 
     var focused by remember { mutableStateOf<HeroItem?>(null) }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
@@ -155,6 +171,33 @@ fun HomeScreen(
                     },
                     onClick = onResume,
                     onLongPress = { p -> options = RowOptions(row.id, p) },
+                )
+            } else if (row.id == BECAUSE_ROW || row.id == NEW_EPISODES_ROW || row.id == LIBRARY_ROW) {
+                val title = when (row.id) {
+                    BECAUSE_ROW -> "Because you watched ${because?.first.orEmpty()}"
+                    NEW_EPISODES_ROW -> "New episodes"
+                    else -> "Your library"
+                }
+                val items = when (row.id) {
+                    BECAUSE_ROW -> because?.second.orEmpty()
+                    NEW_EPISODES_ROW -> newEpisodes.map { it.first }
+                    else -> libraryPreviews
+                }
+                MetaRow(
+                    title = title,
+                    items = items,
+                    badges = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "NEW · ${it.second}" } else emptyMap(),
+                    size = row.size,
+                    landscape = row.landscape,
+                    pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
+                    onPendingDone = { pending = null },
+                    onFocusItem = { meta ->
+                        focused = HeroItem(meta, title)
+                        lastFocus = HomeFocus(row.id, meta.id)
+                        moves++
+                    },
+                    onOpen = onOpenTitle,
+                    onLongPress = { options = RowOptions(row.id) },
                 )
             } else {
                 val ref = catalogs.first { it.key == row.id }
@@ -327,5 +370,75 @@ fun ChannelCard(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** A row of titles Zapp put together itself (suggestions, new episodes, your library). */
+@Composable
+private fun MetaRow(
+    title: String,
+    items: List<MetaPreview>,
+    badges: Map<String, String>,
+    size: Int,
+    landscape: Boolean,
+    pendingId: String?,
+    onPendingDone: () -> Unit,
+    onFocusItem: (MetaPreview) -> Unit,
+    onOpen: (MetaPreview) -> Unit,
+    onLongPress: () -> Unit,
+) {
+    val memory = rememberFocusMemory()
+    val width = cardWidth(size, landscape)
+    Column {
+        RowHeader(title)
+        val extra = width + 24.dp
+        PivotScrolling(RowInset + extra) {
+            LazyRow(
+                modifier = Modifier
+                    .extendLeft(extra)
+                    .fadeLeftOf(extra + RowInset)
+                    .restoreFocus(memory),
+                horizontalArrangement = Arrangement.spacedBy(if (size == 0) 10.dp else 12.dp),
+                contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
+            ) {
+                itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
+                    val requester = remember { FocusRequester() }
+                    if (pendingId == meta.id || (pendingId == "" && index == 0)) {
+                        LaunchedEffect(Unit) {
+                            requester.tryRequest()
+                            onPendingDone()
+                        }
+                    }
+                    Box {
+                        PosterCard(
+                            meta = meta,
+                            modifier = Modifier
+                                .rememberFocus(memory, meta.id)
+                                .focusRequesterSafe(requester),
+                            onFocus = { onFocusItem(meta) },
+                            onClick = { onOpen(meta) },
+                            onLongClick = onLongPress,
+                            width = width,
+                            landscape = landscape,
+                            showTitle = false,
+                        )
+                        badges[meta.id]?.let { b ->
+                            Text(
+                                b,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.6.sp,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .padding(6.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2)))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

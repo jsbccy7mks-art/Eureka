@@ -211,6 +211,7 @@ fun ContinueCard(
 }
 
 fun minutesLeft(p: WatchProgress): String {
+    if ((p.percent ?: 0.0) < 0) return "Up next"
     if (p.duration <= 1) return "${(p.percent ?: 0.0).toInt()}% watched"
     val left = ((p.duration - p.position) / 60_000).coerceAtLeast(1)
     return if (left >= 60) "${left / 60} h ${left % 60} min left" else "$left min left"
