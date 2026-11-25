@@ -11,7 +11,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
@@ -21,7 +28,9 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.zapp.tv.data.Channel
+import com.zapp.tv.data.Settings
 import com.zapp.tv.data.USER_AGENT
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -31,13 +40,29 @@ import kotlinx.coroutines.launch
  * One player for the whole app. The preview corner and fullscreen share it, so pressing OK on
  * a channel that is already previewing goes fullscreen instantly, without reconnecting.
  */
+/** One audio or subtitle choice in the player's menus. */
+data class TrackChoice(
+    val label: String,
+    val detail: String,
+    val selected: Boolean,
+    val group: Tracks.Group,
+    val index: Int,
+)
+
+@OptIn(UnstableApi::class)
 class Playback(
     context: Context,
     private val scope: CoroutineScope,
+    private val settings: Settings,
     private val resolve: (Channel) -> String,
 ) {
 
-    val player: ExoPlayer = createPlayer(context)
+    val player: ExoPlayer = createPlayer(context, settings.largeBuffer)
+
+    var tracks by mutableStateOf(Tracks.EMPTY)
+        private set
+    var cues by mutableStateOf<List<Cue>>(emptyList())
+        private set
 
     var channel by mutableStateOf<Channel?>(null)
         private set
@@ -67,6 +92,14 @@ class Playback(
                 retries = 0
                 error = null
             }
+        }
+
+        override fun onTracksChanged(t: Tracks) {
+            tracks = t
+        }
+
+        override fun onCues(cueGroup: CueGroup) {
+            cues = cueGroup.cues
         }
 
         override fun onPlayerError(e: PlaybackException) {
@@ -102,6 +135,8 @@ class Playback(
         error = null
         buffering = true
         channel = c
+        cues = emptyList()
+        applyPreferences()
         player.setMediaItem(MediaItem.fromUri(resolve(c)))
         player.prepare()
         player.playWhenReady = true
@@ -115,6 +150,81 @@ class Playback(
         player.setMediaItem(MediaItem.fromUri(resolve(c)))
         player.prepare()
         player.playWhenReady = true
+    }
+
+    /** Audio language and subtitle defaults from Settings; clears any per-stream choices. */
+    fun applyPreferences() {
+        val b = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setPreferredAudioLanguage(settings.audioLanguage.ifEmpty { null })
+        if (settings.subtitlesOn) {
+            b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .setPreferredTextLanguage(settings.subtitleLanguage.ifEmpty { Locale.getDefault().language })
+                .setSelectUndeterminedTextLanguage(true)
+        } else {
+            b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+        }
+        player.trackSelectionParameters = b.build()
+    }
+
+    fun choices(type: Int): List<TrackChoice> {
+        val list = ArrayList<TrackChoice>()
+        for (group in tracks.groups) {
+            if (group.type != type) continue
+            for (i in 0 until group.length) {
+                if (!group.isTrackSupported(i)) continue
+                val f = group.getTrackFormat(i)
+                list.add(
+                    TrackChoice(
+                        label = f.label?.takeIf { it.isNotBlank() } ?: languageName(f.language) ?: "Track ${list.size + 1}",
+                        detail = if (type == C.TRACK_TYPE_AUDIO) audioDetail(f) else textDetail(f),
+                        selected = group.isTrackSelected(i),
+                        group = group,
+                        index = i,
+                    ),
+                )
+            }
+        }
+        return list
+    }
+
+    val subtitlesShowing: Boolean
+        get() = tracks.groups.any { it.type == C.TRACK_TYPE_TEXT && it.isSelected }
+
+    fun select(choice: TrackChoice) {
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(choice.group.type, false)
+            .setOverrideForType(TrackSelectionOverride(choice.group.mediaTrackGroup, choice.index))
+            .build()
+    }
+
+    fun subtitlesOff() {
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            .build()
+        cues = emptyList()
+    }
+
+    /** Technical details for the stream info panel. */
+    fun details(): List<Pair<String, String>> {
+        val rows = ArrayList<Pair<String, String>>()
+        player.videoFormat?.let { v ->
+            if (v.width > 0 && v.height > 0) rows.add("Resolution" to "${v.width} × ${v.height}")
+            if (v.frameRate > 0) rows.add("Frame rate" to String.format(Locale.UK, "%.2f fps", v.frameRate).replace(".00", ""))
+            rows.add("Video" to codecName(v.sampleMimeType, v.codecs))
+            if (v.bitrate > 0) rows.add("Video bitrate" to "${v.bitrate / 1000} kbps")
+        }
+        player.audioFormat?.let { a ->
+            rows.add("Audio" to audioDetail(a))
+            if (a.sampleRate > 0) rows.add("Sample rate" to "${a.sampleRate / 1000.0} kHz".replace(".0 ", " "))
+        }
+        val buffered = player.totalBufferedDuration
+        if (buffered > 0) rows.add("Buffered" to String.format(Locale.UK, "%.1f s", buffered / 1000.0))
+        player.videoDecoderCounters?.let { rows.add("Dropped frames" to it.droppedBufferCount.toString()) }
+        if (rows.isEmpty()) rows.add("Status" to "Waiting for the stream")
+        return rows
     }
 
     fun togglePause() {
@@ -137,11 +247,58 @@ class Playback(
     }
 
     companion object {
+        fun languageName(code: String?): String? {
+            val c = code?.trim()?.takeIf { it.isNotEmpty() && it != "und" } ?: return null
+            val name = Locale.forLanguageTag(c).getDisplayLanguage(Locale.UK)
+            return name.takeIf { it.isNotBlank() && it != c } ?: c.uppercase()
+        }
+
+        private fun codecName(mime: String?, codecs: String?): String = when (mime) {
+            MimeTypes.VIDEO_H264 -> "H.264"
+            MimeTypes.VIDEO_H265 -> "HEVC (H.265)"
+            MimeTypes.VIDEO_AV1 -> "AV1"
+            MimeTypes.VIDEO_VP9 -> "VP9"
+            MimeTypes.VIDEO_MPEG2 -> "MPEG-2"
+            MimeTypes.AUDIO_AAC -> "AAC"
+            MimeTypes.AUDIO_AC3 -> "Dolby Digital"
+            MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC -> "Dolby Digital Plus"
+            MimeTypes.AUDIO_AC4 -> "Dolby AC-4"
+            MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD -> "DTS"
+            MimeTypes.AUDIO_TRUEHD -> "Dolby TrueHD"
+            MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_MPEG_L2 -> "MPEG audio"
+            MimeTypes.AUDIO_OPUS -> "Opus"
+            else -> codecs?.substringBefore('.')?.uppercase() ?: mime?.substringAfter('/')?.uppercase() ?: "Unknown"
+        }
+
+        private fun audioDetail(f: Format): String {
+            val channels = when (f.channelCount) {
+                1 -> "mono"
+                2 -> "stereo"
+                6 -> "5.1"
+                8 -> "7.1"
+                Format.NO_VALUE -> null
+                else -> "${f.channelCount} channels"
+            }
+            return listOfNotNull(codecName(f.sampleMimeType, f.codecs), channels).joinToString(", ")
+        }
+
+        private fun textDetail(f: Format): String = when (f.sampleMimeType) {
+            MimeTypes.APPLICATION_DVBSUBS -> "DVB subtitles"
+            MimeTypes.APPLICATION_CEA608, MimeTypes.APPLICATION_CEA708 -> "Closed captions"
+            MimeTypes.TEXT_VTT -> "WebVTT"
+            MimeTypes.APPLICATION_SUBRIP -> "SubRip"
+            MimeTypes.APPLICATION_TTML -> "TTML"
+            else -> "Subtitles"
+        } + if ((f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) ", forced" else ""
+
         @OptIn(UnstableApi::class)
-        private fun createPlayer(context: Context): ExoPlayer {
-            // Small start-up buffer so channels open quickly when zapping.
+        private fun createPlayer(context: Context, largeBuffer: Boolean): ExoPlayer {
+            // Small start-up buffer so channels open quickly when zapping; a larger one for unsteady providers.
             val loadControl = DefaultLoadControl.Builder()
-                .setBufferDurationsMs(10_000, 30_000, 1_000, 2_500)
+                .apply {
+                    if (largeBuffer) setBufferDurationsMs(30_000, 90_000, 2_500, 6_000)
+                    else setBufferDurationsMs(10_000, 30_000, 1_000, 2_500)
+                }
                 .build()
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(USER_AGENT)

@@ -47,6 +47,8 @@ const val UPDATE_LINK = "github.com/jsbccy7mks-art/Eureka/releases/latest/downlo
 private enum class SettingsSection(val label: String) {
     Sources("Sources"),
     Live("Live TV and guide"),
+    Playback("Playback"),
+    Subtitles("Subtitles"),
     About("Updates and about"),
 }
 
@@ -122,6 +124,8 @@ fun SettingsScreen(
             when (section) {
                 SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
+                SettingsSection.Playback -> PlaybackSettingsPane(vm)
+                SettingsSection.Subtitles -> SubtitleSettingsPane(vm)
                 SettingsSection.About -> AboutPane(vm)
             }
         }
@@ -171,6 +175,122 @@ private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
             body = "Reloads channel lists from your providers. Favourites and history are kept.",
             value = SettingValue.Action,
             onClick = { vm.refreshAll() },
+        )
+    }
+}
+
+/** Languages offered for audio and subtitles; "" follows the TV's own language. */
+private val Languages = listOf("", "en", "fr", "de", "es", "it", "pt", "nl", "pl", "tr", "ar", "sv", "da", "no", "el", "ro", "hi")
+
+private fun languageLabel(code: String): String =
+    if (code.isEmpty()) "Same as the TV" else Playback.languageName(code) ?: code
+
+private fun next(code: String): String = Languages[(Languages.indexOf(code) + 1).mod(Languages.size)]
+
+@Composable
+private fun PlaybackSettingsPane(vm: AppViewModel) {
+    val s = vm.settings
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SettingRow(
+            title = "Preferred audio language",
+            body = "Used when a channel offers more than one language. You can still switch in the player.",
+            value = SettingValue.Choice(languageLabel(s.audioLanguage)),
+            onClick = { s.audioLanguage = next(s.audioLanguage) },
+        )
+        SettingRow(
+            title = "Bigger buffer",
+            body = "Holds more video in reserve for unsteady connections, at the cost of slower channel changes. " +
+                "Takes effect next time Zapp starts.",
+            value = SettingValue.Toggle(s.largeBuffer),
+            onClick = { s.largeBuffer = !s.largeBuffer },
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "In the player: OK opens the controls (audio, subtitles, stream info), Left opens the channel list, " +
+                "Right shows what's on, and Up or Down changes channel.",
+            color = ZappColors.Faint,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+        )
+    }
+}
+
+@Composable
+private fun SubtitleSettingsPane(vm: AppViewModel) {
+    val s = vm.settings
+    val sizes = listOf("Small", "Medium", "Large", "Extra large")
+    val styles = listOf("White with shadow", "White on dark box", "Yellow with shadow")
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Live preview of the chosen look.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(96.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    androidx.compose.ui.graphics.Brush.linearGradient(
+                        listOf(Color(0xFF3A4A6B), Color(0xFF6B5A3A), Color(0xFF2A3A3A)),
+                    ),
+                ),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(Modifier.padding(bottom = 12.dp)) {
+                SubtitleText(
+                    "This is how subtitles will look.",
+                    when (s.subtitleSize) {
+                        0 -> 14.sp
+                        2 -> 21.sp
+                        3 -> 25.sp
+                        else -> 17.sp
+                    },
+                    s.subtitleStyle,
+                )
+            }
+        }
+        SettingRow(
+            title = "Subtitles",
+            body = "Turn subtitles on automatically when a channel has them. You can always switch in the player.",
+            value = SettingValue.Choice(if (s.subtitlesOn) "On when available" else "Off"),
+            onClick = { s.subtitlesOn = !s.subtitlesOn },
+        )
+        SettingRow(
+            title = "Subtitle language",
+            body = "Preferred language when subtitles turn on automatically.",
+            value = SettingValue.Choice(languageLabel(s.subtitleLanguage)),
+            onClick = { s.subtitleLanguage = next(s.subtitleLanguage) },
+        )
+        SettingRow(
+            title = "Size",
+            body = "Applies to text subtitles and captions.",
+            value = SettingValue.Choice(sizes[s.subtitleSize.coerceIn(0, 3)]),
+            onClick = { s.subtitleSize = (s.subtitleSize + 1).mod(sizes.size) },
+        )
+        SettingRow(
+            title = "Style",
+            body = "How the text stands out from the picture.",
+            value = SettingValue.Choice(styles[s.subtitleStyle.coerceIn(0, 2)]),
+            onClick = { s.subtitleStyle = (s.subtitleStyle + 1).mod(styles.size) },
+        )
+        SettingRow(
+            title = "Position",
+            body = "Raise subtitles if they're hidden by the edge of your TV.",
+            value = SettingValue.Choice(if (s.subtitleRaised) "Raised" else "Bottom"),
+            onClick = { s.subtitleRaised = !s.subtitleRaised },
+        )
+        Text(
+            "Picture-based subtitles (DVB) keep the look the broadcaster gave them.",
+            color = ZappColors.Faint,
+            fontSize = 12.sp,
         )
     }
 }

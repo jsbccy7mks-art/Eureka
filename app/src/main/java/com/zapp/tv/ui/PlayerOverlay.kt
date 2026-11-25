@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalComposeUiApi::class)
+
 package com.zapp.tv.ui
 
 import androidx.activity.compose.BackHandler
@@ -51,6 +53,17 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.media3.common.C
+import androidx.media3.common.text.Cue
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalView
@@ -70,10 +83,12 @@ private val ZapUp = setOf(Key.DirectionUp, Key.ChannelDown)
 private val ZapDown = setOf(Key.DirectionDown, Key.ChannelUp)
 private val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
 
+private enum class PlayerPanel { None, Controls, Channels, Audio, Subtitles, Details }
+
 /**
  * Fullscreen player.
- * Up/Down: previous/next channel. OK or Left: channel list. Right: programme info.
- * Hold OK or Menu: favourite. Back: return to where you were.
+ * Up/Down: change channel. OK: controls (audio, subtitles, stream info...). Left: channel list.
+ * Right: programme info. Hold OK or Menu: favourite. Back closes the open panel, then the player.
  */
 @Composable
 fun PlayerOverlay(
@@ -89,9 +104,10 @@ fun PlayerOverlay(
     val now = rememberNow()
     val timeFormat = rememberTimeFormat()
 
+    var panel by remember { mutableStateOf(PlayerPanel.None) }
     var infoVisible by remember { mutableStateOf(true) }
     var infoTick by remember { mutableIntStateOf(0) }
-    var listVisible by remember { mutableStateOf(false) }
+    var idleTick by remember { mutableIntStateOf(0) }
     var zapJob by remember { mutableStateOf<Job?>(null) }
     var favTick by remember { mutableIntStateOf(0) }
     val press = remember { BooleanArray(2) } // [0] OK down, [1] long press fired
@@ -106,12 +122,29 @@ fun PlayerOverlay(
     }
 
     BackHandler {
-        if (listVisible) listVisible = false else onClose()
+        panel = when (panel) {
+            PlayerPanel.Audio, PlayerPanel.Subtitles, PlayerPanel.Details -> PlayerPanel.Controls
+            PlayerPanel.Controls, PlayerPanel.Channels -> PlayerPanel.None
+            PlayerPanel.None -> {
+                onClose()
+                PlayerPanel.None
+            }
+        }
     }
 
-    LaunchedEffect(listVisible) { if (!listVisible) focus.tryRequest() }
+    LaunchedEffect(panel) { if (panel == PlayerPanel.None) focus.tryRequest() }
 
-    // A channel counts as watched after ten seconds, so quick zapping doesn't fill your history.
+    // Open the controls when a stream fails, so "Try again" is one press away.
+    LaunchedEffect(playback.error) { if (playback.error != null) panel = PlayerPanel.Controls }
+
+    // Controls tidy themselves away after a while without key presses.
+    LaunchedEffect(idleTick, panel) {
+        if (panel == PlayerPanel.Controls && playback.error == null) {
+            delay(9_000)
+            panel = PlayerPanel.None
+        }
+    }
+
     LaunchedEffect(channel.streamUrl) {
         delay(10_000)
         vm.recordWatched(channel)
@@ -152,8 +185,19 @@ fun PlayerOverlay(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onPreviewKeyEvent {
+                // Any key while a panel is open keeps the controls from hiding; channel keys always zap.
+                if (it.type == KeyEventType.KeyDown) {
+                    idleTick++
+                    if (panel != PlayerPanel.None && (it.key == Key.ChannelUp || it.key == Key.ChannelDown)) {
+                        zap(it.key == Key.ChannelUp)
+                        return@onPreviewKeyEvent true
+                    }
+                }
+                false
+            }
             .onKeyEvent { e ->
-                if (listVisible) return@onKeyEvent false
+                if (panel != PlayerPanel.None) return@onKeyEvent false
                 val key = e.key
                 when (e.type) {
                     KeyEventType.KeyDown -> when {
@@ -176,7 +220,7 @@ fun PlayerOverlay(
                             true
                         }
                         key == Key.DirectionLeft -> {
-                            listVisible = true
+                            panel = PlayerPanel.Channels
                             true
                         }
                         key == Key.DirectionRight -> {
@@ -184,11 +228,12 @@ fun PlayerOverlay(
                             true
                         }
                         key == Key.Menu -> {
-                            toggleFavorite(channel)
+                            panel = PlayerPanel.Controls
                             true
                         }
                         key == Key.MediaPlayPause || key == Key.MediaPlay || key == Key.MediaPause -> {
                             playback.togglePause()
+                            infoTick++
                             true
                         }
                         else -> false
@@ -198,9 +243,7 @@ fun PlayerOverlay(
                             val shortPress = press[0] && !press[1]
                             press[0] = false
                             press[1] = false
-                            if (shortPress) {
-                                if (playback.error != null) playback.retry() else listVisible = true
-                            }
+                            if (shortPress) panel = PlayerPanel.Controls
                             true
                         }
                         else -> false
@@ -217,35 +260,48 @@ fun PlayerOverlay(
             modifier = Modifier.aspectRatio(playback.aspect, matchHeightConstraintsFirst = playback.aspect < 16f / 9f + 0.01f),
         )
 
+        SubtitleLayer(playback.cues, vm.settings, raisedForPanel = panel == PlayerPanel.Controls || infoVisible)
+
         if (playback.buffering && playback.error == null) {
             CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
         }
 
-        playback.error?.let { message ->
-            Column(
-                Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(ZappColors.Panel)
-                    .padding(horizontal = 24.dp, vertical = 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(message, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                Text("Press OK to try again, or up and down for another channel.", color = ZappColors.Dim, fontSize = 12.sp)
-            }
-        }
-
         AnimatedVisibility(
-            visible = infoVisible && !listVisible,
+            visible = infoVisible && panel == PlayerPanel.None,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
-            InfoBar(channel, favorite, programmes, now, timeFormat)
+            BottomScrim { InfoBar(channel, favorite, programmes, now, timeFormat, hints = true) }
         }
 
         AnimatedVisibility(
-            visible = listVisible,
+            visible = panel == PlayerPanel.Controls || panel == PlayerPanel.Audio || panel == PlayerPanel.Subtitles || panel == PlayerPanel.Details,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn() + slideInVertically { it / 3 },
+            exit = fadeOut(),
+        ) {
+            BottomScrim {
+                ControlsPanel(
+                    playback = playback,
+                    channel = channel,
+                    favorite = favorite,
+                    programmes = programmes,
+                    now = now,
+                    timeFormat = timeFormat,
+                    focusable = panel == PlayerPanel.Controls,
+                    onChannels = { panel = PlayerPanel.Channels },
+                    onAudio = { panel = PlayerPanel.Audio },
+                    onSubtitles = { panel = PlayerPanel.Subtitles },
+                    onDetails = { panel = PlayerPanel.Details },
+                    onFavorite = { toggleFavorite(channel) },
+                    onNextChannel = { zap(true) },
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = panel == PlayerPanel.Channels,
             modifier = Modifier.align(Alignment.CenterStart),
             enter = fadeIn() + slideInHorizontally { -it / 3 },
             exit = fadeOut() + slideOutHorizontally { -it / 3 },
@@ -258,14 +314,355 @@ fun PlayerOverlay(
                 onPick = { row ->
                     vm.lastChannelUrl = row.channel.streamUrl
                     playback.play(row.channel)
-                    listVisible = false
+                    panel = PlayerPanel.None
                     infoTick++
                 },
                 onFavorite = { row -> toggleFavorite(row.channel) },
-                onClose = { listVisible = false },
+                onClose = { panel = PlayerPanel.None },
             )
         }
+
+        AnimatedVisibility(
+            visible = panel == PlayerPanel.Audio || panel == PlayerPanel.Subtitles || panel == PlayerPanel.Details,
+            modifier = Modifier.align(Alignment.CenterEnd),
+            enter = fadeIn() + slideInHorizontally { it / 3 },
+            exit = fadeOut() + slideOutHorizontally { it / 3 },
+        ) {
+            when (panel) {
+                PlayerPanel.Audio -> TrackPanel(
+                    title = "Audio",
+                    choices = playback.choices(C.TRACK_TYPE_AUDIO),
+                    offOption = null,
+                    onPick = {
+                        playback.select(it)
+                        panel = PlayerPanel.Controls
+                    },
+                )
+                PlayerPanel.Subtitles -> TrackPanel(
+                    title = "Subtitles",
+                    choices = playback.choices(C.TRACK_TYPE_TEXT),
+                    offOption = !playback.subtitlesShowing,
+                    onOff = {
+                        playback.subtitlesOff()
+                        panel = PlayerPanel.Controls
+                    },
+                    onPick = {
+                        playback.select(it)
+                        panel = PlayerPanel.Controls
+                    },
+                )
+                else -> DetailsPanel(playback)
+            }
+        }
     }
+}
+
+@Composable
+private fun BottomScrim(content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9070A14), Color(0xF2070A14))))
+            .padding(start = 48.dp, end = 48.dp, top = 70.dp, bottom = 28.dp),
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun ControlsPanel(
+    playback: Playback,
+    channel: Channel,
+    favorite: Boolean,
+    programmes: List<Programme>,
+    now: Long,
+    timeFormat: java.text.DateFormat,
+    focusable: Boolean,
+    onChannels: () -> Unit,
+    onAudio: () -> Unit,
+    onSubtitles: () -> Unit,
+    onDetails: () -> Unit,
+    onFavorite: () -> Unit,
+    onNextChannel: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
+    val audio = playback.choices(C.TRACK_TYPE_AUDIO)
+    val subtitles = playback.choices(C.TRACK_TYPE_TEXT)
+
+    Column {
+        InfoBar(channel, favorite, programmes, now, timeFormat, hints = false)
+        playback.error?.let {
+            Spacer(Modifier.height(12.dp))
+            ErrorBanner("$it Try again, or move to another channel.")
+        }
+        SeekBar(playback, focusable)
+        Spacer(Modifier.height(14.dp))
+        Row(
+            Modifier
+                .focusRestorer()
+                .focusGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (playback.error != null) {
+                ZButton("Try again", { playback.retry() }, style = ButtonStyle.Primary, focusRequester = first)
+                ZButton("Next channel", onNextChannel)
+            } else {
+                ZButton(
+                    if (playback.player.playWhenReady) "Pause" else "Play",
+                    { playback.togglePause() },
+                    focusRequester = first,
+                )
+            }
+            ZButton("Channels", onChannels)
+            ZButton(
+                if (audio.size > 1) "Audio (${audio.size})" else "Audio",
+                onAudio,
+            )
+            ZButton(
+                when {
+                    subtitles.isEmpty() -> "Subtitles"
+                    playback.subtitlesShowing -> "Subtitles on"
+                    else -> "Subtitles off"
+                },
+                onSubtitles,
+            )
+            ZButton("Stream info", onDetails)
+            ZButton(if (favorite) "Unfavourite" else "Favourite", onFavorite)
+        }
+    }
+}
+
+/** Progress and seeking, shown only when the stream can actually be moved through. */
+@Composable
+private fun SeekBar(playback: Playback, active: Boolean) {
+    val player = playback.player
+    val state by produceState(Triple(0L, 0L, false), active) {
+        while (true) {
+            value = Triple(player.currentPosition, player.duration, player.isCurrentMediaItemSeekable)
+            delay(500)
+        }
+    }
+    val (position, duration, seekable) = state
+    if (!seekable || duration <= 0 || duration == C.TIME_UNSET) return
+
+    Spacer(Modifier.height(14.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(formatClock(position), color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.width(64.dp))
+        FocusSurface(
+            onClick = { playback.togglePause() },
+            modifier = Modifier
+                .weight(1f)
+                .height(22.dp)
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val step = if (e.nativeKeyEvent.repeatCount > 4) 60_000L else 10_000L
+                    when (e.key) {
+                        Key.DirectionRight -> {
+                            player.seekTo((player.currentPosition + step).coerceAtMost(player.duration))
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            player.seekTo((player.currentPosition - step).coerceAtLeast(0))
+                            true
+                        }
+                        else -> false
+                    }
+                },
+            shape = RoundedCornerShape(50),
+            focusScale = 1f,
+            focusColor = Color(0x33FFFFFF),
+        ) { focused ->
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                ProgressLine(
+                    (position.toFloat() / duration).coerceIn(0f, 1f),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp),
+                    fill = if (focused) Color.White else ZappColors.Signal,
+                )
+            }
+        }
+        Text(formatClock(duration), color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp))
+    }
+}
+
+private fun formatClock(ms: Long): String {
+    val total = (ms / 1000).coerceAtLeast(0)
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val sec = total % 60
+    return if (h > 0) String.format(java.util.Locale.UK, "%d:%02d:%02d", h, m, sec)
+    else String.format(java.util.Locale.UK, "%d:%02d", m, sec)
+}
+
+@Composable
+private fun SidePanel(title: String, content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .width(360.dp)
+            .fillMaxHeight()
+            .background(Brush.horizontalGradient(listOf(Color(0x000A0E1A), Color(0xE60A0E1A), Color(0xF20A0E1A))))
+            .padding(start = 36.dp, end = 32.dp, top = 32.dp, bottom = 24.dp),
+    ) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(12.dp))
+        content()
+    }
+}
+
+@Composable
+private fun TrackPanel(
+    title: String,
+    choices: List<TrackChoice>,
+    offOption: Boolean?,
+    onPick: (TrackChoice) -> Unit,
+    onOff: () -> Unit = {},
+) {
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { firstFocus.tryRequest() }
+    SidePanel(title) {
+        if (choices.isEmpty()) {
+            Text(
+                if (offOption != null) "This channel has no subtitles." else "This channel has one audio track.",
+                color = ZappColors.Dim,
+                fontSize = 13.sp,
+            )
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (offOption != null) {
+                item(key = "off") {
+                    TrackRow("Off", "", offOption, if (offOption || choices.none { it.selected }) firstFocus else null, onOff)
+                }
+            }
+            items(choices.size) { i ->
+                val c = choices[i]
+                val takeFocus = c.selected || (offOption == null && i == 0 && choices.none { it.selected })
+                TrackRow(c.label, c.detail, c.selected, if (takeFocus) firstFocus else null) { onPick(c) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackRow(label: String, detail: String, selected: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        focusRequester = requester,
+        selected = selected,
+        shape = RoundedCornerShape(10.dp),
+    ) { focused ->
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                if (detail.isNotEmpty()) {
+                    Text(detail, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 11.5.sp)
+                }
+            }
+            if (selected) {
+                Box(
+                    Modifier
+                        .size(8.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(if (focused) ZappColors.OnFocus else ZappColors.Signal),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailsPanel(playback: Playback) {
+    val rows by produceState(playback.details()) {
+        while (true) {
+            value = playback.details()
+            delay(1_000)
+        }
+    }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.tryRequest() }
+    SidePanel("Stream info") {
+        // A focusable holder so Back and the remote keep working while this panel is open.
+        Box(
+            Modifier
+                .focusRequester(focus)
+                .focusable(),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                rows.forEach { (label, value) ->
+                    Row {
+                        Text(label, color = ZappColors.Dim, fontSize = 12.5.sp, modifier = Modifier.width(120.dp))
+                        Text(value, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Subtitles drawn by the app, so they follow the size and style chosen in Settings. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun SubtitleLayer(cues: List<Cue>, settings: com.zapp.tv.data.Settings, raisedForPanel: Boolean) {
+    if (cues.isEmpty()) return
+    val size = when (settings.subtitleSize) {
+        0 -> 17.sp
+        2 -> 27.sp
+        3 -> 33.sp
+        else -> 22.sp
+    }
+    val bottom = when {
+        raisedForPanel -> 190.dp
+        settings.subtitleRaised -> 96.dp
+        else -> 40.dp
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .padding(start = 72.dp, end = 72.dp, bottom = bottom),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            cues.forEach { cue ->
+                val bitmap = cue.bitmap
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxWidth(if (cue.size > 0f && cue.size <= 1f) cue.size else 0.7f),
+                    )
+                }
+                cue.text?.toString()?.takeIf { it.isNotBlank() }?.let { text -> SubtitleText(text, size, settings.subtitleStyle) }
+            }
+        }
+    }
+}
+
+@Composable
+fun SubtitleText(text: String, size: androidx.compose.ui.unit.TextUnit, style: Int) {
+    val shadow = Shadow(Color.Black, Offset(0f, 2f), 8f)
+    val modifier = if (style == 1) {
+        Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xCC000000))
+            .padding(horizontal = 10.dp, vertical = 3.dp)
+    } else {
+        Modifier
+    }
+    Text(
+        text = text,
+        modifier = modifier,
+        style = TextStyle(
+            fontFamily = Inter,
+            fontSize = size,
+            lineHeight = size * 1.25f,
+            fontWeight = FontWeight.Medium,
+            color = if (style == 2) Color(0xFFFFE14D) else Color.White,
+            textAlign = TextAlign.Center,
+            shadow = if (style == 1) null else shadow,
+        ),
+    )
 }
 
 @Composable
@@ -275,16 +672,12 @@ private fun InfoBar(
     programmes: List<Programme>,
     now: Long,
     timeFormat: java.text.DateFormat,
+    hints: Boolean,
 ) {
     val current = programmes.firstOrNull { it.start <= now && it.stop > now }
     val next = programmes.firstOrNull { it.start > now }
 
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xD9070A14), Color(0xF2070A14))))
-            .padding(start = 48.dp, end = 48.dp, top = 70.dp, bottom = 30.dp),
-    ) {
+    Box(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val art = current?.icon
             if (art != null) {
@@ -360,11 +753,13 @@ private fun InfoBar(
                     )
                 }
             }
-            Spacer(Modifier.width(24.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.Start) {
-                KeyHint("OK", "Channels")
-                KeyHint("Up / Down", "Change channel")
-                KeyHint("Hold OK", "Favourite")
+            if (hints) {
+                Spacer(Modifier.width(24.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.Start) {
+                    KeyHint("OK", "Controls")
+                    KeyHint("Left", "Channels")
+                    KeyHint("Up / Down", "Change channel")
+                }
             }
         }
     }

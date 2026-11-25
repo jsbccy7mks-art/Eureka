@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0 (Stage 3: player)
+
+**New**
+- Player controls: press OK while watching for a controls bar with Play/Pause, Channels, Audio,
+  Subtitles, Stream info and Favourite. It hides after a few seconds without key presses.
+- Audio track choice (language, codec, stereo or 5.1) and subtitle choice, including Off.
+- Subtitles are drawn by the app: size, style (white with shadow, white on a dark box, yellow)
+  and position are set in Settings, Subtitles, with a live preview. Picture-based DVB subtitles are shown too.
+- Stream info: resolution, frame rate, video and audio codec, bitrate, buffer and dropped frames.
+- Seek bar with rewind and fast-forward (Left/Right, hold to go faster) for streams that allow seeking,
+  such as catch-up or HLS streams with a rewind window.
+- If a channel fails, the controls open with Try again and Next channel.
+- Settings, Playback: preferred audio language and an optional bigger buffer for unsteady connections.
+- DASH streams are supported in addition to HLS and MPEG-TS.
+
+**Changed**
+- In the player, OK now opens the controls; the channel list is on Left (and in the controls).
+
+**Not yet (needs movies and series from Stage 4)**
+- Resume playback, Continue watching for films and episodes, and next-episode autoplay.
+
 ## 0.4.1 (crash fix)
 
 **Fixed**

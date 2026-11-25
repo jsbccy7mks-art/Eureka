@@ -72,7 +72,7 @@ private val RailOpenWidth = 220.dp
 fun ZappRoot(vm: AppViewModel) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val playback = remember { Playback(context.applicationContext, coroutineScope) { vm.resolveUrl(it) } }
+    val playback = remember { Playback(context.applicationContext, coroutineScope, vm.settings) { vm.resolveUrl(it) } }
     val playlists by vm.playlists.collectAsState()
 
     var dest by rememberSaveable { mutableStateOf(Dest.Home) }
