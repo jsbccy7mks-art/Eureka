@@ -1,6 +1,7 @@
 package com.zapp.tv.data
 
 import android.content.Context
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 
@@ -16,12 +17,25 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("preview", value).apply()
         }
 
-    private val autoGuideState = mutableStateOf(prefs.getBoolean("autoGuide", true))
-    var autoGuide: Boolean
-        get() = autoGuideState.value
+    /** Hours between automatic guide updates; 0 turns them off. Defaults from the 0.2 on/off switch. */
+    private val guideHoursState = mutableIntStateOf(
+        if (prefs.contains("guideHours")) prefs.getInt("guideHours", 12)
+        else if (prefs.getBoolean("autoGuide", true)) 12 else 0,
+    )
+    var guideHours: Int
+        get() = guideHoursState.intValue
         set(value) {
-            autoGuideState.value = value
-            prefs.edit().putBoolean("autoGuide", value).apply()
+            guideHoursState.intValue = value
+            prefs.edit().putInt("guideHours", value).apply()
+        }
+
+    /** Guide grid: show only programmes on right now (used from Stage 2). */
+    private val showLiveNowOnlyState = mutableStateOf(prefs.getBoolean("guideLiveOnly", false))
+    var guideLiveOnly: Boolean
+        get() = showLiveNowOnlyState.value
+        set(value) {
+            showLiveNowOnlyState.value = value
+            prefs.edit().putBoolean("guideLiveOnly", value).apply()
         }
 
     private val currentPlaylistState = mutableLongStateOf(prefs.getLong("currentPlaylist", -1L))

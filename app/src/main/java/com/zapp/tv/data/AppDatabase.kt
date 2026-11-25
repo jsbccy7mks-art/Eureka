@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class],
-    version = 2,
+    entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +18,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
     abstract fun programmeDao(): ProgrammeDao
     abstract fun favoriteDao(): FavoriteDao
+    abstract fun recentDao(): RecentDao
 
     companion object {
         /** Phase 1 -> Phase 2: keeps existing playlists, adds the guide and favourites. */
@@ -45,9 +46,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 0.2 -> 0.3: adds recently watched channels. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `recent_channels` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`playlistId` INTEGER NOT NULL, `streamUrl` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`logo` TEXT, `watchedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_recent_channels_playlistId_streamUrl` " +
+                        "ON `recent_channels` (`playlistId`, `streamUrl`)",
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "zapp.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
     }

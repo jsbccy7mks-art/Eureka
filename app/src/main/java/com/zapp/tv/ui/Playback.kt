@@ -31,7 +31,11 @@ import kotlinx.coroutines.launch
  * One player for the whole app. The preview corner and fullscreen share it, so pressing OK on
  * a channel that is already previewing goes fullscreen instantly, without reconnecting.
  */
-class Playback(context: Context, private val scope: CoroutineScope) {
+class Playback(
+    context: Context,
+    private val scope: CoroutineScope,
+    private val resolve: (Channel) -> String,
+) {
 
     val player: ExoPlayer = createPlayer(context)
 
@@ -98,7 +102,7 @@ class Playback(context: Context, private val scope: CoroutineScope) {
         error = null
         buffering = true
         channel = c
-        player.setMediaItem(MediaItem.fromUri(c.streamUrl))
+        player.setMediaItem(MediaItem.fromUri(resolve(c)))
         player.prepare()
         player.playWhenReady = true
     }
@@ -108,7 +112,7 @@ class Playback(context: Context, private val scope: CoroutineScope) {
         error = null
         retries = 0
         buffering = true
-        player.setMediaItem(MediaItem.fromUri(c.streamUrl))
+        player.setMediaItem(MediaItem.fromUri(resolve(c)))
         player.prepare()
         player.playWhenReady = true
     }

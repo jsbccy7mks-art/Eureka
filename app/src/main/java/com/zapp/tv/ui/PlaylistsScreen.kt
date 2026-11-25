@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -134,86 +134,64 @@ fun WelcomeScreen(vm: AppViewModel, onForm: (xtream: Boolean) -> Unit) {
     }
 }
 
-// ---------------------------------------------------------------------------- playlists tab
+// ---------------------------------------------------------------------------- sources (in Settings)
 
 @Composable
-fun PlaylistsScreen(
+fun SourcesPane(
     vm: AppViewModel,
-    focusTick: Int,
     onForm: (xtream: Boolean) -> Unit,
     onWatch: (Long) -> Unit,
 ) {
     val playlists by vm.playlists.collectAsState()
     val scope by vm.scope.collectAsState()
-    val firstFocus = remember { FocusRequester() }
-    var handledTick by remember { mutableIntStateOf(focusTick) }
     val now = rememberNow(60_000)
 
-    LaunchedEffect(focusTick) {
-        if (focusTick == handledTick) return@LaunchedEffect
-        handledTick = focusTick
-        firstFocus.tryRequest()
-    }
-
-    Row(
-        Modifier
+    LazyColumn(
+        modifier = Modifier
             .fillMaxSize()
-            .padding(start = 32.dp, end = 32.dp, bottom = 22.dp),
+            .focusRestorer(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 24.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text("Playlists", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(3.dp))
-            Text("Switch, refresh or remove your playlists.", color = ZappColors.Dim, fontSize = 12.sp)
-            vm.error?.let {
-                Spacer(Modifier.height(10.dp))
-                ErrorBanner(it)
-            }
-            Spacer(Modifier.height(14.dp))
-            LazyColumn(
-                modifier = Modifier.focusRestorer(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 12.dp),
-            ) {
-                itemsIndexed(playlists, key = { _, it -> it.playlist.id }) { index, item ->
-                    PlaylistCard(
-                        item = item,
-                        current = scope?.playlistId == item.playlist.id,
-                        now = now,
-                        focusRequester = if (index == 0) firstFocus else null,
-                        onWatch = { onWatch(item.playlist.id) },
-                        onRefresh = { vm.refresh(item.playlist.id) },
-                        onGuide = { vm.refreshGuideFor(item.playlist.id) },
-                        onDelete = { vm.delete(item.playlist.id) },
-                    )
+        item(key = "add") {
+            Panel(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PhoneSetupCard(vm, qrSize = 120, modifier = Modifier.width(170.dp))
+                    Spacer(Modifier.width(22.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Add a playlist", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Scan the code to type the details on your phone, or enter them with the remote.",
+                            color = ZappColors.Dim,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ZButton("Xtream login", { onForm(true) })
+                            ZButton("M3U link", { onForm(false) })
+                        }
+                    }
                 }
             }
         }
-
-        Spacer(Modifier.width(24.dp))
-
-        Panel(
-            Modifier
-                .width(290.dp)
-                .fillMaxHeight(),
-        ) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Add a playlist", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(16.dp))
-                PhoneSetupCard(vm, qrSize = 140)
-                Spacer(Modifier.height(20.dp))
-                Text("Or use the remote", color = ZappColors.Faint, fontSize = 11.5.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ZButton("Xtream login", { onForm(true) })
-                    ZButton("M3U link", { onForm(false) })
-                }
-            }
+        vm.error?.let { message ->
+            item(key = "error") { ErrorBanner(message) }
+        }
+        items(playlists, key = { it.playlist.id }) { item ->
+            PlaylistCard(
+                item = item,
+                current = scope?.playlistId == item.playlist.id,
+                now = now,
+                onWatch = { onWatch(item.playlist.id) },
+                onRefresh = { vm.refresh(item.playlist.id) },
+                onGuide = { vm.refreshGuideFor(item.playlist.id) },
+                onDelete = { vm.delete(item.playlist.id) },
+            )
         }
     }
 }
@@ -233,7 +211,6 @@ private fun PlaylistCard(
     item: PlaylistItem,
     current: Boolean,
     now: Long,
-    focusRequester: FocusRequester?,
     onWatch: () -> Unit,
     onRefresh: () -> Unit,
     onGuide: () -> Unit,
@@ -297,8 +274,8 @@ private fun PlaylistCard(
                     .focusGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ZButton("Watch", onWatch, style = ButtonStyle.Secondary, focusRequester = focusRequester)
-                ZButton("Refresh channels", onRefresh)
+                ZButton("Watch", onWatch)
+                ZButton("Refresh", onRefresh)
                 ZButton("Update guide", onGuide)
                 ZButton(
                     text = if (confirmDelete) "Press again to delete" else "Delete",
@@ -410,127 +387,3 @@ fun PlaylistForm(
     }
 }
 
-// ---------------------------------------------------------------------------- settings
-
-@Composable
-fun SettingsScreen(vm: AppViewModel, playback: Playback, focusTick: Int) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val version = remember {
-        try {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        } catch (e: Exception) {
-            null
-        }
-    }
-    val first = remember { FocusRequester() }
-    var handledTick by remember { mutableIntStateOf(focusTick) }
-    LaunchedEffect(focusTick) {
-        if (focusTick == handledTick) return@LaunchedEffect
-        handledTick = focusTick
-        first.tryRequest()
-    }
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(start = 32.dp, end = 32.dp, bottom = 22.dp)
-            .widthIn(max = 640.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Settings", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        SettingRow(
-            title = "Preview channels while browsing",
-            body = "Plays the channel you rest on in the corner of Live TV.",
-            checked = vm.settings.preview,
-            focusRequester = first,
-            onClick = {
-                vm.settings.preview = !vm.settings.preview
-                if (!vm.settings.preview) playback.stop()
-            },
-        )
-        SettingRow(
-            title = "Update the guide automatically",
-            body = "Downloads the TV guide when it's more than 12 hours old.",
-            checked = vm.settings.autoGuide,
-            onClick = { vm.settings.autoGuide = !vm.settings.autoGuide },
-        )
-        SettingRow(
-            title = "Update guide now",
-            body = "Downloads the latest guide for every playlist.",
-            checked = null,
-            onClick = { vm.refreshGuideAll() },
-        )
-        SettingRow(
-            title = "Refresh all playlists",
-            body = "Reloads channel lists from your providers.",
-            checked = null,
-            onClick = { vm.refreshAll() },
-        )
-        Spacer(Modifier.height(10.dp))
-        Text("Zapp ${version ?: ""}".trim(), color = ZappColors.Faint, fontSize = 11.sp)
-    }
-}
-
-@Composable
-private fun SettingRow(
-    title: String,
-    body: String,
-    checked: Boolean?,
-    onClick: () -> Unit,
-    focusRequester: FocusRequester? = null,
-) {
-    FocusSurface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        focusRequester = focusRequester,
-        shape = RoundedCornerShape(14.dp),
-        focusScale = 1.015f,
-        restColor = ZappColors.Glass,
-    ) { focused ->
-        Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(title, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(2.dp))
-                Text(body, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 12.sp)
-            }
-            if (checked != null) {
-                Spacer(Modifier.width(16.dp))
-                Switch(checked, focused)
-            } else {
-                Spacer(Modifier.width(16.dp))
-                ChevronGlyph(if (focused) ZappColors.OnFocus else ZappColors.Faint, 12.dp, down = false)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Switch(checked: Boolean, focused: Boolean) {
-    Box(
-        Modifier
-            .width(38.dp)
-            .height(22.dp)
-            .clip(RoundedCornerShape(50))
-            .background(
-                when {
-                    checked -> ZappColors.Brand2
-                    focused -> androidx.compose.ui.graphics.Color(0xFFCBD2E0)
-                    else -> ZappColors.Line
-                },
-            )
-            .padding(3.dp),
-        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart,
-    ) {
-        Box(
-            Modifier
-                .size(16.dp)
-                .clip(RoundedCornerShape(50))
-                .background(androidx.compose.ui.graphics.Color.White),
-        )
-    }
-}

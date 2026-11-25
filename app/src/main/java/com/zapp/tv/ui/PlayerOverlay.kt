@@ -110,6 +110,12 @@ fun PlayerOverlay(
 
     LaunchedEffect(listVisible) { if (!listVisible) focus.tryRequest() }
 
+    // A channel counts as watched after ten seconds, so quick zapping doesn't fill your history.
+    LaunchedEffect(channel.streamUrl) {
+        delay(10_000)
+        vm.recordWatched(channel)
+    }
+
     LaunchedEffect(infoTick) {
         infoVisible = true
         delay(5_000)

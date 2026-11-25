@@ -13,13 +13,15 @@ data class Playlist(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val type: String,
-    /** Xtream: server base URL. M3U: playlist URL. */
+    /** Xtream: server base URL. M3U: playlist URL (encrypted, see [Secrets]). */
     val url: String,
+    /** Encrypted, see [Secrets]. */
     val username: String? = null,
+    /** Encrypted, see [Secrets]. */
     val password: String? = null,
     /** Xtream stream container: "ts" or "m3u8". */
     val format: String = "ts",
-    /** XMLTV guide link. Empty for Xtream means "use the provider's own guide". */
+    /** XMLTV guide link (encrypted). Empty for Xtream means "use the provider's own guide". */
     val epgUrl: String? = null,
     val lastUpdated: Long = 0,
     val epgUpdated: Long = 0,
@@ -68,6 +70,10 @@ data class Channel(
     val number: Int,
     val name: String,
     val logo: String?,
+    /**
+     * For Xtream this is a token like "xt:1234.ts"; the real link (which contains the login)
+     * is only built at play time. For M3U it is the link from the playlist.
+     */
     val streamUrl: String,
     val epgId: String?,
 )
@@ -98,4 +104,18 @@ data class Favorite(
     val streamUrl: String,
     val name: String,
     val addedAt: Long,
+)
+
+/** Channels you've watched, newest first. Keyed by stream link like favourites. */
+@Entity(
+    tableName = "recent_channels",
+    indices = [Index(value = ["playlistId", "streamUrl"], unique = true)],
+)
+data class RecentChannel(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val playlistId: Long,
+    val streamUrl: String,
+    val name: String,
+    val logo: String?,
+    val watchedAt: Long,
 )

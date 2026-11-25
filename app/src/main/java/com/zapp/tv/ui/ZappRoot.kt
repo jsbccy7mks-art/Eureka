@@ -4,12 +4,19 @@ package com.zapp.tv.ui
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +42,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,26 +57,30 @@ import com.zapp.tv.data.ChannelRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class Tab(val label: String) {
-    Live("Live TV"),
-    Guide("Guide"),
-    Playlists("Playlists"),
-    Settings("Settings"),
+enum class Dest(val label: String, val glyph: Glyph) {
+    Home("Home", Glyph.Home),
+    Live("Live TV", Glyph.Live),
+    Guide("TV guide", Glyph.Guide),
+    Settings("Settings", Glyph.Settings),
 }
+
+private val RailWidth = 76.dp
+private val RailOpenWidth = 220.dp
 
 @Composable
 fun ZappRoot(vm: AppViewModel) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val playback = remember { Playback(context.applicationContext, coroutineScope) }
+    val playback = remember { Playback(context.applicationContext, coroutineScope) { vm.resolveUrl(it) } }
     val playlists by vm.playlists.collectAsState()
 
-    var tab by rememberSaveable { mutableStateOf(Tab.Live) }
+    var dest by rememberSaveable { mutableStateOf(Dest.Home) }
     var playerOpen by remember { mutableStateOf(false) }
     var form by remember { mutableStateOf<Boolean?>(null) } // true = Xtream, false = M3U
     var focusTick by remember { mutableIntStateOf(0) }
     var exitArmed by remember { mutableStateOf(false) }
-    val tabFocus = remember { FocusRequester() }
+    var railFocused by remember { mutableStateOf(false) }
+    val railFocus = remember { FocusRequester() }
 
     /** Ask the visible screen to take focus once it has been drawn. */
     fun requestContentFocus(waitMs: Long = 120) {
@@ -74,6 +88,11 @@ fun ZappRoot(vm: AppViewModel) {
             delay(waitMs)
             focusTick++
         }
+    }
+
+    fun open(d: Dest) {
+        dest = d
+        requestContentFocus()
     }
 
     fun watch(row: ChannelRow) {
@@ -97,12 +116,12 @@ fun ZappRoot(vm: AppViewModel) {
     }
 
     LaunchedEffect(vm.loaded, playlists.isEmpty()) {
-        if (vm.loaded && playlists.isNotEmpty()) requestContentFocus(250)
+        if (vm.loaded && playlists.isNotEmpty()) requestContentFocus(300)
     }
 
-    // Only Live TV keeps a preview running in the background.
-    LaunchedEffect(tab, playerOpen) {
-        if (!playerOpen && tab != Tab.Live) playback.stop()
+    // Home and Live TV keep a preview running; elsewhere the player stops.
+    LaunchedEffect(dest, playerOpen) {
+        if (!playerOpen && dest != Dest.Live && dest != Dest.Home) playback.stop()
     }
 
     LaunchedEffect(exitArmed) {
@@ -123,44 +142,62 @@ fun ZappRoot(vm: AppViewModel) {
             playlists.isEmpty() -> WelcomeScreen(vm, onForm = { form = it })
 
             else -> {
+                // Back from a screen goes to the sidebar; Back on the sidebar twice exits.
                 BackHandler(enabled = !playerOpen && form == null) {
-                    if (exitArmed) {
+                    if (!railFocused) {
+                        railFocus.tryRequest()
+                    } else if (exitArmed) {
                         (context as? Activity)?.finish()
                     } else {
-                        tabFocus.tryRequest()
                         exitArmed = true
                         vm.showToast("Press back again to exit")
                     }
                 }
-                Column(Modifier.fillMaxSize()) {
-                    TopBar(
-                        tab = tab,
-                        tabFocus = tabFocus,
-                        guideStatus = vm.guideStatus,
-                        onTab = { tab = it },
-                    )
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                    ) {
-                        when (tab) {
-                            Tab.Live -> LiveScreen(vm, playback, focusTick) { watch(it) }
-                            Tab.Guide -> GuideScreen(vm, focusTick) { watch(it) }
-                            Tab.Playlists -> PlaylistsScreen(
-                                vm = vm,
-                                focusTick = focusTick,
-                                onForm = { form = it },
-                                onWatch = { id ->
-                                    vm.selectPlaylist(id)
-                                    tab = Tab.Live
-                                    requestContentFocus()
-                                },
-                            )
-                            Tab.Settings -> SettingsScreen(vm, playback, focusTick)
+
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(start = RailWidth),
+                ) {
+                    when (dest) {
+                        Dest.Home -> HomeScreen(
+                            vm = vm,
+                            playback = playback,
+                            focusTick = focusTick,
+                            onWatch = { row, categoryId ->
+                                vm.setScope(row.channel.playlistId, categoryId)
+                                watch(row)
+                            },
+                            onOpenLive = { open(Dest.Live) },
+                            onOpenGuide = { open(Dest.Guide) },
+                        )
+                        Dest.Live -> Column(Modifier.fillMaxSize()) {
+                            ScreenHeader("Live TV", vm.guideStatus)
+                            LiveScreen(vm, playback, focusTick) { watch(it) }
                         }
+                        Dest.Guide -> Column(Modifier.fillMaxSize()) {
+                            ScreenHeader("TV guide", vm.guideStatus)
+                            GuideScreen(vm, focusTick) { watch(it) }
+                        }
+                        Dest.Settings -> SettingsScreen(
+                            vm = vm,
+                            playback = playback,
+                            focusTick = focusTick,
+                            onForm = { form = it },
+                            onWatchPlaylist = { id ->
+                                vm.selectPlaylist(id)
+                                open(Dest.Live)
+                            },
+                        )
                     }
                 }
+
+                Sidebar(
+                    current = dest,
+                    railFocus = railFocus,
+                    onFocusChanged = { railFocused = it },
+                    onSelect = { open(it) },
+                )
             }
         }
 
@@ -170,7 +207,7 @@ fun ZappRoot(vm: AppViewModel) {
                 vm = vm,
                 onDone = {
                     form = null
-                    tab = Tab.Live
+                    dest = Dest.Live
                     requestContentFocus(400)
                 },
                 onCancel = {
@@ -204,77 +241,114 @@ fun ZappRoot(vm: AppViewModel) {
     }
 }
 
+/** Title row above Live TV and the guide, with the guide status and a clock. */
 @Composable
-private fun TopBar(
-    tab: Tab,
-    tabFocus: FocusRequester,
-    guideStatus: String?,
-    onTab: (Tab) -> Unit,
-) {
-    var focusedTab by remember { mutableStateOf<Tab?>(null) }
+private fun ScreenHeader(title: String, guideStatus: String?) {
     val now = rememberNow(15_000)
     val timeFormat = rememberTimeFormat()
-
-    // Like Google TV: resting on a tab opens it.
-    LaunchedEffect(focusedTab) {
-        val t = focusedTab ?: return@LaunchedEffect
-        delay(280)
-        if (t != tab) onTab(t)
-    }
-
     Row(
         Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .padding(horizontal = 32.dp),
+            .height(60.dp)
+            .padding(start = 28.dp, end = 32.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ZappLogo(22.dp)
-        Spacer(Modifier.width(32.dp))
-        Row(
-            Modifier
-                .focusRestorer()
-                .focusGroup(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Tab.entries.forEach { t ->
-                val selected = t == tab
-                FocusSurface(
-                    onClick = { onTab(t) },
-                    focusRequester = if (selected) tabFocus else null,
-                    onFocusChange = { focused ->
-                        if (focused) focusedTab = t else if (focusedTab == t) focusedTab = null
-                    },
-                    selected = selected,
-                    shape = RoundedCornerShape(50),
-                    focusScale = 1.05f,
-                    selectedColor = ZappColors.Glass,
-                ) { focused ->
-                    Text(
-                        text = t.label,
-                        color = when {
-                            focused -> ZappColors.OnFocus
-                            selected -> ZappColors.Text
-                            else -> ZappColors.Dim
-                        },
-                        fontSize = 13.sp,
-                        fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-            }
-        }
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
         Spacer(Modifier.weight(1f))
         if (guideStatus != null) {
-            CircularProgressIndicator(
-                color = ZappColors.Dim,
-                strokeWidth = 1.5.dp,
-                modifier = Modifier.size(12.dp),
-            )
+            CircularProgressIndicator(color = ZappColors.Dim, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
             Spacer(Modifier.width(8.dp))
             Text(guideStatus, color = ZappColors.Dim, fontSize = 12.sp)
             Spacer(Modifier.width(20.dp))
         }
         Text(timeFormat.format(now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+/** Icon rail that opens into a labelled menu while the remote is on it. */
+@Composable
+private fun Sidebar(
+    current: Dest,
+    railFocus: FocusRequester,
+    onFocusChanged: (Boolean) -> Unit,
+    onSelect: (Dest) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    val width by animateDpAsState(if (open) RailOpenWidth else RailWidth, tween(180), label = "rail")
+
+    Box(
+        Modifier
+            .width(width)
+            .fillMaxHeight()
+            .background(
+                if (open) {
+                    Brush.horizontalGradient(listOf(Color(0xFA0A0E1A), Color(0xF00A0E1A), Color(0x000A0E1A)))
+                } else {
+                    Brush.horizontalGradient(listOf(Color(0x660A0E1A), Color(0x000A0E1A)))
+                },
+            ),
+    ) {
+        Column(
+            Modifier
+                .fillMaxHeight()
+                .padding(start = 14.dp, end = 14.dp, top = 22.dp, bottom = 22.dp),
+        ) {
+            LogoMark(34.dp, Modifier.padding(start = 7.dp))
+            Spacer(Modifier.weight(1f))
+            Column(
+                Modifier
+                    .onFocusChanged {
+                        open = it.hasFocus
+                        onFocusChanged(it.hasFocus)
+                    }
+                    .focusRestorer()
+                    .focusGroup(),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Dest.entries.forEach { d ->
+                    val selected = d == current
+                    FocusSurface(
+                        onClick = { onSelect(d) },
+                        modifier = Modifier.width(if (open) RailOpenWidth - 28.dp else 48.dp),
+                        selected = selected,
+                        focusRequester = if (selected) railFocus else null,
+                        shape = RoundedCornerShape(14.dp),
+                        focusScale = 1.04f,
+                    ) { focused ->
+                        Row(
+                            Modifier
+                                .height(48.dp)
+                                .padding(start = 13.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            GlyphIcon(
+                                d.glyph,
+                                when {
+                                    focused -> ZappColors.OnFocus
+                                    selected -> ZappColors.Text
+                                    else -> ZappColors.Dim
+                                },
+                                22.dp,
+                            )
+                            AnimatedVisibility(visible = open, enter = fadeIn(tween(160)), exit = fadeOut(tween(80))) {
+                                Text(
+                                    d.label,
+                                    color = when {
+                                        focused -> ZappColors.OnFocus
+                                        selected -> ZappColors.Text
+                                        else -> ZappColors.Dim
+                                    },
+                                    fontSize = 15.sp,
+                                    fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(start = 16.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.weight(1.3f))
+        }
     }
 }

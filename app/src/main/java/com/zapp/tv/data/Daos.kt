@@ -87,6 +87,54 @@ interface ChannelDao {
     fun pagedFavoriteRows(playlistId: Long, now: Long): PagingSource<Int, ChannelRow>
 
     @Query(
+        "SELECT c.*, " + NOW_COLUMNS + ", " +
+            "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
+            "FROM recent_channels r INNER JOIN channels c ON c.playlistId = r.playlistId AND c.streamUrl = r.streamUrl " +
+            "WHERE r.playlistId = :playlistId GROUP BY r.id ORDER BY r.watchedAt DESC",
+    )
+    fun pagedRecentRows(playlistId: Long, now: Long): PagingSource<Int, ChannelRow>
+
+    /** Recently watched across every playlist, for the Home screen. */
+    @Query(
+        "SELECT c.*, " + NOW_COLUMNS + ", " +
+            "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
+            "FROM recent_channels r INNER JOIN channels c ON c.playlistId = r.playlistId AND c.streamUrl = r.streamUrl " +
+            "GROUP BY r.id ORDER BY r.watchedAt DESC LIMIT :limit",
+    )
+    fun observeRecentRows(now: Long, limit: Int): Flow<List<ChannelRow>>
+
+    /** Favourites across every playlist, for the Home screen. */
+    @Query(
+        "SELECT c.*, " + NOW_COLUMNS + ", 1 AS isFavorite " +
+            "FROM favorites f INNER JOIN channels c ON c.playlistId = f.playlistId AND c.streamUrl = f.streamUrl " +
+            "GROUP BY f.id ORDER BY f.id LIMIT :limit",
+    )
+    fun observeFavoriteRows(now: Long, limit: Int): Flow<List<ChannelRow>>
+
+    /** Channels in one playlist with a programme on right now, for the Home "On now" row. */
+    @Query(
+        "SELECT c.*, " + NOW_COLUMNS + ", " +
+            "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
+            "FROM channels c WHERE c.playlistId = :playlistId AND c.epgId IS NOT NULL AND EXISTS(" +
+            "SELECT 1 FROM programmes p WHERE p.playlistId = c.playlistId AND p.channelEpgId = c.epgId " +
+            "AND p.start <= :now AND p.stop > :now) ORDER BY c.number LIMIT :limit",
+    )
+    fun observeOnNowRows(playlistId: Long, now: Long, limit: Int): Flow<List<ChannelRow>>
+
+    @Query(
+        "SELECT c.* FROM recent_channels r INNER JOIN channels c ON c.playlistId = r.playlistId AND c.streamUrl = r.streamUrl " +
+            "WHERE r.playlistId = :playlistId GROUP BY r.id ORDER BY r.watchedAt DESC",
+    )
+    suspend fun recentChannels(playlistId: Long): List<Channel>
+
+    /** One-time upgrade: replaces the login-bearing part of Xtream links with a short token. */
+    @Query(
+        "UPDATE channels SET streamUrl = 'xt:' || substr(streamUrl, length(:prefix) + 1) " +
+            "WHERE playlistId = :playlistId AND substr(streamUrl, 1, length(:prefix)) = :prefix",
+    )
+    suspend fun tokenizeStreams(playlistId: Long, prefix: String)
+
+    @Query(
         "SELECT c.* FROM favorites f INNER JOIN channels c ON c.playlistId = f.playlistId AND c.streamUrl = f.streamUrl " +
             "WHERE f.playlistId = :playlistId GROUP BY f.id ORDER BY f.id",
     )
@@ -185,4 +233,31 @@ interface FavoriteDao {
 
     @Query("DELETE FROM favorites WHERE playlistId = :playlistId")
     suspend fun deleteForPlaylist(playlistId: Long)
+
+    @Query(
+        "UPDATE favorites SET streamUrl = 'xt:' || substr(streamUrl, length(:prefix) + 1) " +
+            "WHERE playlistId = :playlistId AND substr(streamUrl, 1, length(:prefix)) = :prefix",
+    )
+    suspend fun tokenizeStreams(playlistId: Long, prefix: String)
+}
+
+@Dao
+interface RecentDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(recent: RecentChannel)
+
+    @Query(
+        "DELETE FROM recent_channels WHERE id NOT IN " +
+            "(SELECT id FROM recent_channels ORDER BY watchedAt DESC LIMIT :keep)",
+    )
+    suspend fun trim(keep: Int)
+
+    @Query("DELETE FROM recent_channels WHERE playlistId = :playlistId")
+    suspend fun deleteForPlaylist(playlistId: Long)
+
+    @Query(
+        "UPDATE recent_channels SET streamUrl = 'xt:' || substr(streamUrl, length(:prefix) + 1) " +
+            "WHERE playlistId = :playlistId AND substr(streamUrl, 1, length(:prefix)) = :prefix",
+    )
+    suspend fun tokenizeStreams(playlistId: Long, prefix: String)
 }

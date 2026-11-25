@@ -13,6 +13,7 @@ import com.zapp.tv.data.Channel
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.FAVORITES
 import com.zapp.tv.data.Playlist
+import com.zapp.tv.data.RECENT
 import com.zapp.tv.data.Programme
 import com.zapp.tv.data.Scope
 import com.zapp.tv.data.SetupServer
@@ -81,6 +82,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 combine(repo.categories(pid), repo.categoryCounts(pid), repo.favoriteCount(pid)) { cats, counts, favs ->
                     val byCategory = counts.associate { it.categoryId to it.total }
                     buildList {
+                        add(CategoryItem(RECENT, "Recently watched", -1))
                         add(CategoryItem(FAVORITES, "Favourites", favs))
                         add(CategoryItem(null, "All channels", counts.sumOf { it.total }))
                         cats.forEach { add(CategoryItem(it.id, it.name, byCategory[it.id] ?: 0)) }
@@ -112,18 +114,48 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         error = null
     }
 
+    // ------------------------------------------------------------ home rows
+
+    /** Ticks once a minute so "on now" rows move on. */
+    private val minute = kotlinx.coroutines.flow.flow {
+        while (true) {
+            emit(System.currentTimeMillis())
+            delay(60_000)
+        }
+    }
+
+    val homeRecent: StateFlow<List<ChannelRow>> = minute
+        .flatMapLatest { now -> repo.recentRows(now, 20) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val homeFavorites: StateFlow<List<ChannelRow>> = minute
+        .flatMapLatest { now -> repo.favoriteRows(now, 30) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val homeOnNow: StateFlow<List<ChannelRow>> = combine(minute, scopeFlow.map { it?.playlistId }.distinctUntilChanged()) { now, pid -> now to pid }
+        .flatMapLatest { (now, pid) -> if (pid == null) flowOf(emptyList()) else repo.onNowRows(pid, now, 30) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     init {
         viewModelScope.launch {
+            // Bring older data up to date (encrypt logins) before anything reads it.
+            repo.upgradeStoredData()
             repo.playlists.collect { list ->
+                repo.cacheLogins(list)
                 loaded = true
                 ensureScope(list)
             }
         }
+        // Automatic guide updates, checked at start and every 30 minutes while the app is open.
         viewModelScope.launch {
-            val list = repo.playlistsOnce()
-            if (settings.autoGuide) {
-                val stale = list.filter { System.currentTimeMillis() - it.epgUpdated > 12 * 3_600_000L }
-                refreshGuide(stale.map { it.id }, manual = false)
+            delay(5_000)
+            while (true) {
+                val hours = settings.guideHours
+                if (hours > 0) {
+                    val stale = repo.playlistsOnce().filter { System.currentTimeMillis() - it.epgUpdated > hours * 3_600_000L }
+                    refreshGuide(stale.map { it.id }, manual = false)
+                }
+                delay(30 * 60_000L)
             }
         }
         // Keep "now playing" titles current.
@@ -160,6 +192,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         val next = list[(i + 1).mod(list.size)]
         selectPlaylist(next.playlist.id)
         showToast("Watching ${next.playlist.name}")
+    }
+
+    /** Jump straight to a list, e.g. from the Home screen, so zapping follows that list. */
+    fun setScope(playlistId: Long, categoryId: Long?) {
+        if (settings.currentPlaylistId != playlistId) settings.currentPlaylistId = playlistId
+        scopeFlow.value = com.zapp.tv.data.Scope(playlistId, categoryId)
+    }
+
+    fun resolveUrl(channel: Channel): String = repo.playableUrl(channel)
+
+    fun recordWatched(channel: Channel) {
+        viewModelScope.launch { repo.recordWatched(channel) }
     }
 
     fun selectCategory(categoryId: Long?) {

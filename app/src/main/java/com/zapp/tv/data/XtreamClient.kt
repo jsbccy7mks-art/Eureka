@@ -11,7 +11,7 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
-const val USER_AGENT = "Zapp/0.2 (Android TV)"
+const val USER_AGENT = "Zapp/0.3 (Android TV)"
 
 class XtreamClient(private val http: OkHttpClient) {
 
@@ -89,7 +89,11 @@ class XtreamClient(private val http: OkHttpClient) {
         }
 
     fun streamUrl(server: String, user: String, pass: String, streamId: String, format: String): String =
-        "$server/live/${Uri.encode(user)}/${Uri.encode(pass)}/$streamId.$format"
+        livePrefix(server, user, pass) + "$streamId.$format"
+
+    /** The part of every live link that carries the login. */
+    fun livePrefix(server: String, user: String, pass: String): String =
+        "$server/live/${Uri.encode(user)}/${Uri.encode(pass)}/"
 
     fun epgUrl(server: String, user: String, pass: String): String =
         "$server/xmltv.php".toHttpUrl().newBuilder()

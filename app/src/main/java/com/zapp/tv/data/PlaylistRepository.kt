@@ -13,14 +13,19 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.BufferedInputStream
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.GZIPInputStream
 
 const val FAVORITES = -2L
+const val RECENT = -3L
 
-/** What a channel list shows: one playlist, and either all channels, a category, or favourites. */
+/** What a channel list shows: one playlist, and all channels, a category, favourites or recently watched. */
 data class Scope(val playlistId: Long, val categoryId: Long?) {
     val favorites: Boolean get() = categoryId == FAVORITES
+    val recent: Boolean get() = categoryId == RECENT
 }
+
+private data class XtreamLogin(val server: String, val user: String, val pass: String)
 
 class PlaylistRepository(
     private val db: AppDatabase,
@@ -31,6 +36,9 @@ class PlaylistRepository(
 
     @Volatile
     private var activeSource: PagingSource<Int, ChannelRow>? = null
+
+    /** Decrypted Xtream logins, kept in memory only, used to build playable links. */
+    private val logins = ConcurrentHashMap<Long, XtreamLogin>()
 
     val playlists: Flow<List<Playlist>> = db.playlistDao().observeAll()
     val channelCounts: Flow<List<PlaylistCount>> = db.channelDao().observeCounts()
@@ -60,9 +68,11 @@ class PlaylistRepository(
         ) {
             val now = System.currentTimeMillis()
             val dao = db.channelDao()
-            val source =
-                if (scope.favorites) dao.pagedFavoriteRows(scope.playlistId, now)
-                else dao.pagedRows(scope.playlistId, scope.categoryId, now)
+            val source = when {
+                scope.favorites -> dao.pagedFavoriteRows(scope.playlistId, now)
+                scope.recent -> dao.pagedRecentRows(scope.playlistId, now)
+                else -> dao.pagedRows(scope.playlistId, scope.categoryId, now)
+            }
             activeSource = source
             source
         }.flow
@@ -73,8 +83,10 @@ class PlaylistRepository(
     }
 
     suspend fun neighbor(scope: Scope, current: Channel, forward: Boolean): Channel? {
-        if (scope.favorites) {
-            val list = db.channelDao().favoriteChannels(scope.playlistId)
+        if (scope.favorites || scope.recent) {
+            val list =
+                if (scope.favorites) db.channelDao().favoriteChannels(scope.playlistId)
+                else db.channelDao().recentChannels(scope.playlistId)
             if (list.isEmpty()) return null
             val i = list.indexOfFirst { it.streamUrl == current.streamUrl }
             if (i < 0) return list.first()
@@ -95,6 +107,9 @@ class PlaylistRepository(
     suspend fun indexInScope(scope: Scope, streamUrl: String): Int {
         if (scope.favorites) {
             return db.channelDao().favoriteChannels(scope.playlistId).indexOfFirst { it.streamUrl == streamUrl }
+        }
+        if (scope.recent) {
+            return db.channelDao().recentChannels(scope.playlistId).indexOfFirst { it.streamUrl == streamUrl }
         }
         val channel = db.channelDao().findInScope(scope.playlistId, scope.categoryId, streamUrl) ?: return -1
         return db.channelDao().indexOf(scope.playlistId, scope.categoryId, channel.number)
@@ -134,6 +149,82 @@ class PlaylistRepository(
         }
     }
 
+    // ------------------------------------------------------------------ playing
+
+    /** Turns a stored link into one the player can open. Xtream logins are only added here. */
+    fun playableUrl(channel: Channel): String {
+        val url = channel.streamUrl
+        if (!url.startsWith("xt:")) return url
+        val login = logins[channel.playlistId] ?: return url
+        return xtream.livePrefix(login.server, login.user, login.pass) + url.removePrefix("xt:")
+    }
+
+    /** Keeps the in-memory login cache in step with the database. */
+    fun cacheLogins(playlists: List<Playlist>) {
+        val ids = HashSet<Long>()
+        for (p in playlists) {
+            if (p.type != TYPE_XTREAM) continue
+            ids.add(p.id)
+            logins[p.id] = XtreamLogin(p.url, Secrets.decrypt(p.username).orEmpty(), Secrets.decrypt(p.password).orEmpty())
+        }
+        logins.keys.retainAll(ids)
+    }
+
+    suspend fun recordWatched(channel: Channel) {
+        db.recentDao().upsert(
+            RecentChannel(
+                playlistId = channel.playlistId,
+                streamUrl = channel.streamUrl,
+                name = channel.name,
+                logo = channel.logo,
+                watchedAt = System.currentTimeMillis(),
+            ),
+        )
+        db.recentDao().trim(40)
+    }
+
+    fun recentRows(now: Long, limit: Int): Flow<List<ChannelRow>> = db.channelDao().observeRecentRows(now, limit)
+
+    fun favoriteRows(now: Long, limit: Int): Flow<List<ChannelRow>> = db.channelDao().observeFavoriteRows(now, limit)
+
+    fun onNowRows(playlistId: Long, now: Long, limit: Int): Flow<List<ChannelRow>> =
+        db.channelDao().observeOnNowRows(playlistId, now, limit)
+
+    // ------------------------------------------------------------------ one-time upgrade
+
+    /**
+     * Brings data from older versions up to date without losing anything:
+     * encrypts stored logins and replaces logins inside Xtream links with short tokens.
+     * Safe to run on every start; it only changes what still needs changing.
+     */
+    suspend fun upgradeStoredData() = withContext(Dispatchers.IO) {
+        for (p in db.playlistDao().getAll()) {
+            try {
+                if (p.type == TYPE_XTREAM) {
+                    val user = Secrets.decrypt(p.username).orEmpty()
+                    val pass = Secrets.decrypt(p.password).orEmpty()
+                    if (user.isNotEmpty() || pass.isNotEmpty()) {
+                        val prefix = xtream.livePrefix(p.url, user, pass)
+                        db.withTransaction {
+                            db.channelDao().tokenizeStreams(p.id, prefix)
+                            db.favoriteDao().tokenizeStreams(p.id, prefix)
+                            db.recentDao().tokenizeStreams(p.id, prefix)
+                        }
+                    }
+                    if (!Secrets.isEncrypted(p.username) || !Secrets.isEncrypted(p.password)) {
+                        db.playlistDao().update(
+                            p.copy(username = Secrets.encrypt(p.username), password = Secrets.encrypt(p.password), epgUrl = Secrets.encrypt(p.epgUrl)),
+                        )
+                    }
+                } else if (!Secrets.isEncrypted(p.url) || (p.epgUrl != null && !Secrets.isEncrypted(p.epgUrl))) {
+                    db.playlistDao().update(p.copy(url = Secrets.encrypt(p.url) ?: p.url, epgUrl = Secrets.encrypt(p.epgUrl)))
+                }
+            } catch (e: Exception) {
+                // Leave this playlist as it was; it still works with plain values.
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ adding playlists
 
     suspend fun addXtream(
@@ -150,10 +241,10 @@ class PlaylistRepository(
             name = name.trim().ifBlank { hostName(normalized) ?: "Xtream playlist" },
             type = TYPE_XTREAM,
             url = normalized,
-            username = user.trim(),
-            password = pass.trim(),
+            username = Secrets.encrypt(user.trim()),
+            password = Secrets.encrypt(pass.trim()),
             format = if (format == "m3u8") "m3u8" else "ts",
-            epgUrl = epgUrl?.trim()?.takeIf { it.isNotEmpty() },
+            epgUrl = Secrets.encrypt(epgUrl?.trim()?.takeIf { it.isNotEmpty() }?.let { withScheme(it) }),
         )
         val id = db.playlistDao().insert(playlist)
         try {
@@ -170,8 +261,8 @@ class PlaylistRepository(
         val playlist = Playlist(
             name = name.trim().ifBlank { hostName(cleaned) ?: "M3U playlist" },
             type = TYPE_M3U,
-            url = cleaned,
-            epgUrl = epgUrl?.trim()?.takeIf { it.isNotEmpty() }?.let { withScheme(it) },
+            url = Secrets.encrypt(cleaned) ?: cleaned,
+            epgUrl = Secrets.encrypt(epgUrl?.trim()?.takeIf { it.isNotEmpty() }?.let { withScheme(it) }),
         )
         val id = db.playlistDao().insert(playlist)
         try {
@@ -192,10 +283,12 @@ class PlaylistRepository(
 
     suspend fun delete(playlistId: Long) {
         withContext(Dispatchers.IO) {
+            logins.remove(playlistId)
             db.withTransaction {
                 db.programmeDao().deleteForPlaylist(playlistId)
                 db.programmeDao().deleteForPlaylist(-playlistId)
                 db.favoriteDao().deleteForPlaylist(playlistId)
+                db.recentDao().deleteForPlaylist(playlistId)
                 db.playlistDao().delete(playlistId) // categories and channels cascade
             }
         }
@@ -211,8 +304,10 @@ class PlaylistRepository(
 
     private suspend fun importXtream(p: Playlist) {
         val server = p.url
-        val user = p.username.orEmpty()
-        val pass = p.password.orEmpty()
+        val user = Secrets.decrypt(p.username).orEmpty()
+        val pass = Secrets.decrypt(p.password).orEmpty()
+        if (user.isEmpty() || pass.isEmpty()) error("The saved login can't be read. Remove this playlist and add it again.")
+        logins[p.id] = XtreamLogin(server, user, pass)
 
         // Download first, replace afterwards, so a failed refresh never wipes a working playlist.
         val cats = xtream.liveCategories(server, user, pass)
@@ -239,7 +334,7 @@ class PlaylistRepository(
                         number = chunkIndex * 1000 + i + 1,
                         name = s.name.ifBlank { "Channel ${s.id}" },
                         logo = s.icon?.takeIf { it.isNotBlank() },
-                        streamUrl = xtream.streamUrl(server, user, pass, s.id, p.format),
+                        streamUrl = "xt:${s.id}.${p.format}",
                         epgId = s.epgId?.takeIf { it.isNotBlank() },
                     )
                 }
@@ -251,7 +346,9 @@ class PlaylistRepository(
     }
 
     private suspend fun importM3u(p: Playlist) {
-        val request = Request.Builder().url(p.url).header("User-Agent", USER_AGENT).build()
+        val link = Secrets.decrypt(p.url).orEmpty()
+        if (link.isEmpty()) error("The saved playlist link can't be read. Remove this playlist and add it again.")
+        val request = Request.Builder().url(link).header("User-Agent", USER_AGENT).build()
         val result = http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("The server answered with HTTP ${response.code}.")
             val body = response.body ?: error("The server sent an empty answer.")
@@ -291,7 +388,7 @@ class PlaylistRepository(
 
             db.playlistDao().update(
                 p.copy(
-                    epgUrl = p.epgUrl?.takeIf { it.isNotBlank() } ?: result.epgUrl,
+                    epgUrl = p.epgUrl?.takeIf { it.isNotBlank() } ?: Secrets.encrypt(result.epgUrl),
                     lastUpdated = System.currentTimeMillis(),
                 ),
             )
@@ -301,9 +398,9 @@ class PlaylistRepository(
     // ------------------------------------------------------------------ TV guide
 
     private fun guideUrlFor(p: Playlist): String? {
-        p.epgUrl?.takeIf { it.isNotBlank() }?.let { return it }
+        Secrets.decrypt(p.epgUrl)?.takeIf { it.isNotBlank() }?.let { return it }
         if (p.type == TYPE_XTREAM) {
-            return xtream.epgUrl(p.url, p.username.orEmpty(), p.password.orEmpty())
+            return xtream.epgUrl(p.url, Secrets.decrypt(p.username).orEmpty(), Secrets.decrypt(p.password).orEmpty())
         }
         return null
     }

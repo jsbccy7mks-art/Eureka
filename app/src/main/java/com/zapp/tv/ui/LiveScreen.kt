@@ -51,6 +51,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.FAVORITES
+import com.zapp.tv.data.RECENT
 import com.zapp.tv.data.Programme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -249,10 +250,10 @@ fun LiveScreen(
 
                 if (rows.itemCount == 0 && rows.loadState.refresh is LoadState.NotLoading) {
                     Text(
-                        text = if (scope.categoryId == FAVORITES) {
-                            "No favourites yet. Hold OK on any channel to add it."
-                        } else {
-                            "No channels here."
+                        text = when (scope.categoryId) {
+                            FAVORITES -> "No favourites yet. Hold OK on any channel to add it."
+                            RECENT -> "Channels you watch will appear here."
+                            else -> "No channels here."
                         },
                         color = ZappColors.Dim,
                         fontSize = 14.sp,
@@ -305,6 +306,10 @@ private fun CategoryItemRow(
                 StarGlyph(if (focused) ZappColors.OnFocus else ZappColors.Star, 11.dp)
                 Spacer(Modifier.width(8.dp))
             }
+            if (item.id == RECENT) {
+                ClockGlyph(if (focused) ZappColors.OnFocus else ZappColors.Dim, 11.dp)
+                Spacer(Modifier.width(8.dp))
+            }
             Text(
                 text = item.name,
                 color = when {
@@ -318,12 +323,14 @@ private fun CategoryItemRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = formatCount(item.count),
-                color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                fontSize = 11.sp,
-            )
+            if (item.count >= 0) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = formatCount(item.count),
+                    color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                    fontSize = 11.sp,
+                )
+            }
         }
     }
 }
