@@ -217,12 +217,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 ensureScope(list)
             }
         }
-        if (lastCrash != null) {
-            viewModelScope.launch {
-                delay(2_500)
-                showToast("Zapp closed unexpectedly last time. The report is in Settings, Updates and about.")
-            }
-        }
         // Quietly look for a new app version at most every six hours.
         viewModelScope.launch {
             delay(8_000)
@@ -477,6 +471,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
     }
 
     override fun crashReport(): String? = lastCrash
+
+    init {
+        if (lastCrash != null) {
+            viewModelScope.launch {
+                delay(2_500)
+                showToast("Zapp closed unexpectedly last time. The report is in Settings, Updates and about.")
+            }
+        }
+    }
 
     // ------------------------------------------------------------ phone setup
 
