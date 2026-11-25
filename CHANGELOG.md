@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.15.0 (two-way sync, accounts per profile)
+
+**New**
+- Stremio now syncs both ways: when you pause or stop, where you got to goes to Stremio's Continue
+  watching (and finished titles are marked watched); adding to or removing from your library here
+  does the same in Stremio.
+- Each profile has its own Simkl and Stremio accounts. Your existing sign-ins stay with your first
+  profile; sign in on another profile to sync that one.
+
+
 ## 0.14.0 (subtitles from add-ons, steadier navigation)
 
 **New**

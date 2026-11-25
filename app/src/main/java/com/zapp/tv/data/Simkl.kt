@@ -196,6 +196,9 @@ class SimklClient(private val http: OkHttpClient, private val settings: Settings
 class SimklSync(private val db: AppDatabase, val client: SimklClient, private val settings: Settings) {
 
     private val dao = db.mediaDao()
+
+    /** The profile this sync is filling in (fixed for the whole sync, even if you switch meanwhile). */
+    private var pid: Long = 1L
     private val lock = Mutex()
 
     data class Summary(val watched: Int, val inProgress: Int, val library: Int)
@@ -214,8 +217,9 @@ class SimklSync(private val db: AppDatabase, val client: SimklClient, private va
         if (!force && all.isNotBlank() && all == previousAll) return@withLock null
 
         val dateFrom = previousAll.takeIf { it.isNotBlank() && !force }
-        val local = dao.allProgress(1).associateBy { it.videoId }.toMutableMap()
-        val libraryIds = dao.libraryIds(1).toHashSet()
+        pid = settings.profileId
+        val local = dao.allProgress(pid).associateBy { it.videoId }.toMutableMap()
+        val libraryIds = dao.libraryIds(pid).toHashSet()
         val progressOut = ArrayList<WatchProgress>()
         val libraryOut = ArrayList<LibraryItem>()
         var watched = 0
@@ -240,7 +244,7 @@ class SimklSync(private val db: AppDatabase, val client: SimklClient, private va
                 val metaType = if (type == "movies") "movie" else "series"
 
                 if ((status == "plantowatch" || status == "watching") && imdb !in libraryIds) {
-                    libraryOut.add(LibraryItem(metaId = imdb, type = metaType, name = title, poster = poster, addedAt = parseTime(item.optString("added_to_watchlist_at"))))
+                    libraryOut.add(LibraryItem(profileId = pid, metaId = imdb, type = metaType, name = title, poster = poster, addedAt = parseTime(item.optString("added_to_watchlist_at"))))
                     libraryIds.add(imdb)
                 }
 
@@ -323,6 +327,7 @@ class SimklSync(private val db: AppDatabase, val client: SimklClient, private va
 
     private fun blank(videoId: String, metaId: String, type: String, name: String, label: String?, poster: String?, fanart: String?) =
         WatchProgress(
+            profileId = pid,
             videoId = videoId,
             metaId = metaId,
             type = type,

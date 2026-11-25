@@ -199,9 +199,17 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Called by the player: "start", "pause" or "stop" with how far through the video it is. */
-    fun scrobble(event: String, info: MediaInfo, percent: Double) {
-        // Simkl is linked to the first profile only.
-        if (!simkl.client.signedIn || settings.profileId != 1L) return
+    fun scrobble(event: String, info: MediaInfo, percent: Double, durationMs: Long = 0L) {
+        // Stremio: send where you got to when you pause or stop.
+        if (event != "start" && stremio.signedIn && durationMs > 0) {
+            val d = durationMs
+            viewModelScope.launch {
+                runCatching {
+                    stremio.pushProgress(info.metaId, info.videoId, info.type, info.title, info.poster, (d * percent / 100).toLong(), d)
+                }
+            }
+        }
+        if (!simkl.client.signedIn) return
         viewModelScope.launch { simkl.scrobble(event, info.videoId, info.type, info.title, percent) }
     }
 
@@ -543,6 +551,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) = viewModelScope.launch {
         repo.toggleLibrary(meta, currentlyIn)
         if (!currentlyIn && simkl.client.signedIn) simkl.addToWatchlist(meta.id, meta.type)
+        if (stremio.signedIn) runCatching { stremio.pushLibrary(meta.id, meta.type, meta.name, meta.poster, !currentlyIn) }
     }
 
     // ------------------------------------------------------------ Home layout

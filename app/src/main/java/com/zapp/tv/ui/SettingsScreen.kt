@@ -714,7 +714,7 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () ->
     if (mvm.stremio.signedIn) {
         SettingRow(
             title = "Signed in as ${s.stremioUser.ifBlank { "your Stremio account" }}",
-            body = mvm.stremioStatus ?: "Your Stremio library and Continue watching come into your first profile, every 30 minutes and when Zapp opens.",
+            body = mvm.stremioStatus ?: "Your Stremio library and Continue watching come into this profile when Zapp opens and every 30 minutes, and what you watch here goes back to Stremio.",
             value = SettingValue.Choice(if (mvm.stremioWorking) "Syncing…" else "Sync now"),
             onClick = { mvm.syncStremio() },
         )

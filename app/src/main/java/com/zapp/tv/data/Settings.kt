@@ -197,18 +197,38 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.glow = value
         }
 
-    private val stremioUserState = stringState("stremioUser", "")
-    /** Email of the signed-in Stremio account (blank when signed out). */
+    // ---- accounts belong to the profile in use (the first profile keeps the original keys)
+    private val accountTick = mutableIntStateOf(0)
+
+    /** The storage key for an account setting of the profile in use. */
+    fun acct(key: String): String = if (profileId == 1L) key else "${key}_p$profileId"
+    private fun acctString(key: String): String {
+        accountTick.intValue
+        return prefs.getString(acct(key), "") ?: ""
+    }
+    private fun setAcctString(key: String, value: String) {
+        prefs.edit().putString(acct(key), value).apply()
+        accountTick.intValue++
+    }
+
+    /** Email of this profile's Stremio account (blank when signed out). */
     var stremioUser: String
-        get() = stremioUserState.value
-        set(value) {
-            stremioUserState.value = value
-            prefs.edit().putString("stremioUser", value).apply()
-        }
+        get() = acctString("stremioUser")
+        set(value) = setAcctString("stremioUser", value)
 
     var stremioLastSync: Long
-        get() = prefs.getLong("stremioLastSync", 0)
-        set(value) = prefs.edit().putLong("stremioLastSync", value).apply()
+        get() = prefs.getLong(acct("stremioLastSync"), 0)
+        set(value) = prefs.edit().putLong(acct("stremioLastSync"), value).apply()
+
+    /** This profile's encrypted account secret (Stremio sign-in key and so on). */
+    fun acctSecret(key: String): String {
+        accountTick.intValue
+        return secret(acct(key))
+    }
+    fun setAcctSecret(key: String, value: String) {
+        setSecret(acct(key), value)
+        accountTick.intValue++
+    }
 
     private val artGlowState = mutableStateOf(prefs.getBoolean("artGlow", true))
     /** Tint the background glow with the colour of the title you're on. */
@@ -313,6 +333,7 @@ class Settings(context: Context) {
         set(value) {
             profileState.longValue = value
             prefs.edit().putLong("profileId", value).apply()
+            accountTick.intValue++
             homeRowsState.value = prefs.getString(homeRowsKey(value), "") ?: ""
         }
 
@@ -347,38 +368,31 @@ class Settings(context: Context) {
             prefs.edit().putString("simklClientId", value.trim()).apply()
         }
 
-    private val simklUserState = stringState("simklUser", "")
+    /** This profile's Simkl account. */
     var simklUser: String
-        get() = simklUserState.value
-        set(value) {
-            simklUserState.value = value
-            prefs.edit().putString("simklUser", value).apply()
-        }
+        get() = acctString("simklUser")
+        set(value) = setAcctString("simklUser", value)
 
-    /** Access and refresh tokens, encrypted. */
+    /** Access and refresh tokens, encrypted (per profile). */
     var simklAccess: String
-        get() = Secrets.decrypt(prefs.getString("simklAccess", "")).orEmpty()
-        set(value) {
-            prefs.edit().putString("simklAccess", Secrets.encrypt(value) ?: "").apply()
-        }
+        get() = acctSecret("simklAccess")
+        set(value) = setAcctSecret("simklAccess", value)
     var simklRefresh: String
-        get() = Secrets.decrypt(prefs.getString("simklRefresh", "")).orEmpty()
-        set(value) {
-            prefs.edit().putString("simklRefresh", Secrets.encrypt(value) ?: "").apply()
-        }
+        get() = acctSecret("simklRefresh")
+        set(value) = setAcctSecret("simklRefresh", value)
 
     var simklActivities: String
-        get() = prefs.getString("simklActivities", "") ?: ""
-        set(value) {
-            prefs.edit().putString("simklActivities", value).apply()
-        }
+        get() = acctString("simklActivities")
+        set(value) = setAcctString("simklActivities", value)
 
-    private val simklLastSyncState = mutableLongStateOf(prefs.getLong("simklLastSync", 0L))
     var simklLastSync: Long
-        get() = simklLastSyncState.longValue
+        get() {
+            accountTick.intValue
+            return prefs.getLong(acct("simklLastSync"), 0L)
+        }
         set(value) {
-            simklLastSyncState.longValue = value
-            prefs.edit().putLong("simklLastSync", value).apply()
+            prefs.edit().putLong(acct("simklLastSync"), value).apply()
+            accountTick.intValue++
         }
 
     // ---------------------------------------------------------------- debrid services (all stored encrypted)

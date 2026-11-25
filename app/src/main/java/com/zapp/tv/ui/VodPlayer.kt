@@ -119,13 +119,13 @@ fun VodPlayer(
     // Save before leaving: the player stops right after these, so the position must be read first.
     fun close() {
         save()
-        mvm.scrobble("stop", currentInfo, percentNow())
+        mvm.scrobble("stop", currentInfo, percentNow(), player.duration.coerceAtLeast(0))
         onClose()
     }
 
     fun playNext(v: Video) {
         save()
-        mvm.scrobble("stop", currentInfo, percentNow())
+        mvm.scrobble("stop", currentInfo, percentNow(), player.duration.coerceAtLeast(0))
         onPlayNext(v)
     }
 
@@ -140,7 +140,7 @@ fun VodPlayer(
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED) {
                     save()
-                    mvm.scrobble("stop", currentInfo, 100.0)
+                    mvm.scrobble("stop", currentInfo, 100.0, player.duration.coerceAtLeast(0))
                     ended = true
                 }
             }
@@ -148,9 +148,9 @@ fun VodPlayer(
             // Tell Simkl when watching starts and pauses, so Nuvio and other apps see it.
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (isPlaying) {
-                    mvm.scrobble("start", currentInfo, percentNow())
+                    mvm.scrobble("start", currentInfo, percentNow(), player.duration.coerceAtLeast(0))
                 } else if (player.playbackState == Player.STATE_READY && !player.playWhenReady) {
-                    mvm.scrobble("pause", currentInfo, percentNow())
+                    mvm.scrobble("pause", currentInfo, percentNow(), player.duration.coerceAtLeast(0))
                 }
             }
         }

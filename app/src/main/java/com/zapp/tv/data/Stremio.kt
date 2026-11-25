@@ -16,14 +16,14 @@ class StremioException(message: String) : Exception(message)
 
 /**
  * Stremio account: signs in with email and password once (only the sign-in key is kept, encrypted)
- * and pulls your Stremio library and continue-watching progress into the first profile.
+ * and pulls your Stremio library and continue-watching progress into the profile in use, and sends back what you watch and add.
  */
 class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, private val settings: Settings) {
     private val api = "https://api.strem.io/api"
     private val dao = db.mediaDao()
     private val json = "application/json; charset=utf-8".toMediaType()
 
-    val signedIn: Boolean get() = settings.secret("stremioAuth").isNotBlank()
+    val signedIn: Boolean get() = settings.acctSecret("stremioAuth").isNotBlank()
 
     private fun call(method: String, body: JSONObject): JSONObject {
         val req = Request.Builder().url("$api/$method").post(body.toString().toRequestBody(json)).build()
@@ -54,12 +54,12 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
         val o = call("login", JSONObject().put("type", "Login").put("email", email.trim()).put("password", password).put("facebook", false))
         val key = o.optJSONObject("result")?.optString("authKey").orEmpty()
         if (key.isBlank()) throw StremioException("Stremio didn't sign in. Check the email and password.")
-        settings.setSecret("stremioAuth", key)
+        settings.setAcctSecret("stremioAuth", key)
         settings.stremioUser = email.trim()
     }
 
     fun signOut() {
-        settings.setSecret("stremioAuth", "")
+        settings.setAcctSecret("stremioAuth", "")
         settings.stremioUser = ""
     }
 
@@ -67,10 +67,11 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
 
     /** Library (not removed) into Library; anything part-watched into Continue watching. */
     suspend fun pull(): Summary = withContext(Dispatchers.IO) {
-        val key = settings.secret("stremioAuth").ifBlank { throw StremioException("Sign in to Stremio first.") }
+        val key = settings.acctSecret("stremioAuth").ifBlank { throw StremioException("Sign in to Stremio first.") }
         val o = call("datastoreGet", JSONObject().put("authKey", key).put("collection", "libraryItem").put("ids", JSONArray()).put("all", true))
         val items = o.optJSONArray("result") ?: JSONArray()
-        val libraryIds = dao.libraryIds(1).toHashSet()
+        val pid = settings.profileId
+        val libraryIds = dao.libraryIds(pid).toHashSet()
         val libraryOut = ArrayList<LibraryItem>()
         val progressOut = ArrayList<WatchProgress>()
         for (i in 0 until items.length()) {
@@ -83,7 +84,7 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
             val name = it.optString("name")
             val poster = it.optString("poster").takeIf { p -> p.startsWith("http") }
             if (!it.optBoolean("removed") && !it.optBoolean("temp") && id !in libraryIds) {
-                libraryOut.add(LibraryItem(profileId = 1, metaId = id, type = type, name = name, poster = poster, addedAt = time(it.optString("_ctime")) ?: System.currentTimeMillis()))
+                libraryOut.add(LibraryItem(profileId = pid, metaId = id, type = type, name = name, poster = poster, addedAt = time(it.optString("_ctime")) ?: System.currentTimeMillis()))
                 libraryIds.add(id)
             }
             val state = it.optJSONObject("state") ?: continue
@@ -92,12 +93,12 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
             if (offset < 30_000 || duration <= 0 || offset >= duration * 0.9) continue
             val videoId = state.optString("video_id").ifBlank { id }
             val watchedAt = time(state.optString("lastWatched")) ?: continue
-            val existing = dao.progress(1, videoId)
+            val existing = dao.progress(pid, videoId)
             if (existing != null && existing.updatedAt >= watchedAt) continue
             progressOut.add(
                 WatchProgress(
                     id = existing?.id ?: 0,
-                    profileId = 1,
+                    profileId = pid,
                     videoId = videoId,
                     metaId = id,
                     type = type,
@@ -118,6 +119,59 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
         if (progressOut.isNotEmpty()) dao.saveProgressList(progressOut)
         settings.stremioLastSync = System.currentTimeMillis()
         Summary(libraryOut.size, progressOut.size)
+    }
+
+    private fun iso(t: Long): String =
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(t)
+
+    /** This account's Stremio record for a title, or a fresh one. */
+    private fun item(key: String, metaId: String, type: String, name: String, poster: String?): JSONObject {
+        val o = call("datastoreGet", JSONObject().put("authKey", key).put("collection", "libraryItem").put("ids", JSONArray().put(metaId)).put("all", false))
+        o.optJSONArray("result")?.optJSONObject(0)?.let { return it }
+        val now = iso(System.currentTimeMillis())
+        return JSONObject()
+            .put("_id", metaId).put("_ctime", now).put("name", name).put("type", type)
+            .put("poster", poster ?: JSONObject.NULL).put("posterShape", "poster")
+            .put("removed", true).put("temp", true)
+            .put("behaviorHints", JSONObject().put("defaultVideoId", JSONObject.NULL).put("featuredVideoId", JSONObject.NULL).put("hasScheduledVideos", false))
+            .put(
+                "state",
+                JSONObject().put("lastWatched", now).put("timeWatched", 0).put("timeOffset", 0).put("overallTimeWatched", 0)
+                    .put("timesWatched", 0).put("flaggedWatched", 0).put("duration", 0).put("video_id", JSONObject.NULL)
+                    .put("watched", JSONObject.NULL).put("noNotif", false),
+            )
+    }
+
+    private fun put(key: String, item: JSONObject) {
+        item.put("_mtime", iso(System.currentTimeMillis()))
+        call("datastorePut", JSONObject().put("authKey", key).put("collection", "libraryItem").put("changes", JSONArray().put(item)))
+    }
+
+    /** Sends where you got to (or that you finished) back to Stremio, so it shows in Stremio's Continue watching. */
+    suspend fun pushProgress(metaId: String, videoId: String, type: String, name: String, poster: String?, position: Long, duration: Long) = withContext(Dispatchers.IO) {
+        val key = settings.acctSecret("stremioAuth").ifBlank { return@withContext }
+        if (duration <= 0) return@withContext
+        val it = item(key, metaId, type, name, poster)
+        val state = it.optJSONObject("state") ?: JSONObject().also { s -> it.put("state", s) }
+        val finished = position >= duration * 0.9
+        state.put("lastWatched", iso(System.currentTimeMillis()))
+        state.put("video_id", videoId)
+        state.put("duration", duration)
+        state.put("timeOffset", if (finished) 0 else position)
+        if (finished) {
+            state.put("timesWatched", state.optInt("timesWatched") + 1)
+            state.put("flaggedWatched", 1)
+        }
+        put(key, it)
+    }
+
+    /** Adds to or removes from your Stremio library. */
+    suspend fun pushLibrary(metaId: String, type: String, name: String, poster: String?, inLibrary: Boolean) = withContext(Dispatchers.IO) {
+        val key = settings.acctSecret("stremioAuth").ifBlank { return@withContext }
+        val it = item(key, metaId, type, name, poster)
+        it.put("removed", !inLibrary)
+        it.put("temp", false)
+        put(key, it)
     }
 
     private fun episodeLabel(videoId: String): String? {

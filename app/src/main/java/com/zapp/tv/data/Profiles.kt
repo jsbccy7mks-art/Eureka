@@ -2,7 +2,7 @@ package com.zapp.tv.data
 
 import kotlinx.coroutines.flow.Flow
 
-/** Profiles: who's watching. Profile 1 always exists and is the one Simkl syncs with. */
+/** Profiles: who's watching. Profile 1 always exists; each profile can have its own Simkl and Stremio accounts. */
 class ProfileStore(private val dao: ProfileDao, private val settings: Settings) {
     val all: Flow<List<Profile>> = dao.observeAll()
 

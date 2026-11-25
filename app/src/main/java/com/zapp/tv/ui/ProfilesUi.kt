@@ -277,7 +277,7 @@ fun ProfilesPane(mvm: MediaViewModel) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(
-                "Each profile has its own Continue watching, library and Home rows. Kids profiles only see family titles and no live TV. Simkl syncs with the first profile.",
+                "Each profile has its own Continue watching, library and Home rows. Kids profiles only see family titles and no live TV. Each profile can connect its own Simkl and Stremio accounts.",
                 color = ZappColors.Dim,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,
@@ -309,7 +309,7 @@ fun ProfilesPane(mvm: MediaViewModel) {
                             listOfNotNull(
                                 if (p.kids) "Kids" else null,
                                 if (p.pin != null) "PIN" else null,
-                                if (p.id == 1L) "Main profile, syncs with Simkl" else null,
+                                if (p.id == 1L) "Main profile" else null,
                                 if (p.id == s.profileId) "In use" else null,
                             ).joinToString(" · ").ifBlank { "Profile" },
                             fontSize = 12.sp,
