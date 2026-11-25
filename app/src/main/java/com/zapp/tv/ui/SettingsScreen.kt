@@ -34,7 +34,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -63,6 +62,7 @@ fun SettingsScreen(
     var section by rememberSaveable { mutableStateOf(SettingsSection.Sources) }
     var focusedSection by remember { mutableStateOf<SettingsSection?>(null) }
     val firstFocus = remember { FocusRequester() }
+    val sectionMemory = rememberFocusMemory()
     var handledTick by remember { mutableIntStateOf(focusTick) }
 
     LaunchedEffect(focusTick) {
@@ -85,13 +85,15 @@ fun SettingsScreen(
             Text("Settings", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
             Spacer(Modifier.height(18.dp))
             LazyColumn(
-                modifier = Modifier.focusRestorer(),
+                modifier = Modifier.restoreFocus(sectionMemory),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 items(SettingsSection.entries, key = { it.name }) { s ->
                     FocusSurface(
                         onClick = { section = s },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .rememberFocus(sectionMemory, s.name)
+                            .fillMaxWidth(),
                         selected = s == section,
                         focusRequester = if (s == section) firstFocus else null,
                         onFocusChange = { if (it) focusedSection = s },

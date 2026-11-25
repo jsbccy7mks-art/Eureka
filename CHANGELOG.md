@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1 (crash fix from crash report)
+
+**Fixed**
+- App closing when moving between lists with the remote ("Release should only be called once" in
+  Compose's focus restorer, a known bug of the Compose version used). Zapp no longer uses that feature;
+  it remembers the focused item itself, so returning to a list still lands where you were.
+- Moving into the sidebar now always lands on the screen you're on.
+
 ## 0.5.0 (Stage 3: player)
 
 **New**

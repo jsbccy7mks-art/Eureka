@@ -56,7 +56,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
@@ -399,9 +398,7 @@ private fun ControlsPanel(
         SeekBar(playback, focusable)
         Spacer(Modifier.height(14.dp))
         Row(
-            Modifier
-                .focusRestorer()
-                .focusGroup(),
+            Modifier.focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (playback.error != null) {

@@ -39,7 +39,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -81,6 +80,8 @@ fun LiveScreen(
     var pendingFocusUrl by remember { mutableStateOf<String?>(null) }
     var focusedCategory by remember { mutableStateOf<CategoryKey?>(null) }
     val categoryFocus = remember { FocusRequester() }
+    val categoryMemory = rememberFocusMemory()
+    val channelMemory = rememberFocusMemory()
     var handledTick by remember { mutableIntStateOf(focusTick) }
 
     // Moving through categories previews them after a short pause, so scrolling past never reloads.
@@ -166,12 +167,13 @@ fun LiveScreen(
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
-                    .focusRestorer(),
+                    .restoreFocus(categoryMemory),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 contentPadding = PaddingValues(vertical = 4.dp),
             ) {
                 items(categories, key = { it.id ?: -1L }) { category ->
                     CategoryItemRow(
+                        modifier = Modifier.rememberFocus(categoryMemory, category.id ?: -1L),
                         item = category,
                         selected = category.id == scope.categoryId,
                         focusRequester = if (category.id == scope.categoryId) categoryFocus else null,
@@ -213,7 +215,7 @@ fun LiveScreen(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .focusRestorer(),
+                        .restoreFocus(channelMemory),
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
                 ) {
@@ -230,6 +232,7 @@ fun LiveScreen(
                             }
                         }
                         ChannelItem(
+                            modifier = Modifier.rememberFocus(channelMemory, index),
                             row = row,
                             playing = row != null && playback.isOn(row.channel),
                             now = now,
@@ -281,6 +284,7 @@ fun LiveScreen(
 
 @Composable
 private fun CategoryItemRow(
+    modifier: Modifier,
     item: CategoryItem,
     selected: Boolean,
     focusRequester: FocusRequester?,
@@ -289,7 +293,7 @@ private fun CategoryItemRow(
 ) {
     FocusSurface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         selected = selected,
         focusRequester = focusRequester,
         onFocusChange = { if (it) onFocus() },
@@ -335,6 +339,7 @@ private fun CategoryItemRow(
 
 @Composable
 private fun ChannelItem(
+    modifier: Modifier,
     row: ChannelRow?,
     playing: Boolean,
     now: Long,
@@ -346,7 +351,7 @@ private fun ChannelItem(
     FocusSurface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(RowHeight),
         focusRequester = focusRequester,

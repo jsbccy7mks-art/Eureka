@@ -41,7 +41,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -118,13 +117,12 @@ fun HomeScreen(
         )
 
         LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .focusRestorer(),
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(18.dp),
             contentPadding = PaddingValues(top = 6.dp, bottom = 30.dp),
         ) {
             items(rows, key = { it.key }) { row ->
+                val rowMemory = rememberFocusMemory()
                 Column {
                     Text(
                         row.title,
@@ -133,7 +131,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(start = 40.dp, bottom = 10.dp),
                     )
                     LazyRow(
-                        modifier = Modifier.focusRestorer(),
+                        modifier = Modifier.restoreFocus(rowMemory),
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(horizontal = 40.dp),
                     ) {
@@ -147,6 +145,7 @@ fun HomeScreen(
                                 }
                             }
                             ChannelCard(
+                                modifier = Modifier.rememberFocus(rowMemory, item.channel.id),
                                 row = item,
                                 now = now,
                                 playing = playback.isOn(item.channel),
@@ -307,6 +306,7 @@ private fun Hero(
 @Composable
 fun ChannelCard(
     row: ChannelRow,
+    modifier: Modifier = Modifier,
     now: Long,
     playing: Boolean,
     requester: FocusRequester,
@@ -318,7 +318,7 @@ fun ChannelCard(
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f),
             focusRequester = requester,

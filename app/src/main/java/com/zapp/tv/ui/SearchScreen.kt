@@ -33,7 +33,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -90,23 +89,23 @@ fun SearchScreen(
             r == null -> Hint("Searching…")
             r.channels.isEmpty() && r.programmes.isEmpty() -> Hint("Nothing found for “${r.query}”.")
             else -> LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRestorer(),
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 30.dp),
             ) {
                 if (r.channels.isNotEmpty()) {
                     item(key = "channels") {
+                        val channelMemory = rememberFocusMemory()
                         Column {
                             SectionTitle("Channels")
                             LazyRow(
-                                modifier = Modifier.focusRestorer(),
+                                modifier = Modifier.restoreFocus(channelMemory),
                                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                                 contentPadding = PaddingValues(horizontal = 40.dp),
                             ) {
                                 items(r.channels, key = { it.channel.id }) { row ->
                                     ChannelCard(
+                                        modifier = Modifier.rememberFocus(channelMemory, row.channel.id),
                                         row = row,
                                         now = now,
                                         playing = playback.isOn(row.channel),

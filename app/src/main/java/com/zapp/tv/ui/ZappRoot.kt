@@ -41,7 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -311,7 +311,7 @@ private fun Sidebar(
                         open = it.hasFocus
                         onFocusChanged(it.hasFocus)
                     }
-                    .focusRestorer()
+                    .focusProperties { enter = { railFocus } }
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {

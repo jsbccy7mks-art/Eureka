@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -122,6 +124,49 @@ fun rememberTimeFormat(): DateFormat {
 fun progressOf(start: Long?, stop: Long?, now: Long): Float {
     if (start == null || stop == null || stop <= start) return 0f
     return ((now - start).toFloat() / (stop - start)).coerceIn(0f, 1f)
+}
+
+// ---------------------------------------------------------------------------- focus memory
+
+/**
+ * Remembers which item of a list had focus, so moving back into the list lands on it again.
+ * Used instead of Compose's focusRestorer, which can crash inside scrolling lists in this
+ * Compose version ("Release should only be called once").
+ */
+class FocusMemory {
+    private val requesters = HashMap<Any, FocusRequester>()
+    var last: Any? = null
+
+    fun attach(key: Any, requester: FocusRequester) {
+        requesters[key] = requester
+    }
+
+    fun detach(key: Any, requester: FocusRequester) {
+        if (requesters[key] === requester) requesters.remove(key)
+    }
+
+    /** The remembered item if it is on screen; otherwise Compose's normal choice. */
+    fun target(): FocusRequester = last?.let { requesters[it] } ?: FocusRequester.Default
+}
+
+@Composable
+fun rememberFocusMemory(): FocusMemory = remember { FocusMemory() }
+
+/** Put on a list: entering it goes to the remembered item. */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+fun Modifier.restoreFocus(memory: FocusMemory): Modifier = focusProperties { enter = { memory.target() } }
+
+/** Put on an item inside a list using [restoreFocus]. */
+@Composable
+fun Modifier.rememberFocus(memory: FocusMemory, key: Any): Modifier {
+    val requester = remember { FocusRequester() }
+    DisposableEffect(key, requester) {
+        memory.attach(key, requester)
+        onDispose { memory.detach(key, requester) }
+    }
+    return this
+        .focusRequester(requester)
+        .onFocusChanged { if (it.hasFocus) memory.last = key }
 }
 
 // ---------------------------------------------------------------------------- focus surface

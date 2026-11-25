@@ -40,7 +40,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -158,9 +157,7 @@ fun SourcesPane(
     }
 
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusRestorer(),
+        modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
@@ -332,9 +329,7 @@ private fun PlaylistCard(
             }
             Spacer(Modifier.height(12.dp))
             Row(
-                Modifier
-                    .focusRestorer()
-                    .focusGroup(),
+                Modifier.focusGroup(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 ZButton("Watch", onWatch)
