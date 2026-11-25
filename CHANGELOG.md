@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.1
+
+**New**
+- Stremio sync (Settings, Accounts and sync): sign in on your phone (Zapp keeps only Stremio's sign-in
+  key, never your password) and your Stremio library and Continue watching come into your first
+  profile, when Zapp opens and every 30 minutes, or with Sync now.
+
+**Fixed**
+- Home: text from the row above no longer shows under the synopsis, and the edge of the previous
+  card no longer peeks out to the left of the focused one.
+- Home header titles without a logo sit on one line, sized to fit, instead of wrapping oddly.
+- "Add profile" is now a full row at the top of Settings, Profiles, so it's easy to reach.
+
+
 ## 0.12.0 (polish)
 
 **New**

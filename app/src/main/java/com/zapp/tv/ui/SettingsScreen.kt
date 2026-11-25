@@ -677,9 +677,50 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
+        StremioSection(vm, mvm)
+        Spacer(Modifier.height(16.dp))
         NuvioSection(mvm)
         Spacer(Modifier.height(16.dp))
         DebridSection(vm, mvm)
+    }
+}
+
+@Composable
+private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel) {
+    mvm.stremioVersion
+    val s = mvm.settings
+    Text("Stremio", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+    if (mvm.stremio.signedIn) {
+        SettingRow(
+            title = "Signed in as ${s.stremioUser.ifBlank { "your Stremio account" }}",
+            body = mvm.stremioStatus ?: "Your Stremio library and Continue watching come into your first profile, every 30 minutes and when Zapp opens.",
+            value = SettingValue.Choice(if (mvm.stremioWorking) "Syncing…" else "Sync now"),
+            onClick = { mvm.syncStremio() },
+        )
+        SettingRow(
+            title = "Sign out of Stremio",
+            body = "Stops syncing. What's already here stays.",
+            value = SettingValue.Action,
+            onClick = { mvm.signOutStremio() },
+        )
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Bring over your Stremio library and Continue watching. Scan the code and sign in to Stremio on your phone; " +
+                        "Zapp keeps only Stremio's sign-in key, never your password.",
+                    color = ZappColors.Dim,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                )
+                mvm.stremioStatus?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, color = ZappColors.Faint, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            PhoneSetupCard(vm, qrSize = 110, modifier = Modifier.width(150.dp), caption = "Sign in on your phone", tab = "stremio")
+        }
     }
 }
 

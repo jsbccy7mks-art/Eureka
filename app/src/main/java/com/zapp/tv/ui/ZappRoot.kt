@@ -109,6 +109,8 @@ fun ZappRoot(vm: AppViewModel) {
         }
     }
 
+    LaunchedEffect(Unit) { vm.onStremioSignedIn = { mvm.stremioSignedInFromPhone() } }
+
     // ---- profiles
     val profiles by mvm.profiles.collectAsState()
     var choosingProfile by remember { mutableStateOf(false) }

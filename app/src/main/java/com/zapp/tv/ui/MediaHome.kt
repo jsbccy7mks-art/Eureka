@@ -262,7 +262,16 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                             modifier = Modifier.height(56.dp).widthIn(max = 300.dp),
                         )
                     } else {
-                        MovieTitle(m.name, 26.sp, maxLines = 2)
+                        // One line, smaller for long titles, so it always sits neatly in its slot.
+                        MovieTitle(
+                            m.name,
+                            when {
+                                m.name.length > 30 -> 20.sp
+                                m.name.length > 20 -> 24.sp
+                                else -> 30.sp
+                            },
+                            maxLines = 1,
+                        )
                     }
                 }
                 Spacer(Modifier.height(10.dp))

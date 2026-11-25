@@ -88,8 +88,8 @@ fun Modifier.fadeAbove(line: Dp): Modifier = this
         drawRect(
             Brush.verticalGradient(
                 0f to Color.Transparent,
-                ((px - 18.dp.toPx()) / h).coerceIn(0f, 1f) to Color.Transparent,
-                ((px - 4.dp.toPx()) / h).coerceIn(0f, 1f) to Color.Black,
+                (px / h).coerceIn(0f, 1f) to Color.Transparent,
+                ((px + 3.dp.toPx()) / h).coerceIn(0f, 1f) to Color.Black,
                 1f to Color.Black,
             ),
             blendMode = BlendMode.DstIn,
@@ -106,8 +106,8 @@ fun Modifier.fadeLeftOf(line: Dp): Modifier = this
         drawRect(
             Brush.horizontalGradient(
                 0f to Color.Transparent,
-                ((px - 16.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Transparent,
-                ((px - 6.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Black,
+                ((px - 4.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Transparent,
+                ((px - 1.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Black,
                 1f to Color.Black,
             ),
             blendMode = BlendMode.DstIn,

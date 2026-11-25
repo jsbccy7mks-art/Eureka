@@ -197,6 +197,19 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.glow = value
         }
 
+    private val stremioUserState = stringState("stremioUser", "")
+    /** Email of the signed-in Stremio account (blank when signed out). */
+    var stremioUser: String
+        get() = stremioUserState.value
+        set(value) {
+            stremioUserState.value = value
+            prefs.edit().putString("stremioUser", value).apply()
+        }
+
+    var stremioLastSync: Long
+        get() = prefs.getLong("stremioLastSync", 0)
+        set(value) = prefs.edit().putLong("stremioLastSync", value).apply()
+
     private val artGlowState = mutableStateOf(prefs.getBoolean("artGlow", true))
     /** Tint the background glow with the colour of the title you're on. */
     var artGlow: Boolean

@@ -531,6 +531,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     showToast("$name connected from your phone")
                     return@withContext "$name is connected. Torrent sources will play through it."
                 }
+                "stremio" -> {
+                    val email = body.optString("stremioEmail").trim()
+                    val pass = body.optString("stremioPassword")
+                    if (email.isBlank() || pass.isBlank()) fail("Enter your Stremio email and password.")
+                    zapp.stremio.signIn(email, pass)
+                    onStremioSignedIn?.invoke()
+                    showToast("Stremio connected from your phone")
+                    return@withContext "Signed in to Stremio. Your library and Continue watching are coming across now."
+                }
                 "simkl" -> {
                     val id = body.optString("simklClientId").filter { it.isLetterOrDigit() }
                     if (id.length < 10) fail("That doesn't look like a Simkl Client ID.")
@@ -556,6 +565,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
             busy = null
         }
     }
+
+    /** Set by the screen so a Stremio sign-in from the phone starts a sync straight away. */
+    var onStremioSignedIn: (() -> Unit)? = null
 
     private fun fail(message: String): Nothing = throw IllegalStateException(message)
 

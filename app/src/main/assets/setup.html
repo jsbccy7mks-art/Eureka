@@ -84,6 +84,7 @@
     <button type="button" data-type="addon" aria-pressed="false">Add-on</button>
     <button type="button" data-type="simkl" aria-pressed="false">Simkl</button>
     <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
+    <button type="button" data-type="stremio" aria-pressed="false">Stremio</button>
   </div>
 
   <form id="form" autocomplete="off">
@@ -97,6 +98,18 @@
         <label for="simklClientId">Simkl Client ID</label>
         <input id="simklClientId" autocapitalize="off" spellcheck="false" placeholder="From simkl.com/settings/developer">
         <div class="hint">Create an app at simkl.com/settings/developer (device or TV type), then copy its Client ID here. You only do this once.</div>
+      </div>
+    </div>
+
+    <div data-for="stremio" hidden>
+      <div class="field">
+        <label for="stremioEmail">Stremio email</label>
+        <input id="stremioEmail" type="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label for="stremioPassword">Stremio password</label>
+        <input id="stremioPassword" type="password" autocapitalize="off" spellcheck="false">
+        <div class="hint">Used once to sign in. Zapp keeps only Stremio's sign-in key (encrypted), never your password. It brings over your Stremio library and Continue watching.</div>
       </div>
     </div>
 
@@ -187,12 +200,16 @@
       type = b.dataset.type;
       document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
-      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type || type === 'simkl' || type === 'debrid'; });
+      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type || type === 'simkl' || type === 'debrid' || type === 'stremio'; });
       $('epgHint').textContent = type === 'xtream'
         ? "Leave empty to use your provider's own guide."
         : 'Leave empty to use the guide link inside the playlist, if it has one.';
     });
   });
+
+  // Open a tab straight away when the TV asked for one (e.g. ?tab=stremio).
+  const wantTab = params.get('tab');
+  if (wantTab) { const b = document.querySelector('.seg button[data-type="' + wantTab + '"]'); if (b) setTimeout(() => b.click(), 0); }
 
   let debridService = 'pm';
   document.querySelectorAll('.dchip').forEach((c) => {
@@ -256,7 +273,13 @@
       simklClientId: $('simklClientId').value,
       debridService,
       debridKey: $('debridKey').value,
+      stremioEmail: $('stremioEmail').value,
+      stremioPassword: $('stremioPassword').value,
     };
+    if (type === 'stremio' && (!body.stremioEmail.trim() || !body.stremioPassword)) {
+      setStatus('err', 'Enter your Stremio email and password.');
+      return;
+    }
     if (type === 'debrid' && !body.debridKey.trim()) {
       setStatus('err', 'Paste the API key first.');
       return;
@@ -279,7 +302,7 @@
     }
 
     $('submit').disabled = true;
-    setStatus('work', type === 'addon' ? 'Installing the add-on…' : type === 'simkl' ? 'Saving…' : 'Adding the playlist. Big playlists can take a minute…');
+    setStatus('work', type === 'addon' ? 'Installing the add-on…' : type === 'simkl' ? 'Saving…' : type === 'stremio' ? 'Signing in to Stremio…' : 'Adding the playlist. Big playlists can take a minute…');
     try {
       const r = await fetch('/api/playlists?t=' + encodeURIComponent(t), {
         method: 'POST',

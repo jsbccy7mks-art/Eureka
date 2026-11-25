@@ -56,6 +56,8 @@ fun PhoneSetupCard(
     modifier: Modifier = Modifier,
     path: String = "/",
     caption: String = "Scan with your phone camera",
+    /** Opens this tab of the phone page (for example "stremio"). */
+    tab: String? = null,
 ) {
     DisposableEffect(Unit) {
         vm.startSetup()
@@ -66,7 +68,7 @@ fun PhoneSetupCard(
 
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (address != null) {
-            QrCode("http://$address$path?t=${vm.setupServer.token}", qrSize.dp)
+            QrCode("http://$address$path?t=${vm.setupServer.token}" + (tab?.let { "&tab=$it" } ?: ""), qrSize.dp)
             Spacer(Modifier.height(14.dp))
             Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))

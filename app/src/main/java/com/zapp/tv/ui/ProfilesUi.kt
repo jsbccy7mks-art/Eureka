@@ -284,6 +284,14 @@ fun ProfilesPane(mvm: MediaViewModel) {
                 modifier = Modifier.padding(bottom = 6.dp),
             )
         }
+        item(key = "add") {
+            SettingRow(
+                title = "Add profile",
+                body = "Someone else who watches on this TV, or a kids profile.",
+                value = SettingValue.Action,
+                onClick = { adding = true },
+            )
+        }
         items(profiles, key = { it.id }) { p ->
             FocusSurface(
                 onClick = { editing = p },
@@ -310,12 +318,6 @@ fun ProfilesPane(mvm: MediaViewModel) {
                     }
                     Text("Edit", fontSize = 12.sp, color = if (focused) ZappColors.OnFocus else ZappColors.Faint)
                 }
-            }
-        }
-        item {
-            Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZButton("Add profile", { adding = true }, style = ButtonStyle.Primary)
             }
         }
         item {

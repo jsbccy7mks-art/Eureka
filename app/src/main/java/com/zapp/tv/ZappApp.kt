@@ -33,6 +33,7 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
     val repository: PlaylistRepository by lazy { PlaylistRepository(database, httpClient) }
 
     val media: MediaRepository by lazy { MediaRepository(database, httpClient, settings) }
+    val stremio: com.zapp.tv.data.StremioSync by lazy { com.zapp.tv.data.StremioSync(database, httpClient, settings) }
     val profiles: com.zapp.tv.data.ProfileStore by lazy { com.zapp.tv.data.ProfileStore(database.profileDao(), settings) }
 
     val settings: Settings by lazy { Settings(this) }

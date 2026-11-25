@@ -263,6 +263,7 @@ fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: 
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         color = Color.White,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Start,
         modifier = modifier,
     )
 }

@@ -210,9 +210,48 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             delay(6_000)
             while (true) {
                 if (simkl.client.signedIn) syncSimkl()
+                if (stremio.signedIn) syncStremio(quiet = true)
                 delay(30 * 60_000L)
             }
         }
+    }
+
+    // ------------------------------------------------------------ Stremio
+
+    val stremio = zapp.stremio
+    var stremioStatus by mutableStateOf<String?>(null)
+        private set
+    var stremioWorking by mutableStateOf(false)
+        private set
+    /** Bumped when the Stremio sign-in changes, so screens re-read it. */
+    var stremioVersion by mutableStateOf(0)
+        private set
+
+    fun syncStremio(quiet: Boolean = false) {
+        if (stremioWorking || !stremio.signedIn) return
+        stremioWorking = true
+        if (!quiet) stremioStatus = "Syncing with Stremio…"
+        viewModelScope.launch {
+            try {
+                val s = stremio.pull()
+                stremioStatus = "Synced: ${s.library} new in library, ${s.inProgress} in progress updated."
+            } catch (e: Exception) {
+                stremioStatus = e.message ?: "Couldn't reach Stremio."
+            } finally {
+                stremioWorking = false
+            }
+        }
+    }
+
+    fun stremioSignedInFromPhone() {
+        stremioVersion++
+        syncStremio()
+    }
+
+    fun signOutStremio() {
+        stremio.signOut()
+        stremioStatus = null
+        stremioVersion++
     }
 
     // ------------------------------------------------------------ Nuvio import
