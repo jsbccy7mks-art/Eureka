@@ -234,6 +234,39 @@ class Settings(context: Context) {
         accountTick.intValue++
     }
 
+    // ---- account settings of a given profile (for work that must not follow a profile switch midway)
+    private fun acctFor(profile: Long, key: String): String = if (profile == 1L) key else "${key}_p$profile"
+    fun acctStrFor(profile: Long, key: String): String {
+        accountTick.intValue
+        return prefs.getString(acctFor(profile, key), "") ?: ""
+    }
+    fun setAcctStrFor(profile: Long, key: String, value: String) {
+        prefs.edit().putString(acctFor(profile, key), value).apply()
+        accountTick.intValue++
+    }
+    fun acctLongFor(profile: Long, key: String): Long {
+        accountTick.intValue
+        return prefs.getLong(acctFor(profile, key), 0)
+    }
+    fun setAcctLongFor(profile: Long, key: String, value: Long) {
+        prefs.edit().putLong(acctFor(profile, key), value).apply()
+        accountTick.intValue++
+    }
+    fun acctSecretFor(profile: Long, key: String): String {
+        accountTick.intValue
+        return secret(acctFor(profile, key))
+    }
+    fun setAcctSecretFor(profile: Long, key: String, value: String) {
+        setSecret(acctFor(profile, key), value)
+        accountTick.intValue++
+    }
+
+    /** A random id for this install, sent with Nuvio sync changes so they can be told apart from other devices'. */
+    val installId: String
+        get() = prefs.getString("installId", null) ?: java.util.UUID.randomUUID().toString().also {
+            prefs.edit().putString("installId", it).apply()
+        }
+
     private val artGlowState = mutableStateOf(prefs.getBoolean("artGlow", true))
     /** Tint the background glow with the colour of the title you're on. */
     var artGlow: Boolean

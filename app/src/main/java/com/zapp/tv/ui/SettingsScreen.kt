@@ -717,7 +717,9 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
         SettingsGroup("Stremio", if (mvm.stremio.signedIn) "Signed in as ${mvm.settings.stremioUser}" else "Bring over your Stremio library and Continue watching") {
             StremioSection(vm, mvm) { onPhone("stremio") }
         }
-        SettingsGroup("Nuvio", "Import your Nuvio add-ons") {
+        SettingsGroup("Nuvio", nuvioSummary(mvm)) {
+            NuvioSyncSection(mvm) { onPhone("nuvio") }
+            Spacer(Modifier.height(6.dp))
             NuvioSection(mvm)
         }
         SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected: cast photos, reviews and recommendations" else "Optional: cast photos, reviews and recommendations on details pages") {
@@ -776,12 +778,102 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () ->
     }
 }
 
+private fun nuvioSummary(mvm: MediaViewModel): String {
+    mvm.nuvioVersion
+    val pid = mvm.settings.profileId
+    return when {
+        !mvm.nuvio.signedIn(pid) -> "Sync Continue watching, watched and library, and import add-ons"
+        mvm.nuvio.linkedProfile(pid) == 0 -> "Connected: choose a Nuvio profile"
+        else -> "Syncing with ${mvm.nuvio.linkedProfileName(pid).ifBlank { "your profile" }}"
+    }
+}
+
+@Composable
+private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
+    mvm.nuvioVersion
+    val pid = mvm.settings.profileId
+    val nuvio = mvm.nuvio
+    if (!nuvio.signedIn(pid)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Two-way sync with your Nuvio account: where you got to, what you've watched and your library. " +
+                        "Sign in on your phone; Zapp keeps only the Nuvio session, encrypted, never your password.",
+                    color = ZappColors.Dim,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                )
+                mvm.nuvioSyncStatus?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, color = ZappColors.Faint, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            ZButton("Connect on my phone", onPhone, style = ButtonStyle.Primary)
+        }
+        return
+    }
+    LaunchedEffect(pid, mvm.nuvioVersion) { if (mvm.nuvioProfiles.isEmpty()) mvm.loadNuvioProfiles() }
+    val linked = nuvio.linkedProfile(pid)
+    if (linked != 0) {
+        val last = nuvio.lastSync(pid)
+        val pending = nuvio.pending(pid)
+        SettingRow(
+            title = "Connected as ${nuvio.user(pid).ifBlank { "your Nuvio account" }}",
+            body = buildString {
+                append(
+                    mvm.nuvioSyncStatus ?: if (last > 0) {
+                        "Last synced " + java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT).format(last)
+                    } else {
+                        "Not synced yet"
+                    },
+                )
+                if (pending > 0) append(" · $pending waiting to send")
+            },
+            value = SettingValue.Choice(if (mvm.nuvioSyncing) "Syncing…" else "Sync now"),
+            onClick = { mvm.syncNuvio() },
+        )
+    } else {
+        Text(
+            "Connected as ${nuvio.user(pid).ifBlank { "your Nuvio account" }}. Choose which Nuvio profile this Zapp profile syncs with.",
+            color = ZappColors.Dim,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+        )
+        mvm.nuvioSyncStatus?.let { Text(it, color = ZappColors.Faint, fontSize = 12.sp) }
+    }
+    if (mvm.nuvioProfiles.size > 1 || linked == 0) {
+        Text("Nuvio profile", color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        mvm.nuvioProfiles.forEach { p ->
+            SettingRow(
+                title = p.name,
+                body = if (p.index == linked) "Linked to this Zapp profile" else "Sync this Zapp profile with ${p.name}",
+                value = SettingValue.Choice(if (p.index == linked) "Linked" else "Link"),
+                onClick = { if (p.index != linked) mvm.linkNuvioProfile(p) },
+            )
+        }
+    }
+    SettingRow(
+        title = "Disconnect Nuvio",
+        body = "Stops syncing and signs Zapp out of Nuvio. What's already here stays.",
+        value = SettingValue.Action,
+        onClick = { mvm.disconnectNuvio() },
+    )
+    Text(
+        "Syncs when Zapp opens, when you switch profile, when you come back to Zapp and every 30 minutes; " +
+            "what you watch is sent while you watch and when you pause or stop. Films and episodes only, never live TV.",
+        color = ZappColors.Faint,
+        fontSize = 12.sp,
+        lineHeight = 17.sp,
+    )
+}
+
 @Composable
 private fun NuvioSection(mvm: MediaViewModel) {
     var otherDevice by remember { mutableStateOf("") }
     Text(
         "Add-ons: in Nuvio TV open Add-ons, choose Manage from phone, then press Home (leave it open), " +
-            "come back here and press Import. Watch history, progress and library come across through Simkl above.",
+            "come back here and press Import.",
         color = ZappColors.Dim,
         fontSize = 12.sp,
         lineHeight = 17.sp,
@@ -1200,7 +1292,7 @@ private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
             listOf(
                 "Playlist" to "Xtream logins and M3U links, with a TV guide link",
                 "Add-on" to "Stremio add-ons by their install link",
-                "Accounts" to "Stremio sign-in, the Simkl app ID, TMDB, Premiumize and TorBox keys",
+                "Accounts" to "Stremio and Nuvio sign-in, the Simkl app ID, TMDB, Premiumize and TorBox keys",
                 "Help" to "The crash report, to copy into your chat about the app",
             ).forEach { (t, b) ->
                 Row {

@@ -34,6 +34,7 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
 
     val media: MediaRepository by lazy { MediaRepository(database, httpClient, settings) }
     val stremio: com.zapp.tv.data.StremioSync by lazy { com.zapp.tv.data.StremioSync(database, httpClient, settings) }
+    val nuvio: com.zapp.tv.data.NuvioSync by lazy { com.zapp.tv.data.NuvioSync(database, httpClient, settings) }
     val tmdb: com.zapp.tv.data.Tmdb by lazy { com.zapp.tv.data.Tmdb(httpClient, settings) }
     val introDb: com.zapp.tv.data.IntroDb by lazy { com.zapp.tv.data.IntroDb(httpClient) }
     val profiles: com.zapp.tv.data.ProfileStore by lazy { com.zapp.tv.data.ProfileStore(database.profileDao(), settings) }

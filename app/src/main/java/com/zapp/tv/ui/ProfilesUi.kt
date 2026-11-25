@@ -277,7 +277,7 @@ fun ProfilesPane(mvm: MediaViewModel) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(
-                "Each profile has its own Continue watching, library and Home rows. Kids profiles only see family titles and no live TV. Each profile can connect its own Simkl and Stremio accounts.",
+                "Each profile has its own Continue watching, library and Home rows. Kids profiles only see family titles and no live TV. Each profile can connect its own Nuvio, Simkl and Stremio accounts.",
                 color = ZappColors.Dim,
                 fontSize = 12.sp,
                 lineHeight = 17.sp,

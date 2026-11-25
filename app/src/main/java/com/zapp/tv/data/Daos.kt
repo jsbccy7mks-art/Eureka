@@ -366,6 +366,15 @@ interface MediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProgressList(items: List<WatchProgress>)
 
+    @Query("SELECT * FROM watch_progress WHERE profileId = :profileId AND metaId = :metaId")
+    suspend fun progressOfMeta(profileId: Long, metaId: String): List<WatchProgress>
+
+    @Query("DELETE FROM watch_progress WHERE id = :id")
+    suspend fun deleteProgressRow(id: Long)
+
+    @Query("SELECT * FROM library WHERE profileId = :profileId")
+    suspend fun allLibrary(profileId: Long): List<LibraryItem>
+
     @Query("SELECT metaId FROM library WHERE profileId = :profileId")
     suspend fun libraryIds(profileId: Long): List<String>
 

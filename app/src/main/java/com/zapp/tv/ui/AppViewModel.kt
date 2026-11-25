@@ -555,6 +555,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     showToast("Stremio connected from your phone")
                     return@withContext "Signed in to Stremio. Your library and Continue watching are coming across now."
                 }
+                "nuvio" -> {
+                    val email = body.optString("nuvioEmail").trim()
+                    val pass = body.optString("nuvioPassword")
+                    if (email.isBlank() || pass.isBlank()) fail("Enter your Nuvio email and password.")
+                    val pid = settings.profileId
+                    zapp.nuvio.signIn(pid, body.optString("nuvioServer"), email, pass)
+                    onNuvioSignedIn?.invoke()
+                    showToast("Nuvio connected from your phone")
+                    return@withContext if (zapp.nuvio.linkedProfile(pid) != 0) {
+                        "Connected to Nuvio. Your progress, watched list and library are syncing now."
+                    } else {
+                        "Connected to Nuvio. On your TV, choose which Nuvio profile to sync with."
+                    }
+                }
                 "simkl" -> {
                     val id = body.optString("simklClientId").filter { it.isLetterOrDigit() }
                     if (id.length < 10) fail("That doesn't look like a Simkl Client ID.")
@@ -583,6 +597,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
 
     /** Set by the screen so a Stremio sign-in from the phone starts a sync straight away. */
     var onStremioSignedIn: (() -> Unit)? = null
+
+    /** Set by the screen so a Nuvio sign-in from the phone shows the profile choice and syncs. */
+    var onNuvioSignedIn: (() -> Unit)? = null
 
     private fun fail(message: String): Nothing = throw IllegalStateException(message)
 

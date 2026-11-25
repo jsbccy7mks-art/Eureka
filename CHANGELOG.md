@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.24.0
+
+**New**
+- Nuvio sync, both ways (Settings, Accounts and sync, Nuvio; sign in on the phone page's Nuvio tab).
+  Uses Nuvio's own server API: the server is found through its public discovery document, so
+  self-hosted Nuvio servers work too.
+  - Each Zapp profile links to one Nuvio profile.
+  - First connection merges both sides (newest wins, nothing is deleted), then only changes move:
+    Nuvio's change feeds come in (including removals), and what you watch, add to your library or
+    remove from Continue watching goes back.
+  - Pulls when Zapp opens, on profile switch, when you come back to Zapp and every 30 minutes;
+    sends while you watch (about once a minute) and straight away when you pause or stop.
+  - Changes made offline wait in a queue and are sent later.
+  - Films and episodes with IMDb ids only; live TV and replays are never sent.
+  - Only the Nuvio session is kept (encrypted, per profile); the password is used once.
+
 ## 0.23.0
 
 **Fixed**

@@ -102,6 +102,7 @@
   </div>
   <div class="subs" data-subs="accounts" hidden>
     <button type="button" data-type="stremio" aria-pressed="true">Stremio</button>
+    <button type="button" data-type="nuvio" aria-pressed="false">Nuvio</button>
     <button type="button" data-type="simkl" aria-pressed="false">Simkl</button>
     <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
     <button type="button" data-type="tmdb" aria-pressed="false">TMDB</button>
@@ -182,6 +183,26 @@
       </div>
     </div>
 
+    <!-- Nuvio -->
+    <div data-for="nuvio" hidden>
+      <h2>Nuvio account</h2>
+      <p>Keeps Continue watching, your watched list and your library in step with Nuvio, both ways.</p>
+      <div class="field">
+        <label for="nuvioEmail">Email</label>
+        <input id="nuvioEmail" type="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label for="nuvioPassword">Password</label>
+        <input id="nuvioPassword" type="password" autocapitalize="off" spellcheck="false">
+        <div class="hint">Used once to sign in. Zapp keeps only the Nuvio session (encrypted), never your password.</div>
+      </div>
+      <div class="field">
+        <label for="nuvioServer">Server (optional)</label>
+        <input id="nuvioServer" type="url" autocapitalize="off" spellcheck="false" placeholder="Leave empty for Nuvio's own server">
+        <div class="hint">Only if you run your own Nuvio server: its Backend URL, like https://backend.example.com</div>
+      </div>
+    </div>
+
     <!-- Simkl -->
     <div data-for="simkl" hidden>
       <h2>Simkl app ID</h2>
@@ -244,7 +265,7 @@
   let format = 'ts';
   let debridService = 'pm';
   const remembered = { playlist: 'xtream', accounts: 'stremio' };
-  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect' };
+  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect' };
 
   if (!token) $('codeBox').hidden = false;
   function currentToken() { return token || $('code').value.trim().toUpperCase(); }
@@ -289,7 +310,7 @@
   // The TV can open a particular part of this page (?tab=stremio and so on).
   const want = params.get('tab');
   if (want === 'xtream' || want === 'm3u') { remembered.playlist = want; choose('playlist'); }
-  else if (want === 'stremio' || want === 'simkl' || want === 'debrid' || want === 'tmdb') { remembered.accounts = want; choose('accounts'); }
+  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb') { remembered.accounts = want; choose('accounts'); }
   else if (want === 'addon' || want === 'help') { choose(want); }
   else { show(); }
 
@@ -327,6 +348,7 @@
     m3u: (b) => !b.url.trim() && 'Paste the playlist link first.',
     addon: (b) => !b.addonUrl.trim() && 'Paste the add-on install link first.',
     stremio: (b) => (!b.stremioEmail.trim() || !b.stremioPassword) && 'Enter your Stremio email and password.',
+    nuvio: (b) => (!b.nuvioEmail.trim() || !b.nuvioPassword) && 'Enter your Nuvio email and password.',
     simkl: (b) => !b.simklClientId.trim() && 'Paste the Client ID first.',
     debrid: (b) => !b.debridKey.trim() && 'Paste the API key first.',
     tmdb: (b) => !b.tmdbKey.trim() && 'Paste your TMDB key first.',
@@ -336,6 +358,7 @@
     m3u: 'Adding the playlist. Big playlists can take a minute…',
     addon: 'Installing the add-on…',
     stremio: 'Signing in to Stremio…',
+    nuvio: 'Connecting to Nuvio…',
     simkl: 'Saving…',
     debrid: 'Connecting…',
     tmdb: 'Checking the key with TMDB…',
@@ -360,6 +383,9 @@
       debridKey: $('debridKey').value,
       stremioEmail: $('stremioEmail').value,
       stremioPassword: $('stremioPassword').value,
+      nuvioEmail: $('nuvioEmail').value,
+      nuvioPassword: $('nuvioPassword').value,
+      nuvioServer: $('nuvioServer').value,
       tmdbKey: $('tmdbKey').value,
     };
     const problem = missing[type] && missing[type](body);

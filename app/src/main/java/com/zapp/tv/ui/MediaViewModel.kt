@@ -114,6 +114,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun switchProfile(id: Long) {
         settings.profileId = id
+        nuvioVersion++
+        syncNuvio(quiet = true)
     }
 
     fun addProfile(name: String, color: Int, kids: Boolean) = viewModelScope.launch { profileStore.add(name, color, kids) }
@@ -237,6 +239,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun scrobble(event: String, info: MediaInfo, percent: Double, durationMs: Long = 0L) {
         if (info.videoId.startsWith("catchup:")) return // TV replays aren't films or series
         // Stremio: send where you got to when you pause or stop.
+        if (event != "start") flushNuvio()
         if (event != "start" && stremio.signedIn && durationMs > 0) {
             val d = durationMs
             viewModelScope.launch {
@@ -256,6 +259,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 if (simkl.client.signedIn) syncSimkl()
                 if (stremio.signedIn) syncStremio(quiet = true)
+                syncNuvio(quiet = true)
                 delay(30 * 60_000L)
             }
         }
@@ -297,6 +301,112 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         stremio.signOut()
         stremioStatus = null
         stremioVersion++
+    }
+
+    // ------------------------------------------------------------ Nuvio sync
+
+    val nuvio = zapp.nuvio
+    var nuvioSyncStatus by mutableStateOf<String?>(null)
+        private set
+    var nuvioSyncing by mutableStateOf(false)
+        private set
+    /** Bumped when the Nuvio connection changes, so screens re-read it. */
+    var nuvioVersion by mutableStateOf(0)
+        private set
+    var nuvioProfiles by mutableStateOf<List<com.zapp.tv.data.NuvioSync.NuvioProfile>>(emptyList())
+        private set
+    private var nuvioLastFlush = 0L
+
+    fun nuvioReady(): Boolean {
+        val pid = settings.profileId
+        return nuvio.signedIn(pid) && nuvio.linkedProfile(pid) != 0
+    }
+
+    fun syncNuvio(quiet: Boolean = false) {
+        val pid = settings.profileId
+        if (nuvioSyncing || !nuvio.signedIn(pid) || nuvio.linkedProfile(pid) == 0) return
+        nuvioSyncing = true
+        if (!quiet) nuvioSyncStatus = "Syncing with Nuvio…"
+        viewModelScope.launch {
+            try {
+                val s = nuvio.sync(pid)
+                nuvioSyncStatus = if (s.progress + s.watched + s.library + s.removed + s.sent == 0) {
+                    "Up to date"
+                } else {
+                    buildList {
+                        if (s.progress > 0) add("${s.progress} in progress")
+                        if (s.watched > 0) add("${s.watched} watched")
+                        if (s.library > 0) add("${s.library} for your library")
+                        if (s.removed > 0) add("${s.removed} removed")
+                        if (s.sent > 0) add("${s.sent} sent to Nuvio")
+                    }.joinToString(", ").replaceFirstChar { it.uppercase() }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                nuvioSyncStatus = e.message ?: "Couldn't reach Nuvio."
+            } finally {
+                nuvioSyncing = false
+                nuvioVersion++
+            }
+        }
+    }
+
+    /** Sends queued changes now, or (when [force] is false) at most about once a minute. */
+    fun flushNuvio(force: Boolean = true) {
+        val pid = settings.profileId
+        if (!nuvio.signedIn(pid) || nuvio.linkedProfile(pid) == 0) return
+        val now = System.currentTimeMillis()
+        if (!force && now - nuvioLastFlush < 60_000) return
+        nuvioLastFlush = now
+        viewModelScope.launch {
+            try {
+                nuvio.flush(pid)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Stays queued; sent on the next sync or flush.
+            }
+        }
+    }
+
+    /** Back to Zapp after it was in the background. */
+    fun onAppResumed() {
+        val pid = settings.profileId
+        if (System.currentTimeMillis() - nuvio.lastSync(pid) > 2 * 60_000) syncNuvio(quiet = true)
+    }
+
+    fun loadNuvioProfiles() {
+        val pid = settings.profileId
+        if (!nuvio.signedIn(pid)) return
+        viewModelScope.launch {
+            try {
+                nuvioProfiles = nuvio.profiles(pid)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                nuvioSyncStatus = e.message
+            }
+        }
+    }
+
+    fun linkNuvioProfile(p: com.zapp.tv.data.NuvioSync.NuvioProfile) = viewModelScope.launch {
+        nuvio.linkProfile(settings.profileId, p)
+        nuvioVersion++
+        syncNuvio()
+    }
+
+    fun nuvioSignedInFromPhone() {
+        nuvioVersion++
+        loadNuvioProfiles()
+        syncNuvio()
+    }
+
+    fun disconnectNuvio() = viewModelScope.launch {
+        nuvio.signOut(settings.profileId)
+        nuvioSyncStatus = null
+        nuvioProfiles = emptyList()
+        nuvioVersion++
     }
 
     // ------------------------------------------------------------ Nuvio import
@@ -588,6 +698,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                     percent = position * 100.0 / duration,
                 ),
             )
+            nuvio.queueProgress(settings.profileId, info.metaId, info.type, info.videoId, position, duration, System.currentTimeMillis())
+            flushNuvio(force = false)
         }
     }
 
@@ -702,13 +814,20 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         return MetaPreview(imdb, item.type, item.name, item.poster, "poster", item.backdrop, null, null, item.year, null, emptyList())
     }
 
-    fun hideFromContinue(metaId: String) = viewModelScope.launch { repo.hideFromContinue(metaId) }
+    fun hideFromContinue(metaId: String) = viewModelScope.launch {
+        val pid = settings.profileId
+        if (nuvioReady()) nuvio.queueContinueRemoval(pid, metaId)
+        repo.hideFromContinue(metaId)
+        flushNuvio()
+    }
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)
 
     fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) = viewModelScope.launch {
         repo.toggleLibrary(meta, currentlyIn)
         if (!currentlyIn && simkl.client.signedIn) simkl.addToWatchlist(meta.id, meta.type)
+        nuvio.queueLibrary(settings.profileId, meta.id, meta.type, meta.name, meta.poster, !currentlyIn)
+        flushNuvio()
         if (stremio.signedIn) runCatching { stremio.pushLibrary(meta.id, meta.type, meta.name, meta.poster, !currentlyIn) }
     }
 

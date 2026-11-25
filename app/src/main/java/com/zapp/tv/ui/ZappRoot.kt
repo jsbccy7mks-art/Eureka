@@ -110,6 +110,7 @@ fun ZappRoot(vm: AppViewModel) {
     }
 
     LaunchedEffect(Unit) { vm.onStremioSignedIn = { mvm.stremioSignedInFromPhone() } }
+    LaunchedEffect(Unit) { vm.onNuvioSignedIn = { mvm.nuvioSignedInFromPhone() } }
     // Trailers stop whenever something covers them.
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
     TrailerGate.detailOpen = detail != null
@@ -250,7 +251,10 @@ fun ZappRoot(vm: AppViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) TrailerGate.appVisible = true
+            if (event == Lifecycle.Event.ON_START) {
+                TrailerGate.appVisible = true
+                mvm.onAppResumed()
+            }
             if (event == Lifecycle.Event.ON_STOP) {
                 TrailerGate.appVisible = false
                 playback.media?.let { m ->
