@@ -597,7 +597,7 @@ fun AmbientBackground() {
     Canvas(Modifier.fillMaxSize()) {
         drawRect(ZappColors.Bg)
     }
-    AmbientGlow()
+    AmbientGlow(tint = if (FocusStyle.artGlow) ArtTint.color else null)
 }
 
 /** Just the glow, to lay over artwork so every screen shares the same light. */

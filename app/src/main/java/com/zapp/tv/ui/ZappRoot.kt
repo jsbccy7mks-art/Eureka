@@ -516,6 +516,12 @@ private fun Sidebar(
 ) {
     var open by remember { mutableStateOf(false) }
     val width by animateDpAsState(if (open) RailOpenWidth else RailWidth, tween(200), label = "rail")
+    // The selection bar follows the title's colour too, so the sidebar matches the page.
+    val sideTint by androidx.compose.animation.animateColorAsState(
+        (if (FocusStyle.artGlow) ArtTint.color else null) ?: ZappColors.Brand1,
+        tween(900),
+        label = "sideTint",
+    )
     val scrim by androidx.compose.animation.core.animateFloatAsState(if (open) 1f else 0f, tween(200), label = "scrim")
 
     // Closed: a slim column of icons floating over the page. Open: labels slide out over a soft fade.
@@ -589,7 +595,7 @@ private fun Sidebar(
                                     .height(16.dp)
                                     .clip(RoundedCornerShape(50))
                                     .background(
-                                        if (selected && !focused) Brush.verticalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))
+                                        if (selected && !focused) Brush.verticalGradient(listOf(sideTint, ZappColors.Brand2))
                                         else Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent)),
                                     ),
                             )

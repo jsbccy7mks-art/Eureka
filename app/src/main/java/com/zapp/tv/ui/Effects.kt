@@ -52,6 +52,11 @@ import java.util.concurrent.ConcurrentHashMap
 
 // ---------------------------------------------------------------------------- colour from artwork
 
+/** The colour of the title on screen, shared so the whole app's glow (and the sidebar) can follow it. */
+object ArtTint {
+    var color by mutableStateOf<Color?>(null)
+}
+
 private val artColors = ConcurrentHashMap<String, Int>()
 
 /**

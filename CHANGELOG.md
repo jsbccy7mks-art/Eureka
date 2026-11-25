@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.2
+
+**Changed**
+- Colour from artwork now tints the whole screen's glow, sidebar included, and the sidebar's
+  selection bar takes the title's colour too, so the sidebar matches the page.
+- The header artwork fades out itself (instead of being covered with page colour), so it blends
+  evenly into the glow behind it.
+
+
 ## 0.13.1
 
 **Changed**

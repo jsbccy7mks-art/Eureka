@@ -2,6 +2,9 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
@@ -97,11 +100,7 @@ fun ImmersiveLayout(
         value = runCatching { mvm.meta(h.meta.type, h.meta.id) }.getOrNull()
     }
 
-    BoxWithConstraints(
-        Modifier
-            .fillMaxSize()
-            .background(ZappColors.Bg),
-    ) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         val screenHeight = maxHeight
         val heroHeight = screenHeight * 0.47f
         val backdropUrl = hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster }
@@ -110,7 +109,10 @@ fun ImmersiveLayout(
             trailer = detail?.takeIf { it.preview.id == hero?.meta?.id }?.trailerYoutube,
             trailerKey = hero?.meta?.id,
         )
-        AmbientGlow(0.8f, tint = rememberArtColor(hero?.meta?.poster ?: backdropUrl))
+        // The title's colour tints the glow behind the whole screen, sidebar included.
+        val art = rememberArtColor(hero?.meta?.poster ?: backdropUrl)
+        LaunchedEffect(art) { ArtTint.color = art }
+        DisposableEffect(Unit) { onDispose { ArtTint.color = null } }
 
         // The rows run the full height of the screen but are hidden above the header line. The row
         // above the one you're on is therefore still laid out (just invisible), so Up always finds it
@@ -165,58 +167,47 @@ fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
 @Composable
 private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = null) {
     Box(Modifier.fillMaxSize()) {
-        Crossfade(
-            targetState = url,
-            animationSpec = tween(650),
-            label = "backdrop",
-            modifier = Modifier
+        // The picture itself fades out (rather than being covered with page colour), so whatever is
+        // behind it, the glow included, shows through evenly right up to the sidebar.
+        Box(
+            Modifier
                 .align(Alignment.TopEnd)
                 .fillMaxWidth(0.8f)
                 .fillMaxHeight(0.8f)
-                .clipToBounds(),
-        ) { u ->
-            Box(Modifier.fillMaxSize()) {
-                if (u != null) {
-                    AsyncImage(
-                        model = u,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        alignment = Alignment.TopCenter,
-                        modifier = Modifier.fillMaxSize().drift(),
-                    )
+                .clipToBounds()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.62f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                },
+        ) {
+            Crossfade(
+                targetState = url,
+                animationSpec = tween(650),
+                label = "backdrop",
+                modifier = Modifier.fillMaxSize(),
+            ) { u ->
+                Box(Modifier.fillMaxSize()) {
+                    if (u != null) {
+                        AsyncImage(
+                            model = u,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            alignment = Alignment.TopCenter,
+                            modifier = Modifier.fillMaxSize().drift(),
+                        )
+                    }
                 }
             }
+            DelayedTrailer(trailer, trailerKey, Modifier.fillMaxSize())
         }
-        DelayedTrailer(
-            trailer,
-            trailerKey,
-            Modifier
-                .align(Alignment.TopEnd)
-                .fillMaxWidth(0.8f)
-                .fillMaxHeight(0.8f),
-        )
-        // Fade the picture into the page on the left and at the bottom.
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .fillMaxWidth(0.8f)
-                .fillMaxHeight(0.8f)
-                .background(
-                    // Eased fade with many stops, so there's no visible edge or banding.
-                    Brush.horizontalGradient(*easedFade(start = 0f, end = 0.62f)),
-                ),
-        )
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .fillMaxWidth(0.8f)
-                .fillMaxHeight(0.8f)
-                .background(
-                    Brush.verticalGradient(*easedFade(start = 1f, end = 0.5f)),
-                ),
-        )
     }
 }
+
+/** Mask stops: clear at [start], fully shown at [end], on the same smooth curve as [easedFade]. */
+fun easedMask(start: Float, end: Float): Array<Pair<Float, Color>> =
+    easedFade(start, end).map { (pos, c) -> pos to Color.Black.copy(alpha = 1f - c.alpha) }.toTypedArray()
 
 @Composable
 private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
