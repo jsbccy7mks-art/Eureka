@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.2
+
+**Changed**
+- Card sizes and row spacing are back to how they were in 0.10.0.
+- Home, Movies and Series header: a compact block low in the header, just above the rows, set in from
+  the sidebar and a third of the screen wide. Every part has a fixed size, so nothing moves as you go
+  between titles. The synopsis no longer runs across the whole screen.
+- Series details: one button per season. Choosing a season opens its episodes over the page, with
+  large episode cards and the focused episode's story below; Back returns to the seasons.
+
+**Fixed**
+- Continue watching could stay empty when a title had more than one progress record; it now picks
+  the latest unfinished one. Settings, Home screen shows how many titles are in progress.
+
+
 ## 0.10.1 (refinements)
 
 **Fixed**

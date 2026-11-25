@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.core.tween
 import kotlinx.coroutines.launch
@@ -136,6 +137,13 @@ fun DetailScreen(
 
         val isSeries = request.type == "series" && !detail?.videos.isNullOrEmpty()
         val videos = detail?.videos.orEmpty()
+        var openSeason by remember(request.id) { mutableStateOf<Int?>(null) }
+        val seasonFocus = remember(request.id) { HashMap<Int, FocusRequester>() }
+        fun playEpisode(v: Video) {
+            val p = progress.firstOrNull { it.videoId == v.id }
+            val resume = if (p != null && !p.watched) p.position else 0L
+            onPlay(PlayRequest(meta, v, videos, resume, mvm.settings.autoPlayFirst, resumePercent = p?.takeIf { !it.watched }?.percent))
+        }
         val nextUp = remember(videos, progress) { nextUp(videos, progress) }
         val movieProgress = progress.firstOrNull { it.videoId == meta.id && !it.watched && (it.position > 30_000 || (it.percent ?: 0.0) > 1) }
 
@@ -249,12 +257,8 @@ fun DetailScreen(
                         }
 
                         if (isSeries) {
-                            Spacer(Modifier.height(16.dp))
-                            SeasonsAndEpisodes(videos, progress, nextUp.first) { v ->
-                                val p = progress.firstOrNull { it.videoId == v.id }
-                                val resume = if (p != null && !p.watched) p.position else 0L
-                                onPlay(PlayRequest(meta, v, videos, resume, mvm.settings.autoPlayFirst, resumePercent = p?.takeIf { !it.watched }?.percent))
-                            }
+                            Spacer(Modifier.height(14.dp))
+                            SeasonButtons(videos, progress, seasonFocus) { openSeason = it }
                         }
                     }
 
@@ -269,6 +273,21 @@ fun DetailScreen(
                         },
                     )
                 }
+            }
+
+            openSeason?.let { sn ->
+                EpisodesSheet(
+                    showName = meta.name,
+                    videos = videos,
+                    progress = progress,
+                    season = sn,
+                    onSeason = { openSeason = it },
+                    onPlay = { playEpisode(it) },
+                    onClose = {
+                        openSeason = null
+                        seasonFocus[sn]?.tryRequest()
+                    },
+                )
             }
         }
     }
@@ -414,78 +433,174 @@ private fun nextUp(videos: List<Video>, progress: List<WatchProgress>): Pair<Vid
     return (videos.firstOrNull { (it.season ?: 0) > 0 } ?: videos.first()) to 0L
 }
 
+private fun seasonsOf(videos: List<Video>): List<Int> =
+    videos.mapNotNull { it.season }.distinct().sortedWith(compareBy({ it == 0 }, { it }))
+
+private fun seasonName(s: Int) = if (s == 0) "Specials" else "Season $s"
+
+/** One quiet button per season; choosing one opens its episodes. */
 @Composable
-private fun SeasonsAndEpisodes(
+private fun SeasonButtons(
     videos: List<Video>,
     progress: List<WatchProgress>,
-    nextUp: Video?,
-    onPlay: (Video) -> Unit,
+    requesters: HashMap<Int, FocusRequester>,
+    onOpen: (Int) -> Unit,
 ) {
-    val seasons = remember(videos) {
-        videos.mapNotNull { it.season }.distinct().sortedWith(compareBy({ it == 0 }, { it }))
-    }
-    var season by remember(videos) { mutableStateOf(nextUp?.season ?: seasons.firstOrNull()) }
-    val memory = rememberFocusMemory()
-
-    if (seasons.size > 1) {
-        MinimalScrolling {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(seasons) { s ->
+    val seasons = remember(videos) { seasonsOf(videos) }
+    if (seasons.isEmpty()) return
+    MinimalScrolling {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 40.dp)) {
+            items(seasons) { sn ->
+                val eps = videos.filter { it.season == sn }
+                val watched = eps.count { v -> progress.any { it.videoId == v.id && it.watched } }
+                val r = requesters.getOrPut(sn) { FocusRequester() }
                 FocusSurface(
-                    onClick = { season = s },
-                    onFocusChange = { if (it) season = s },
+                    onClick = { onOpen(sn) },
+                    focusRequester = r,
                     shape = RoundedCornerShape(50),
-                    focusScale = 1f,
+                    focusScale = 1.03f,
+                    restColor = Color.Transparent,
+                    modifier = Modifier.border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(50)),
                 ) { focused ->
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            if (s == 0) "Specials" else "Season $s",
-                            color = when {
-                                focused -> ZappColors.OnFocus
-                                s == season -> ZappColors.Text
-                                else -> ZappColors.Faint
-                            },
-                            fontSize = 12.5.sp,
-                            fontWeight = if (s == season || focused) FontWeight.SemiBold else FontWeight.Medium,
+                            seasonName(sn),
+                            color = if (focused) ZappColors.OnFocus else ZappColors.Text,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
                         )
-                        if (s == season && !focused) {
-                            Spacer(Modifier.height(3.dp))
-                            Box(
-                                Modifier
-                                    .width(16.dp)
-                                    .height(2.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
-                            )
-                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (watched == eps.size && watched > 0) "Watched" else "${eps.size} ep",
+                            color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                            fontSize = 11.sp,
+                        )
                     }
                 }
             }
         }
-        }
-        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** A season's episodes over the details page: large cards, and the focused episode's story below. */
+@Composable
+private fun EpisodesSheet(
+    showName: String,
+    videos: List<Video>,
+    progress: List<WatchProgress>,
+    season: Int,
+    onSeason: (Int) -> Unit,
+    onPlay: (Video) -> Unit,
+    onClose: () -> Unit,
+) {
+    BackHandler(onBack = onClose)
+    val seasons = remember(videos) { seasonsOf(videos) }
+    val episodes = videos.filter { it.season == season }
+    var focusedEp by remember(season) { mutableStateOf(episodes.firstOrNull()) }
+    val first = remember(season) { FocusRequester() }
+    // Start on the episode to watch next in this season.
+    val startId = remember(season, progress) {
+        episodes.firstOrNull { v -> progress.any { it.videoId == v.id && !it.watched && it.position > 30_000 } }?.id
+            ?: episodes.firstOrNull { v -> progress.none { it.videoId == v.id && it.watched } }?.id
+            ?: episodes.firstOrNull()?.id
+    }
+    LaunchedEffect(season) {
+        kotlinx.coroutines.delay(60)
+        first.tryRequest()
     }
 
-    val episodes = videos.filter { season == null || it.season == season }
-    PivotScrolling(0.dp) {
-    LazyRow(
-        modifier = Modifier.restoreFocus(memory),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(end = 40.dp),
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(ZappColors.Bg.copy(alpha = 0.94f)),
     ) {
-        items(episodes, key = { it.id }) { v ->
-            val p = progress.firstOrNull { it.videoId == v.id }
-            EpisodeCard(v, p, Modifier.rememberFocus(memory, v.id)) { onPlay(v) }
+        AmbientGlow(0.7f)
+        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 36.dp)) {
+            Text(showName.uppercase(), color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(start = 56.dp))
+            Spacer(Modifier.height(6.dp))
+            Row(Modifier.padding(start = 56.dp), verticalAlignment = Alignment.Bottom) {
+                MovieTitle(seasonName(season), 30.sp, maxLines = 1)
+                Spacer(Modifier.width(14.dp))
+                Text("${episodes.size} episodes", color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
+            }
+            if (seasons.size > 1) {
+                Spacer(Modifier.height(12.dp))
+                MinimalScrolling {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(horizontal = 50.dp),
+                    ) {
+                        items(seasons) { sn ->
+                            FocusSurface(
+                                onClick = { onSeason(sn) },
+                                shape = RoundedCornerShape(50),
+                                focusScale = 1f,
+                            ) { focused ->
+                                Text(
+                                    seasonName(sn),
+                                    color = when {
+                                        focused -> ZappColors.OnFocus
+                                        sn == season -> ZappColors.Text
+                                        else -> ZappColors.Faint
+                                    },
+                                    fontSize = 12.sp,
+                                    fontWeight = if (sn == season || focused) FontWeight.SemiBold else FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            val memory = rememberFocusMemory()
+            PivotScrolling(56.dp) {
+                LazyRow(
+                    modifier = Modifier.restoreFocus(memory),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 56.dp),
+                ) {
+                    items(episodes, key = { it.id }) { v ->
+                        val p = progress.firstOrNull { it.videoId == v.id }
+                        val own = remember { FocusRequester() }
+                        EpisodeCard(
+                            v,
+                            p,
+                            Modifier
+                                .rememberFocus(memory, v.id)
+                                .focusRequester(if (v.id == startId) first else own),
+                            width = 210.dp,
+                            onFocus = { focusedEp = v },
+                        ) { onPlay(v) }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.padding(start = 56.dp).width(520.dp).height(66.dp)) {
+                focusedEp?.let { v ->
+                    Text(
+                        listOfNotNull(v.episode?.let { "Episode $it" }, v.title.takeIf { it.isNotBlank() }).joinToString("  ·  "),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    v.overview?.let {
+                        Spacer(Modifier.height(4.dp))
+                        Text(it, color = ZappColors.Dim, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
         }
-    }
     }
 }
 
 @Composable
-private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, onClick: () -> Unit) {
-    Column(Modifier.width(160.dp)) {
+private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, width: androidx.compose.ui.unit.Dp = 160.dp, onFocus: () -> Unit = {}, onClick: () -> Unit) {
+    Column(Modifier.width(width)) {
         FocusSurface(
             onClick = onClick,
+            onFocusChange = { if (it) onFocus() },
             modifier = modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f),

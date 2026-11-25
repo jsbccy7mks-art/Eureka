@@ -860,6 +860,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
     val addons by mvm.addons.collectAsState()
     val catalogs by androidx.compose.runtime.produceState(emptyList<com.zapp.tv.addons.CatalogRef>(), addons) { value = mvm.catalogs(null) }
     val rows = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
+    val continueCount = mvm.continueWatching.collectAsState().value.size
 
     fun update(newRows: List<HomeRowSetting>) = mvm.saveLayout(newRows)
 
@@ -882,7 +883,8 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
                 Box(Modifier.weight(1f)) {
                     SettingRow(
                         title = r.title,
-                        body = if (!r.on) "Hidden" else "Shown, " + listOf("small", "medium", "large")[r.size] + if (r.landscape) " landscape cards" else " posters",
+                        body = (if (!r.on) "Hidden" else "Shown, " + listOf("small", "medium", "large")[r.size] + if (r.landscape) " landscape cards" else " posters") +
+                            if (r.id == CONTINUE_ROW) ". ${continueCount.let { if (it == 0) "Nothing in progress yet" else if (it == 1) "1 title in progress" else "$it titles in progress" }}" else "",
                         value = SettingValue.Toggle(r.on),
                         onClick = { update(rows.map { if (it.id == r.id) it.copy(on = !it.on) else it }) },
                     )

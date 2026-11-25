@@ -101,7 +101,7 @@ fun ImmersiveLayout(
             .background(ZappColors.Bg),
     ) {
         val screenHeight = maxHeight
-        val heroHeight = screenHeight * 0.45f
+        val heroHeight = screenHeight * 0.47f
         Backdrop(hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster })
         AmbientGlow(0.8f)
 
@@ -118,11 +118,11 @@ fun ImmersiveLayout(
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                PivotScrolling(22.dp) {
+                PivotScrolling(26.dp) {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(top = 4.dp, bottom = screenHeight * 0.5f),
                         content = rows,
                     )
@@ -201,11 +201,13 @@ private fun Backdrop(url: String?) {
 private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
     // Fixed slots (label, title, facts, two lines of text, one line of cast), so moving between
     // titles only changes what's shown, never where it sits.
+    // A fixed-size block sitting low in the header, just above the rows: same place for every title.
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier
-            .fillMaxSize()
-            .padding(start = RowInset, top = 34.dp)
-            .widthIn(max = 400.dp),
+            .align(Alignment.BottomStart)
+            .padding(start = 64.dp, bottom = 20.dp)
+            .width(380.dp),
     ) {
         AnimatedContent(
             targetState = item,
@@ -229,17 +231,17 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(8.dp))
-                Box(Modifier.height(52.dp).fillMaxWidth(), contentAlignment = Alignment.BottomStart) {
+                Box(Modifier.height(56.dp).fillMaxWidth(), contentAlignment = Alignment.BottomStart) {
                     if (logo != null) {
                         AsyncImage(
                             model = logo,
                             contentDescription = m.name,
                             contentScale = ContentScale.Fit,
                             alignment = Alignment.BottomStart,
-                            modifier = Modifier.heightIn(max = 52.dp).widthIn(max = 230.dp),
+                            modifier = Modifier.height(56.dp).widthIn(max = 300.dp),
                         )
                     } else {
-                        MovieTitle(m.name, 24.sp, maxLines = 2)
+                        MovieTitle(m.name, 26.sp, maxLines = 2)
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -272,7 +274,7 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                     description.orEmpty(),
                     color = ZappColors.Dim,
                     fontSize = 12.sp,
-                    lineHeight = 17.sp,
+                    lineHeight = 17.5.sp,
                     minLines = 2,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -288,6 +290,7 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                 )
             }
         }
+    }
     }
 }
 
