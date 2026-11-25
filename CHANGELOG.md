@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.21.0 (Live TV redesign)
+
+**Changed**
+- Live TV: the programme on the channel you're resting on fills the background softly (and tints the
+  glow). The preview is larger, with the channel's logo, quality and favourite on one line, the
+  programme now on with time left and its description, and the next three programmes under "Later".
+- TV guide: the selected programme's picture sits softly behind the top of the page, with a larger
+  picture and title in the information panel.
+
+
 ## 0.20.0 (skip intro)
 
 **New**

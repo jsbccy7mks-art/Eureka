@@ -157,7 +157,7 @@ class PlaylistRepository(
 
     suspend fun nowNext(channel: Channel): List<Programme> {
         val epgId = channel.epgId?.takeIf { it.isNotBlank() } ?: return emptyList()
-        return db.programmeDao().upcoming(channel.playlistId, epgId, System.currentTimeMillis(), 2)
+        return db.programmeDao().upcoming(channel.playlistId, epgId, System.currentTimeMillis(), 4)
     }
 
     suspend fun programmes(playlistId: Long, epgId: String, from: Long, to: Long): List<Programme> =

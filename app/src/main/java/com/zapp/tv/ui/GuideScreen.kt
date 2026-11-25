@@ -120,6 +120,9 @@ fun GuideScreen(
 
     val categoryName = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
 
+    // The programme you're on, softly behind the page (only the top, above the grid).
+    SoftBackdrop(selection?.programme?.icon, strength = 0.35f)
+
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -232,7 +235,7 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
     Row(
         Modifier
             .fillMaxWidth()
-            .height(84.dp),
+            .height(96.dp),
         verticalAlignment = Alignment.Top,
     ) {
         if (selection == null) {
@@ -249,9 +252,9 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
-                        .height(72.dp)
+                        .height(84.dp)
                         .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(ZappColors.Glass),
                 )
             } else {
@@ -262,7 +265,7 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
                 val p = selection.programme
                 Text(
                     text = p?.title ?: selection.row.channel.name,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

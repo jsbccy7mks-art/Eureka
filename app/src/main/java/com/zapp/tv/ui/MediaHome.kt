@@ -393,3 +393,44 @@ private fun OptionLine(label: String, content: @Composable () -> Unit) {
         content()
     }
 }
+
+/**
+ * A soft picture behind a whole screen (Live TV, the guide): top right, faded out towards the
+ * left and bottom, dimmed so text stays easy to read. It also tints the app's glow.
+ */
+@Composable
+fun SoftBackdrop(url: String?, strength: Float = 0.55f) {
+    val art = rememberArtColor(url)
+    LaunchedEffect(art) { ArtTint.color = art }
+    DisposableEffect(Unit) { onDispose { ArtTint.color = null } }
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .fillMaxWidth(0.75f)
+                .fillMaxHeight(0.85f)
+                .clipToBounds()
+                .graphicsLayer {
+                    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
+                    alpha = strength
+                }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.7f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.45f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                },
+        ) {
+            Crossfade(targetState = url, animationSpec = tween(700), label = "softBackdrop", modifier = Modifier.fillMaxSize()) { u ->
+                if (u != null) {
+                    AsyncImage(
+                        model = u,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.TopCenter,
+                        modifier = Modifier.fillMaxSize().drift(),
+                    )
+                }
+            }
+        }
+    }
+}

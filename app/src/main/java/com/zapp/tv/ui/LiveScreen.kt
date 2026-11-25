@@ -118,6 +118,13 @@ fun LiveScreen(
         }
     }
 
+    // What's on the channel you're resting on (now and the next few), shared by the backdrop and preview.
+    val programmes by produceState(emptyList<Programme>(), focusedRow?.channel?.streamUrl, now / 60_000) {
+        value = focusedRow?.let { vm.nowNext(it.channel) } ?: emptyList()
+    }
+    val currentArt = programmes.firstOrNull { it.start <= now && it.stop > now }?.icon
+    SoftBackdrop(currentArt, strength = 0.45f)
+
     val title = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
     val currentPlaylist = playlists.firstOrNull { it.playlist.id == scope.playlistId }
 
@@ -273,10 +280,11 @@ fun LiveScreen(
             vm = vm,
             playback = playback,
             row = focusedRow,
+            programmes = programmes,
             now = now,
             timeFormat = timeFormat,
             modifier = Modifier
-                .width(300.dp)
+                .width(330.dp)
                 .fillMaxHeight(),
         )
     }
@@ -439,24 +447,25 @@ private fun PreviewPane(
     vm: AppViewModel,
     playback: Playback,
     row: ChannelRow?,
+    programmes: List<Programme>,
     now: Long,
     timeFormat: java.text.DateFormat,
     modifier: Modifier = Modifier,
 ) {
-    val programmes by produceState(emptyList<Programme>(), row?.channel?.streamUrl, now / 60_000) {
-        value = row?.let { vm.nowNext(it.channel) } ?: emptyList()
-    }
     val showingVideo = row != null && playback.isOn(row.channel)
-    val art = programmes.firstOrNull { it.start <= now && it.stop > now }?.icon
+    val current = programmes.firstOrNull { it.start <= now && it.stop > now }
+    val later = programmes.filter { it.start > now }.take(3)
+    val art = current?.icon
 
     Column(modifier) {
+        // The picture: live preview when it's playing, otherwise the programme's artwork or the logo.
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(Color.Black)
-                .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(14.dp)),
+                .border(1.dp, Color(0x1AFFFFFF), RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center,
         ) {
             if (vm.settings.preview) PreviewVideo(playback, Modifier.fillMaxSize())
@@ -464,103 +473,94 @@ private fun PreviewPane(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(ZappColors.Brand1.copy(alpha = 0.35f), ZappColors.Brand2.copy(alpha = 0.15f), ZappColors.Panel),
-                            ),
-                        ),
+                        .background(Brush.linearGradient(listOf(ZappColors.Brand1.copy(alpha = 0.25f), ZappColors.Panel, ZappColors.Brand2.copy(alpha = 0.15f)))),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (art != null) {
-                        AsyncImage(
-                            model = art,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else if (row != null) {
-                        LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 64.dp)
-                    } else {
-                        LogoMark(40.dp)
+                    when {
+                        art != null -> AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        row != null -> LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 64.dp)
+                        else -> LogoMark(40.dp)
                     }
                 }
             } else {
-                if (playback.buffering && playback.error == null) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(26.dp))
-                }
+                if (playback.buffering && playback.error == null) ZappLoader(22.dp)
                 playback.error?.let {
                     Text(it, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(16.dp))
                 }
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
 
         if (row == null) {
             Text("Pick a channel", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text("Rest on a channel to preview it here.", color = ZappColors.Dim, fontSize = 12.sp)
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = row.channel.name,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (row.isFavorite) {
-                    Spacer(Modifier.width(7.dp))
-                    StarGlyph(ZappColors.Star, 12.dp)
-                }
-                // The real picture size once it's playing, otherwise what the name says.
-                val realBadge = if (showingVideo && playback.videoHeight > 0) heightBadge(playback.videoHeight) else null
-                (realBadge ?: qualityBadge(row.channel.name))?.let { q ->
-                    Spacer(Modifier.width(8.dp))
-                    QualityPill(q, false)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
+            return@Column
+        }
 
-            val current = programmes.firstOrNull { it.start <= now && it.stop > now }
-            val next = programmes.firstOrNull { it.start > now }
-            if (current == null && next == null) {
-                Text("No guide information for this channel.", color = ZappColors.Faint, fontSize = 12.sp)
+        // Channel line: logo, name, quality, favourite.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 26.dp)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                row.channel.name,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ZappColors.Dim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            val realBadge = if (showingVideo && playback.videoHeight > 0) heightBadge(playback.videoHeight) else null
+            (realBadge ?: qualityBadge(row.channel.name))?.let { q ->
+                Spacer(Modifier.width(8.dp))
+                QualityPill(q, false)
             }
-            if (current != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LivePill()
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "${timeFormat.format(current.start)} – ${timeFormat.format(current.stop)}",
-                        color = ZappColors.Dim,
-                        fontSize = 11.sp,
-                    )
-                }
-                Spacer(Modifier.height(7.dp))
-                Text(current.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(7.dp))
-                ProgressLine(progressOf(current.start, current.stop, now), Modifier.fillMaxWidth())
-                current.description?.let {
-                    Spacer(Modifier.height(8.dp))
-                    Text(it, color = ZappColors.Dim, fontSize = 11.5.sp, lineHeight = 16.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                }
+            if (row.isFavorite) {
+                Spacer(Modifier.width(7.dp))
+                StarGlyph(ZappColors.Star, 11.dp)
             }
-            if (next != null) {
-                Spacer(Modifier.height(12.dp))
-                Row {
-                    Text(timeFormat.format(next.start), color = ZappColors.Faint, fontSize = 11.5.sp, modifier = Modifier.width(48.dp))
-                    Text(next.title, color = ZappColors.Dim, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.height(14.dp))
+
+        if (current == null && later.isEmpty()) {
+            Text("No guide information for this channel.", color = ZappColors.Faint, fontSize = 12.sp)
+        }
+        if (current != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LivePill()
+                Spacer(Modifier.width(8.dp))
+                val left = ((current.stop - now) / 60_000).coerceAtLeast(1)
+                Text(
+                    "${timeFormat.format(current.start)} – ${timeFormat.format(current.stop)}  ·  $left min left",
+                    color = ZappColors.Dim,
+                    fontSize = 11.5.sp,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(current.title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 23.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(9.dp))
+            ProgressLine(progressOf(current.start, current.stop, now), Modifier.fillMaxWidth())
+            current.description?.let {
+                Spacer(Modifier.height(9.dp))
+                Text(it, color = ZappColors.Dim, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (later.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text("LATER", color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+            Spacer(Modifier.height(6.dp))
+            later.forEach { p ->
+                Row(Modifier.padding(vertical = 3.dp)) {
+                    Text(timeFormat.format(p.start), color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.width(52.dp))
+                    Text(p.title, color = ZappColors.Text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
 
         Spacer(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            KeyHint("OK", "Watch")
-            KeyHint("Hold OK", "Favourite")
-        }
+        Text("OK to watch  ·  Hold OK to favourite", color = ZappColors.Faint, fontSize = 11.sp)
     }
 }
 
