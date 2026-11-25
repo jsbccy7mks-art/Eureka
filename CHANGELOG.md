@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.6.0 (Stage 4: Stremio add-ons)
+
+**New**
+- Stremio add-on support. Install add-ons from your phone (QR page, Add-on tab) or by typing a link;
+  turn them on or off, reorder and remove them in Settings, Add-ons. One-tap suggestion: Cinemeta.
+- Movies and Series in the sidebar: a hero with the focused title's artwork and a row per catalogue,
+  loading more as you scroll.
+- Detail pages with artwork, logo, year, rating, runtime, genres, description, cast and director;
+  Play or Resume, Start over, Choose source, Add to library; seasons and episodes for series.
+- Source picker: asks every add-on at once and shows quality, size, provider and tags (HDR, Dolby Vision,
+  HEVC, Atmos, Remux). Optional autoplay of the first suitable source (Settings, Playback).
+- Film and episode player: Left/Right seek (hold to go faster), controls, audio, subtitles, stream info,
+  switch source mid-film keeping your place, progress saved as you watch, next-episode countdown.
+- Library screen; Continue watching for films and series on Home (hold OK to remove a card).
+- Settings, Home screen: show, hide and reorder Home rows, including add-on catalogues.
+- Search includes films and series from add-ons.
+- Returning from a title or the player puts you back on the card you opened.
+
+**Changed**
+- Database version 6 (adds add-ons, watch progress and library). Upgrades keep all data.
+- Add-on install links are stored encrypted, as they can contain your add-on settings.
+
+**Not yet**
+- Torrent-only sources need a debrid service (next), and Nuvio plugins (later).
+- Simkl sync with Nuvio (next).
+
 ## 0.5.1 (crash fix from crash report)
 
 **Fixed**
