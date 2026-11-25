@@ -15,7 +15,7 @@ android {
         targetSdk = 34
         // Each GitHub build number becomes the version code, so the in-app updater can compare builds.
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 3
-        versionName = "0.5.1"
+        versionName = "0.6.0"
     }
 
     // One permanent key, so every build can update the previous one in place.

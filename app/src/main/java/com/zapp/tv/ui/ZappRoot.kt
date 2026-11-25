@@ -61,6 +61,9 @@ enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
     Live("Live TV", Glyph.Live),
     Guide("TV guide", Glyph.Guide),
+    Movies("Movies", Glyph.Movies),
+    Series("Series", Glyph.Series),
+    Library("Library", Glyph.Library),
     Search("Search", Glyph.Search),
     Settings("Settings", Glyph.Settings),
 }
@@ -70,6 +73,7 @@ private val RailOpenWidth = 220.dp
 
 @Composable
 fun ZappRoot(vm: AppViewModel) {
+    val mvm: MediaViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val playback = remember { Playback(context.applicationContext, coroutineScope, vm.settings) { vm.resolveUrl(it) } }
@@ -81,6 +85,12 @@ fun ZappRoot(vm: AppViewModel) {
     var focusTick by remember { mutableIntStateOf(0) }
     var exitArmed by remember { mutableStateOf(false) }
     var railFocused by remember { mutableStateOf(false) }
+    var settingsSection by remember { mutableStateOf<String?>(null) }
+
+    // Films and series: detail page, then source list, then player.
+    var detail by remember { mutableStateOf<DetailRequest?>(null) }
+    var playRequest by remember { mutableStateOf<PlayRequest?>(null) }
+    var vodOpen by remember { mutableStateOf(false) }
     val railFocus = remember { FocusRequester() }
 
     /** Ask the visible screen to take focus once it has been drawn. */
@@ -102,6 +112,27 @@ fun ZappRoot(vm: AppViewModel) {
         playerOpen = true
     }
 
+    fun openTitle(meta: com.zapp.tv.addons.MetaPreview) {
+        detail = DetailRequest(meta.type, meta.id, meta)
+    }
+
+    fun startStream(req: PlayRequest, stream: com.zapp.tv.addons.StreamItem) {
+        val info = MediaInfo(
+            videoId = req.videoId,
+            metaId = req.meta.id,
+            type = req.meta.type,
+            title = req.meta.name,
+            episodeLabel = req.episodeLabel,
+            poster = req.meta.poster,
+            background = req.video?.thumbnail ?: req.meta.background,
+            url = stream.url.orEmpty(),
+            headers = stream.headers,
+        )
+        playback.playMedia(info, req.resumeMs)
+        playRequest = req.copy(preferBingeGroup = stream.bingeGroup, autoPlay = false)
+        vodOpen = true
+    }
+
     fun watchChannel(channel: com.zapp.tv.data.Channel) {
         vm.lastChannelUrl = channel.streamUrl
         playback.play(channel)
@@ -114,8 +145,14 @@ fun ZappRoot(vm: AppViewModel) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
+                playback.media?.let { m ->
+                    val d = playback.player.duration
+                    if (d > 0) mvm.saveProgress(m, playback.player.currentPosition, d)
+                }
                 playback.stop()
                 playerOpen = false
+                vodOpen = false
+                playRequest = null
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -128,7 +165,7 @@ fun ZappRoot(vm: AppViewModel) {
 
     // Home and Live TV keep a preview running; elsewhere the player stops.
     LaunchedEffect(dest, playerOpen) {
-        if (!playerOpen && dest != Dest.Live && dest != Dest.Home) playback.stop()
+        if (!playerOpen && !vodOpen && dest != Dest.Live && dest != Dest.Home) playback.stop()
     }
 
     LaunchedEffect(exitArmed) {
@@ -150,7 +187,7 @@ fun ZappRoot(vm: AppViewModel) {
 
             else -> {
                 // Back from a screen goes to the sidebar; Back on the sidebar twice exits.
-                BackHandler(enabled = !playerOpen && form == null) {
+                BackHandler(enabled = !playerOpen && form == null && detail == null && playRequest == null) {
                     if (!railFocused) {
                         railFocus.tryRequest()
                     } else if (exitArmed) {
@@ -177,7 +214,21 @@ fun ZappRoot(vm: AppViewModel) {
                             },
                             onOpenLive = { open(Dest.Live) },
                             onOpenGuide = { open(Dest.Guide) },
+                            mvm = mvm,
+                            onOpenTitle = { openTitle(it) },
+                            onResume = { p ->
+                                detail = DetailRequest(p.type, p.metaId, null)
+                            },
                         )
+                        Dest.Movies -> BrowseScreen(mvm, "movie", focusTick, { openTitle(it) }) {
+                            settingsSection = "Addons"
+                            open(Dest.Settings)
+                        }
+                        Dest.Series -> BrowseScreen(mvm, "series", focusTick, { openTitle(it) }) {
+                            settingsSection = "Addons"
+                            open(Dest.Settings)
+                        }
+                        Dest.Library -> LibraryScreen(mvm, focusTick) { openTitle(it) }
                         Dest.Live -> Column(Modifier.fillMaxSize()) {
                             ScreenHeader("Live TV", vm.guideStatus)
                             LiveScreen(vm, playback, focusTick) { watch(it) }
@@ -186,8 +237,10 @@ fun ZappRoot(vm: AppViewModel) {
                             ScreenHeader("TV guide", vm.guideStatus)
                             GuideScreen(vm, focusTick) { watch(it) }
                         }
-                        Dest.Search -> SearchScreen(vm, playback, focusTick) { watchChannel(it) }
+                        Dest.Search -> SearchScreen(vm, playback, focusTick, mvm, { openTitle(it) }) { watchChannel(it) }
                         Dest.Settings -> SettingsScreen(
+                            mvm = mvm,
+                            initialSection = settingsSection,
                             vm = vm,
                             playback = playback,
                             focusTick = focusTick,
@@ -225,6 +278,60 @@ fun ZappRoot(vm: AppViewModel) {
                 },
             )
         }
+
+        detail?.let { d ->
+            DetailScreen(
+                mvm = mvm,
+                request = d,
+                focusTick = focusTick,
+                onPlay = { playRequest = it },
+                onClose = {
+                    detail = null
+                    requestContentFocus()
+                },
+            )
+        }
+
+        val pr = playRequest
+        if (pr != null && !vodOpen) {
+            SourcesOverlay(
+                mvm = mvm,
+                request = pr,
+                onPick = { stream -> startStream(pr, stream) },
+                onClose = {
+                    playRequest = null
+                    requestContentFocus()
+                },
+            )
+        }
+
+        if (vodOpen && pr != null && playback.media != null) {
+            VodPlayer(
+                vm = vm,
+                mvm = mvm,
+                playback = playback,
+                request = pr,
+                onChooseSource = {
+                    val at = playback.player.currentPosition
+                    vodOpen = false
+                    playback.stop()
+                    playRequest = pr.copy(resumeMs = at, autoPlay = false)
+                },
+                onPlayNext = { next ->
+                    vodOpen = false
+                    playback.stop()
+                    playRequest = pr.copy(video = next, resumeMs = 0, autoPlay = true)
+                },
+                onClose = {
+                    vodOpen = false
+                    playRequest = null
+                    playback.stop()
+                    requestContentFocus(60)
+                },
+            )
+        }
+
+        mvm.busy?.let { BusyOverlay(it) }
 
         if (playerOpen && playback.channel != null) {
             val rows = vm.channels.collectAsLazyPagingItems()

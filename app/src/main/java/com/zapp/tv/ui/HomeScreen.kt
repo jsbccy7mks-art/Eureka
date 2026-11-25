@@ -49,15 +49,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.zapp.tv.addons.CatalogRef
+import com.zapp.tv.addons.MetaPreview
 import com.zapp.tv.data.ChannelRow
+import com.zapp.tv.data.WatchProgress
 import com.zapp.tv.data.FAVORITES
 import com.zapp.tv.data.Programme
 import com.zapp.tv.data.RECENT
 import kotlinx.coroutines.delay
 
-private data class HomeRow(val key: String, val title: String, val categoryId: Long?, val items: List<ChannelRow>)
 
-private data class HomeFocus(val rowKey: String, val streamUrl: String)
+private data class HomeFocus(val rowKey: String, val itemKey: String)
+
+private sealed interface HomeSection {
+    val key: String
+}
+
+private data class ChannelSection(override val key: String, val title: String, val categoryId: Long?, val items: List<ChannelRow>) : HomeSection
+
+private data class ContinueSection(override val key: String, val items: List<WatchProgress>) : HomeSection
+
+private data class CatalogSection(override val key: String, val ref: CatalogRef, val title: String) : HomeSection
 
 @Composable
 fun HomeScreen(
@@ -67,36 +79,61 @@ fun HomeScreen(
     onWatch: (row: ChannelRow, categoryId: Long?) -> Unit,
     onOpenLive: () -> Unit,
     onOpenGuide: () -> Unit,
+    mvm: MediaViewModel,
+    onOpenTitle: (MetaPreview) -> Unit,
+    onResume: (WatchProgress) -> Unit,
 ) {
     val recent by vm.homeRecent.collectAsState()
     val favorites by vm.homeFavorites.collectAsState()
     val onNow by vm.homeOnNow.collectAsState()
+    val addons by mvm.addons.collectAsState()
+    val continueItems by mvm.continueWatching.collectAsState()
+    val catalogs by produceState(emptyList<CatalogRef>(), addons) { value = mvm.catalogs(null) }
     val now = rememberNow()
     val timeFormat = rememberTimeFormat()
 
-    val rows = buildList {
-        if (recent.isNotEmpty()) add(HomeRow("recent", "Continue watching", RECENT, recent))
-        if (favorites.isNotEmpty()) add(HomeRow("favorites", "Favourites", FAVORITES, favorites))
-        if (onNow.isNotEmpty()) add(HomeRow("onnow", "On now", null, onNow))
+    val layout = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
+    val sections = buildList {
+        for (r in layout) {
+            if (!r.on) continue
+            when (r.id) {
+                "continue" -> if (continueItems.isNotEmpty()) add(ContinueSection(r.id, continueItems))
+                "live:recent" -> if (recent.isNotEmpty()) add(ChannelSection(r.id, "Recent channels", RECENT, recent))
+                "live:favorites" -> if (favorites.isNotEmpty()) add(ChannelSection(r.id, "Favourite channels", FAVORITES, favorites))
+                "live:onnow" -> if (onNow.isNotEmpty()) add(ChannelSection(r.id, "On now", null, onNow))
+                else -> catalogs.firstOrNull { it.key == r.id }?.let { add(CatalogSection(r.id, it, it.title)) }
+            }
+        }
     }
 
     var hero by remember { mutableStateOf<ChannelRow?>(null) }
+    var heroMedia by remember { mutableStateOf<MetaPreview?>(null) }
+    var mediaFocused by remember { mutableStateOf(false) }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
     var pending by remember { mutableStateOf<HomeFocus?>(null) }
     var handledTick by remember { mutableIntStateOf(focusTick) }
     val emptyFocus = remember { FocusRequester() }
-    val shown = hero ?: rows.firstOrNull()?.items?.firstOrNull()
+    val shown = hero ?: sections.filterIsInstance<ChannelSection>().firstOrNull()?.items?.firstOrNull()
 
-    // Startup, or back from the player: return to the card you were on.
+    // Startup, or back from a title or the player: return to the card you were on.
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
         handledTick = focusTick
-        val target = lastFocus ?: rows.firstOrNull()?.let { HomeFocus(it.key, it.items.first().channel.streamUrl) }
-        if (target != null) pending = target else emptyFocus.tryRequest()
+        val first = sections.firstOrNull()
+        val target = lastFocus ?: when (first) {
+            is ChannelSection -> HomeFocus(first.key, first.items.first().channel.streamUrl)
+            is ContinueSection -> HomeFocus(first.key, first.items.first().videoId)
+            else -> null
+        }
+        if (target != null) pending = target else if (sections.isEmpty()) emptyFocus.tryRequest()
     }
 
-    // Resting on a card previews it in the hero.
-    LaunchedEffect(hero?.channel?.streamUrl, vm.settings.preview) {
+    // Resting on a channel previews it in the hero; film and series cards show their artwork instead.
+    LaunchedEffect(hero?.channel?.streamUrl, vm.settings.preview, mediaFocused) {
+        if (mediaFocused) {
+            if (playback.channel != null) playback.stop()
+            return@LaunchedEffect
+        }
         val row = hero ?: return@LaunchedEffect
         if (!vm.settings.preview) return@LaunchedEffect
         delay(900)
@@ -104,65 +141,132 @@ fun HomeScreen(
     }
 
     Column(Modifier.fillMaxSize()) {
-        Hero(
-            vm = vm,
-            playback = playback,
-            row = shown,
-            now = now,
-            timeFormat = timeFormat,
-            empty = rows.isEmpty(),
-            emptyFocus = emptyFocus,
-            onOpenLive = onOpenLive,
-            onOpenGuide = onOpenGuide,
-        )
+        if (mediaFocused) {
+            MediaHero(heroMedia, 268.dp, "", "")
+        } else {
+            Hero(
+                vm = vm,
+                playback = playback,
+                row = shown,
+                now = now,
+                timeFormat = timeFormat,
+                empty = sections.isEmpty(),
+                emptyFocus = emptyFocus,
+                onOpenLive = onOpenLive,
+                onOpenGuide = onOpenGuide,
+            )
+        }
 
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(18.dp),
             contentPadding = PaddingValues(top = 6.dp, bottom = 30.dp),
         ) {
-            items(rows, key = { it.key }) { row ->
-                val rowMemory = rememberFocusMemory()
-                Column {
-                    Text(
-                        row.title,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 40.dp, bottom = 10.dp),
+            items(sections, key = { it.key }) { section ->
+                when (section) {
+                    is CatalogSection -> CatalogRow(
+                        mvm = mvm,
+                        ref = section.ref,
+                        title = section.title,
+                        onFocusItem = { meta ->
+                            heroMedia = meta
+                            mediaFocused = true
+                            lastFocus = HomeFocus(section.key, meta.id)
+                        },
+                        onOpen = onOpenTitle,
+                        pendingId = pending?.takeIf { it.rowKey == section.key }?.itemKey,
+                        onPendingDone = { pending = null },
                     )
-                    LazyRow(
-                        modifier = Modifier.restoreFocus(rowMemory),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(horizontal = 40.dp),
-                    ) {
-                        items(row.items, key = { it.channel.id }) { item ->
-                            val requester = remember { FocusRequester() }
-                            val p = pending
-                            if (p != null && p.rowKey == row.key && p.streamUrl == item.channel.streamUrl) {
-                                LaunchedEffect(p) {
-                                    requester.tryRequest()
-                                    pending = null
+
+                    is ContinueSection -> {
+                        val rowMemory = rememberFocusMemory()
+                        Column {
+                            RowTitle("Continue watching")
+                            LazyRow(
+                                modifier = Modifier.restoreFocus(rowMemory),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                contentPadding = PaddingValues(horizontal = 40.dp),
+                            ) {
+                                items(section.items, key = { it.videoId }) { p ->
+                                    val requester = remember { FocusRequester() }
+                                    val pf = pending
+                                    if (pf != null && pf.rowKey == section.key && pf.itemKey == p.videoId) {
+                                        LaunchedEffect(pf) {
+                                            requester.tryRequest()
+                                            pending = null
+                                        }
+                                    }
+                                    ContinueCard(
+                                        progress = p,
+                                        modifier = Modifier
+                                            .rememberFocus(rowMemory, p.videoId)
+                                            .focusRequesterSafe(requester),
+                                        onFocus = {
+                                            heroMedia = MetaPreview(p.metaId, p.type, p.name, p.poster, "poster", p.background, null, p.episodeLabel, null, null, emptyList())
+                                            mediaFocused = true
+                                            lastFocus = HomeFocus(section.key, p.videoId)
+                                        },
+                                        onClick = { onResume(p) },
+                                        onLongClick = {
+                                            mvm.hideFromContinue(p.metaId)
+                                            vm.showToast("Removed ${p.name} from Continue watching")
+                                        },
+                                    )
                                 }
                             }
-                            ChannelCard(
-                                modifier = Modifier.rememberFocus(rowMemory, item.channel.id),
-                                row = item,
-                                now = now,
-                                playing = playback.isOn(item.channel),
-                                requester = requester,
-                                onFocus = {
-                                    hero = item
-                                    lastFocus = HomeFocus(row.key, item.channel.streamUrl)
-                                },
-                                onClick = { onWatch(item, row.categoryId) },
-                                onLongClick = { vm.toggleFavorite(item.channel) },
-                            )
+                        }
+                    }
+
+                    is ChannelSection -> {
+                        val rowMemory = rememberFocusMemory()
+                        Column {
+                            RowTitle(section.title)
+                            LazyRow(
+                                modifier = Modifier.restoreFocus(rowMemory),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                contentPadding = PaddingValues(horizontal = 40.dp),
+                            ) {
+                                items(section.items, key = { it.channel.id }) { item ->
+                                    val requester = remember { FocusRequester() }
+                                    val p = pending
+                                    if (p != null && p.rowKey == section.key && p.itemKey == item.channel.streamUrl) {
+                                        LaunchedEffect(p) {
+                                            requester.tryRequest()
+                                            pending = null
+                                        }
+                                    }
+                                    ChannelCard(
+                                        modifier = Modifier.rememberFocus(rowMemory, item.channel.id),
+                                        row = item,
+                                        now = now,
+                                        playing = playback.isOn(item.channel),
+                                        requester = requester,
+                                        onFocus = {
+                                            hero = item
+                                            mediaFocused = false
+                                            lastFocus = HomeFocus(section.key, item.channel.streamUrl)
+                                        },
+                                        onClick = { onWatch(item, section.categoryId) },
+                                        onLongClick = { vm.toggleFavorite(item.channel) },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun RowTitle(text: String) {
+    Text(
+        text,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 40.dp, bottom = 10.dp),
+    )
 }
 
 @Composable

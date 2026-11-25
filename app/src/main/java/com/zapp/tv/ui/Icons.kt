@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 
 /** Line icons drawn in code, so they stay crisp at any size and match each other. */
-enum class Glyph { Home, Live, Guide, Search, Settings, Clock }
+enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifier) {
@@ -50,6 +50,26 @@ fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifie
                 line(color, w, 0.1f, 0.39f, 0.9f, 0.39f, stroke)
                 line(color, w, 0.1f, 0.61f, 0.9f, 0.61f, stroke)
                 line(color, w, 0.36f, 0.16f, 0.36f, 0.84f, stroke)
+            }
+            Glyph.Movies -> {
+                drawRoundRect(color, Offset(w * 0.14f, w * 0.2f), Size(w * 0.72f, w * 0.6f), CornerRadius(w * 0.08f), style = stroke)
+                val play = Path().apply {
+                    moveTo(w * 0.43f, w * 0.38f)
+                    lineTo(w * 0.62f, w * 0.5f)
+                    lineTo(w * 0.43f, w * 0.62f)
+                    close()
+                }
+                drawPath(play, color)
+            }
+            Glyph.Series -> {
+                drawRoundRect(color, Offset(w * 0.22f, w * 0.3f), Size(w * 0.64f, w * 0.52f), CornerRadius(w * 0.08f), style = stroke)
+                line(color, w, 0.14f, 0.7f, 0.14f, 0.22f, stroke)
+                line(color, w, 0.14f, 0.22f, 0.74f, 0.22f, stroke)
+            }
+            Glyph.Library -> {
+                line(color, w, 0.22f, 0.18f, 0.22f, 0.84f, stroke)
+                line(color, w, 0.42f, 0.18f, 0.42f, 0.84f, stroke)
+                line(color, w, 0.6f, 0.24f, 0.78f, 0.82f, stroke)
             }
             Glyph.Search -> {
                 drawCircle(color, w * 0.27f, Offset(w * 0.43f, w * 0.43f), style = stroke)

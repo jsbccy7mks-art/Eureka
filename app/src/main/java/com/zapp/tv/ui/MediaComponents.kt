@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -253,6 +254,8 @@ fun CatalogRow(
     title: String,
     onFocusItem: (MetaPreview) -> Unit,
     onOpen: (MetaPreview) -> Unit,
+    pendingId: String? = null,
+    onPendingDone: () -> Unit = {},
 ) {
     val items = remember(ref.key) { mutableStateListOf<MetaPreview>() }
     var loading by remember(ref.key) { mutableStateOf(true) }
@@ -300,9 +303,18 @@ fun CatalogRow(
                 }
             }
             itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
+                val requester = remember { FocusRequester() }
+                if (pendingId == meta.id) {
+                    LaunchedEffect(Unit) {
+                        requester.tryRequest()
+                        onPendingDone()
+                    }
+                }
                 PosterCard(
                     meta = meta,
-                    modifier = Modifier.rememberFocus(memory, meta.id),
+                    modifier = Modifier
+                        .rememberFocus(memory, meta.id)
+                        .focusRequesterSafe(requester),
                     onFocus = {
                         onFocusItem(meta)
                         if (index >= items.size - 6 && !loading && !exhausted) requestMore++

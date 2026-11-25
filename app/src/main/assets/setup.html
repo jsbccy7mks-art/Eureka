@@ -27,7 +27,7 @@
   header span { font-weight: 700; font-size: 22px; letter-spacing: -.02em; }
   h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 6px; }
   p.lead { color: var(--dim); margin: 0 0 24px; }
-  .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
   .seg button { border: 0; background: transparent; color: var(--dim); font: inherit; font-weight: 600; padding: 10px; border-radius: 9px; }
   .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
   label { display: block; font-size: 13px; color: var(--dim); margin: 0 0 6px; }
@@ -70,8 +70,8 @@
     <span>zapp</span>
   </header>
 
-  <h1>Add a playlist to your TV</h1>
-  <p class="lead">Type the details from your provider. Your TV downloads the channels straight away.</p>
+  <h1>Add to your TV</h1>
+  <p class="lead">Add a playlist from your provider, or a Stremio add-on by its install link. Your TV sets it up straight away.</p>
 
   <div class="field" id="codeBox" hidden>
     <label for="code">Code shown on your TV</label>
@@ -81,12 +81,21 @@
   <div class="seg" role="group" aria-label="Playlist type">
     <button type="button" data-type="xtream" aria-pressed="true">Xtream login</button>
     <button type="button" data-type="m3u" aria-pressed="false">M3U link</button>
+    <button type="button" data-type="addon" aria-pressed="false">Add-on</button>
   </div>
 
   <form id="form" autocomplete="off">
-    <div class="field">
+    <div class="field" data-not="addon">
       <label for="name">Name (optional)</label>
       <input id="name" placeholder="My provider">
+    </div>
+
+    <div data-for="addon" hidden>
+      <div class="field">
+        <label for="addonUrl">Add-on install link</label>
+        <input id="addonUrl" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/manifest.json">
+        <div class="hint">Copy it from the add-on's website (the link ending in manifest.json, or a stremio:// link).</div>
+      </div>
     </div>
 
     <div data-for="xtream">
@@ -119,7 +128,7 @@
       </div>
     </div>
 
-    <div class="field">
+    <div class="field" data-not="addon">
       <label for="epg">TV guide link (optional)</label>
       <input id="epg" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com/guide.xml.gz">
       <div class="hint" id="epgHint">Leave empty to use your provider's own guide.</div>
@@ -153,6 +162,7 @@
       type = b.dataset.type;
       document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
       document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
+      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type; });
       $('epgHint').textContent = type === 'xtream'
         ? "Leave empty to use your provider's own guide."
         : 'Leave empty to use the guide link inside the playlist, if it has one.';
@@ -187,7 +197,7 @@
         const b = document.createElement('b');
         b.textContent = p.name;
         const small = document.createElement('small');
-        small.textContent = p.type === 'xtream' ? 'Xtream login' : 'M3U link';
+        small.textContent = p.type === 'xtream' ? 'Xtream login' : (p.type === 'addon' ? 'Add-on' : 'M3U link');
         div.append(b, small);
         items.append(div);
       });
@@ -209,7 +219,12 @@
       password: $('password').value,
       format,
       url: $('url').value,
+      addonUrl: $('addonUrl').value,
     };
+    if (type === 'addon' && !body.addonUrl.trim()) {
+      setStatus('err', 'Paste the add-on install link first.');
+      return;
+    }
     if (type === 'xtream' && (!body.server.trim() || !body.username.trim() || !body.password.trim())) {
       setStatus('err', 'Fill in the server address, username and password.');
       return;
@@ -220,7 +235,7 @@
     }
 
     $('submit').disabled = true;
-    setStatus('work', 'Adding the playlist. Big playlists can take a minute…');
+    setStatus('work', type === 'addon' ? 'Installing the add-on…' : 'Adding the playlist. Big playlists can take a minute…');
     try {
       const r = await fetch('/api/playlists?t=' + encodeURIComponent(t), {
         method: 'POST',

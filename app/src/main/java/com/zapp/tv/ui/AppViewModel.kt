@@ -492,6 +492,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         repo.playlistsOnce().forEach {
             array.put(JSONObject().put("name", it.name).put("type", it.type))
         }
+        zapp.media.installedAddons().forEach {
+            array.put(JSONObject().put("name", it.manifest.name).put("type", "addon"))
+        }
         return array
     }
 
@@ -515,6 +518,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     val url = body.optString("url")
                     if (url.isBlank()) fail("Paste the playlist link first.")
                     repo.addM3u(name, url, epg)
+                }
+                "addon" -> {
+                    val link = body.optString("addonUrl")
+                    if (link.isBlank()) fail("Paste the add-on install link first.")
+                    val addon = zapp.media.addAddon(link)
+                    showToast("Installed ${addon.manifest.name} from your phone")
+                    return@withContext "Installed ${addon.manifest.name}. Its catalogues are on your TV now."
                 }
                 else -> fail("Choose Xtream login or M3U link.")
             }

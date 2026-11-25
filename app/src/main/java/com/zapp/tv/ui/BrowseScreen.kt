@@ -49,10 +49,13 @@ fun BrowseScreen(
     var handledTick by remember { mutableIntStateOf(focusTick) }
     val label = if (type == "movie") "Movies" else "Series"
 
+    var last by remember(type) { mutableStateOf<Pair<String, String>?>(null) }
+    var pending by remember(type) { mutableStateOf<Pair<String, String>?>(null) }
+
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
         handledTick = focusTick
-        emptyFocus.tryRequest()
+        if (last != null) pending = last else emptyFocus.tryRequest()
     }
 
     val list = catalogs
@@ -87,8 +90,13 @@ fun BrowseScreen(
                     mvm = mvm,
                     ref = ref,
                     title = if (list.orEmpty().count { it.def.name == ref.def.name } > 1) "${ref.def.name} from ${ref.addon.manifest.name}" else ref.def.name,
-                    onFocusItem = { hero = it },
+                    onFocusItem = {
+                        hero = it
+                        last = ref.key to it.id
+                    },
                     onOpen = onOpen,
+                    pendingId = pending?.takeIf { it.first == ref.key }?.second,
+                    onPendingDone = { pending = null },
                 )
             }
         }

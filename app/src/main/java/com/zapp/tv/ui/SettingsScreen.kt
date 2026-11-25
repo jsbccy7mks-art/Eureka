@@ -3,6 +3,7 @@
 package com.zapp.tv.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,7 +46,9 @@ import kotlinx.coroutines.delay
 const val UPDATE_LINK = "github.com/jsbccy7mks-art/Eureka/releases/latest/download/zapp-tv.apk"
 
 private enum class SettingsSection(val label: String) {
-    Sources("Sources"),
+    Sources("Playlists"),
+    Addons("Add-ons"),
+    HomeLayout("Home screen"),
     Live("Live TV and guide"),
     Playback("Playback"),
     Subtitles("Subtitles"),
@@ -53,13 +57,17 @@ private enum class SettingsSection(val label: String) {
 
 @Composable
 fun SettingsScreen(
+    mvm: MediaViewModel,
+    initialSection: String?,
     vm: AppViewModel,
     playback: Playback,
     focusTick: Int,
     onForm: (xtream: Boolean) -> Unit,
     onWatchPlaylist: (Long) -> Unit,
 ) {
-    var section by rememberSaveable { mutableStateOf(SettingsSection.Sources) }
+    var section by rememberSaveable {
+        mutableStateOf(SettingsSection.entries.firstOrNull { it.name == initialSection } ?: SettingsSection.Sources)
+    }
     var focusedSection by remember { mutableStateOf<SettingsSection?>(null) }
     val firstFocus = remember { FocusRequester() }
     val sectionMemory = rememberFocusMemory()
@@ -125,6 +133,8 @@ fun SettingsScreen(
         ) {
             when (section) {
                 SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist)
+                SettingsSection.Addons -> AddonsPane(vm, mvm)
+                SettingsSection.HomeLayout -> HomeLayoutPane(mvm)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
                 SettingsSection.Playback -> PlaybackSettingsPane(vm)
                 SettingsSection.Subtitles -> SubtitleSettingsPane(vm)
@@ -203,6 +213,18 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             body = "Used when a channel offers more than one language. You can still switch in the player.",
             value = SettingValue.Choice(languageLabel(s.audioLanguage)),
             onClick = { s.audioLanguage = next(s.audioLanguage) },
+        )
+        SettingRow(
+            title = "Play the first source automatically",
+            body = "For films and series: start the first suitable source (following your add-on order) instead of showing the list.",
+            value = SettingValue.Toggle(s.autoPlayFirst),
+            onClick = { s.autoPlayFirst = !s.autoPlayFirst },
+        )
+        SettingRow(
+            title = "Play the next episode automatically",
+            body = "Counts down from 10 at the end of an episode, then plays the next one.",
+            value = SettingValue.Toggle(s.autoNextEpisode),
+            onClick = { s.autoNextEpisode = !s.autoNextEpisode },
         )
         SettingRow(
             title = "Bigger buffer",
@@ -404,6 +426,213 @@ private fun AboutPane(vm: AppViewModel) {
             color = ZappColors.Faint,
             fontSize = 12.sp,
         )
+    }
+}
+
+@Composable
+private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel) {
+    val addons by mvm.addons.collectAsState()
+    var adding by remember { mutableStateOf(false) }
+    var confirmRemove by remember { mutableStateOf<Long?>(null) }
+
+    if (adding) AddAddonDialog(mvm) { adding = false }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
+    ) {
+        item(key = "add") {
+            Panel(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PhoneSetupCard(vm, qrSize = 120, modifier = Modifier.width(170.dp), caption = "Paste a link on your phone")
+                    Spacer(Modifier.width(22.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Add a Stremio add-on", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Scan the code and choose Add-on, then paste the add-on's install link (it ends in manifest.json). " +
+                                "Zapp doesn't include any add-ons; you choose your own.",
+                            color = ZappColors.Dim,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ZButton("Type a link", { adding = true })
+                            if (addons.isNotEmpty()) ZButton("Refresh add-ons", { mvm.refreshAddons() }, style = ButtonStyle.Quiet)
+                        }
+                    }
+                }
+            }
+        }
+        mvm.message?.let { m -> item(key = "msg") { ErrorBanner(m) } }
+        if (addons.none { it.manifest.id == "com.linvo.cinemeta" }) {
+            item(key = "cinemeta") {
+                SettingRow(
+                    title = "Suggested: Cinemeta",
+                    body = "Stremio's own film and series information (posters, descriptions, episodes). It has no video sources.",
+                    value = SettingValue.Choice("Install"),
+                    onClick = { mvm.addAddon(CINEMETA_URL) },
+                )
+            }
+        }
+        items(addons.size) { i ->
+            val a = addons[i]
+            Panel(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(ZappColors.GlassHigh),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (a.manifest.logo != null) {
+                                coil.compose.AsyncImage(model = a.manifest.logo, contentDescription = null, modifier = Modifier.size(30.dp))
+                            } else {
+                                Text(a.manifest.name.take(1).uppercase(), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                a.manifest.name + if (!a.addon.enabled) " (off)" else "",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (a.addon.enabled) ZappColors.Text else ZappColors.Faint,
+                            )
+                            val offers = a.manifest.resources.map { it.name }.mapNotNull {
+                                when (it) {
+                                    "catalog" -> "catalogues"
+                                    "meta" -> "details"
+                                    "stream" -> "sources"
+                                    "subtitles" -> "subtitles"
+                                    else -> null
+                                }
+                            }
+                            Text(
+                                "Version ${a.manifest.version}" + if (offers.isNotEmpty()) ", offers " + offers.joinToString(", ") else "",
+                                color = ZappColors.Dim,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ZButton(if (a.addon.enabled) "Turn off" else "Turn on", { mvm.setEnabled(a.addon.id, !a.addon.enabled) })
+                        if (i > 0) ZButton("Move up", { mvm.move(a.addon.id, up = true) })
+                        if (i < addons.size - 1) ZButton("Move down", { mvm.move(a.addon.id, up = false) })
+                        ZButton(
+                            if (confirmRemove == a.addon.id) "Press again to remove" else "Remove",
+                            {
+                                if (confirmRemove == a.addon.id) {
+                                    mvm.removeAddon(a.addon.id)
+                                    confirmRemove = null
+                                } else {
+                                    confirmRemove = a.addon.id
+                                }
+                            },
+                            style = ButtonStyle.Danger,
+                            onFocusChange = { if (!it && confirmRemove == a.addon.id) confirmRemove = null },
+                        )
+                    }
+                }
+            }
+        }
+        if (addons.size > 1) {
+            item(key = "order-note") {
+                Text(
+                    "Order matters: details come from the first add-on that has them, and sources are listed in this order.",
+                    color = ZappColors.Faint,
+                    fontSize = 12.sp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
+    var link by remember { mutableStateOf("") }
+    val field = remember { FocusRequester() }
+    LaunchedEffect(Unit) { field.tryRequest() }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier
+                .width(500.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(ZappColors.Panel)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text("Add-on link", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            TvTextField(
+                "Install link",
+                link,
+                { link = it },
+                placeholder = "https://example.com/manifest.json",
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                last = true,
+                focusRequester = field,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ZButton("Install", { if (link.isNotBlank()) mvm.addAddon(link, onClose) }, style = ButtonStyle.Primary)
+                ZButton("Cancel", onClose, style = ButtonStyle.Quiet)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeLayoutPane(mvm: MediaViewModel) {
+    val addons by mvm.addons.collectAsState()
+    val catalogs by androidx.compose.runtime.produceState(emptyList<com.zapp.tv.addons.CatalogRef>(), addons) { value = mvm.catalogs(null) }
+    val rows = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
+
+    fun update(newRows: List<HomeRowSetting>) = mvm.saveLayout(newRows)
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
+    ) {
+        item(key = "intro") {
+            Text(
+                "Choose which rows appear on Home and in what order. Rows with nothing in them stay hidden.",
+                color = ZappColors.Dim,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
+        items(rows.size, key = { rows[it].id }) { i ->
+            val r = rows[i]
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) {
+                    SettingRow(
+                        title = r.title,
+                        body = if (r.on) "Shown on Home" else "Hidden",
+                        value = SettingValue.Toggle(r.on),
+                        onClick = { update(rows.map { if (it.id == r.id) it.copy(on = !it.on) else it }) },
+                    )
+                }
+                if (i > 0) {
+                    ZButton("Up", {
+                        val m = rows.toMutableList()
+                        m.add(i - 1, m.removeAt(i))
+                        update(m)
+                    })
+                }
+                if (i < rows.size - 1) {
+                    ZButton("Down", {
+                        val m = rows.toMutableList()
+                        m.add(i + 1, m.removeAt(i))
+                        update(m)
+                    })
+                }
+            }
+        }
     }
 }
 

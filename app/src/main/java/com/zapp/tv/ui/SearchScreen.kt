@@ -48,9 +48,13 @@ fun SearchScreen(
     vm: AppViewModel,
     playback: Playback,
     focusTick: Int,
+    mvm: MediaViewModel,
+    onOpenTitle: (com.zapp.tv.addons.MetaPreview) -> Unit,
     onWatch: (Channel) -> Unit,
 ) {
     val results by vm.searchResults.collectAsState()
+    val mediaResults by mvm.searchResults.collectAsState()
+    LaunchedEffect(vm.searchText) { mvm.search(vm.searchText) }
     val now = rememberNow()
     val timeFormat = rememberTimeFormat()
     val scope = rememberCoroutineScope()
@@ -72,7 +76,7 @@ fun SearchScreen(
             Text("Search", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
             Spacer(Modifier.height(14.dp))
             TvTextField(
-                label = "Channels and programmes",
+                label = "Channels, programmes, films and series",
                 value = vm.searchText,
                 onValueChange = { vm.setSearch(it) },
                 placeholder = "Press OK and type a channel or programme name",
@@ -85,15 +89,40 @@ fun SearchScreen(
 
         val r = results
         when {
-            vm.searchText.trim().length < 2 -> Hint("Type at least two letters. Results come from all your playlists and the TV guide.")
-            r == null -> Hint("Searching…")
-            r.channels.isEmpty() && r.programmes.isEmpty() -> Hint("Nothing found for “${r.query}”.")
+            vm.searchText.trim().length < 2 -> Hint("Type at least two letters. Results come from your playlists, the TV guide and your add-ons.")
+            r == null && mediaResults == null -> Hint("Searching…")
+            r != null && r.channels.isEmpty() && r.programmes.isEmpty() && mediaResults.isNullOrEmpty() ->
+                Hint("Nothing found for “${r.query}”.")
             else -> LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 30.dp),
             ) {
-                if (r.channels.isNotEmpty()) {
+                mediaResults.orEmpty().forEach { (ref, metas) ->
+                    item(key = "m:" + ref.key) {
+                        val memory = rememberFocusMemory()
+                        Column {
+                            SectionTitle(
+                                (if (ref.def.type == "movie") "Films" else "Series") + " from ${ref.addon.manifest.name}",
+                            )
+                            LazyRow(
+                                modifier = Modifier.restoreFocus(memory),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                contentPadding = PaddingValues(horizontal = 40.dp),
+                            ) {
+                                items(metas, key = { it.id }) { meta ->
+                                    PosterCard(
+                                        meta = meta,
+                                        modifier = Modifier.rememberFocus(memory, meta.id),
+                                        onFocus = {},
+                                        onClick = { onOpenTitle(meta) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                if (r != null && r.channels.isNotEmpty()) {
                     item(key = "channels") {
                         val channelMemory = rememberFocusMemory()
                         Column {
@@ -122,7 +151,7 @@ fun SearchScreen(
                         }
                     }
                 }
-                if (r.programmes.isNotEmpty()) {
+                if (r != null && r.programmes.isNotEmpty()) {
                     item(key = "programmes-title") { SectionTitle("In the TV guide") }
                     items(r.programmes, key = { "p" + it.programmeId }) { hit ->
                         ProgrammeHitRow(
