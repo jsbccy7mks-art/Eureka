@@ -318,3 +318,59 @@ interface RecentDao {
     )
     suspend fun tokenizeStreams(playlistId: Long, prefix: String)
 }
+
+@Dao
+interface MediaDao {
+    // ---- add-ons
+    @Query("SELECT * FROM addons ORDER BY sortOrder, id")
+    fun observeAddons(): Flow<List<Addon>>
+
+    @Query("SELECT * FROM addons ORDER BY sortOrder, id")
+    suspend fun addons(): List<Addon>
+
+    @Insert
+    suspend fun insertAddon(addon: Addon): Long
+
+    @Update
+    suspend fun updateAddon(addon: Addon)
+
+    @Update
+    suspend fun updateAddons(addons: List<Addon>)
+
+    @Query("DELETE FROM addons WHERE id = :id")
+    suspend fun deleteAddon(id: Long)
+
+    // ---- watch progress
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun saveProgress(progress: WatchProgress)
+
+    @Query("SELECT * FROM watch_progress WHERE videoId = :videoId")
+    suspend fun progress(videoId: String): WatchProgress?
+
+    @Query("SELECT * FROM watch_progress WHERE metaId = :metaId")
+    fun observeProgressFor(metaId: String): Flow<List<WatchProgress>>
+
+    /** Unfinished films and episodes, newest first, one entry per film or series. */
+    @Query(
+        "SELECT * FROM watch_progress WHERE hidden = 0 AND watched = 0 AND position > 30000 " +
+            "AND id IN (SELECT id FROM watch_progress w2 WHERE w2.metaId = watch_progress.metaId ORDER BY w2.updatedAt DESC LIMIT 1) " +
+            "ORDER BY updatedAt DESC LIMIT :limit",
+    )
+    fun observeContinueWatching(limit: Int): Flow<List<WatchProgress>>
+
+    @Query("UPDATE watch_progress SET hidden = 1 WHERE metaId = :metaId")
+    suspend fun hideFromContinue(metaId: String)
+
+    // ---- library
+    @Query("SELECT * FROM library ORDER BY addedAt DESC")
+    fun observeLibrary(): Flow<List<LibraryItem>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM library WHERE metaId = :metaId)")
+    fun observeInLibrary(metaId: String): Flow<Boolean>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addToLibrary(item: LibraryItem)
+
+    @Query("DELETE FROM library WHERE metaId = :metaId")
+    suspend fun removeFromLibrary(metaId: String)
+}

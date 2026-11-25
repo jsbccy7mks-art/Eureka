@@ -111,6 +111,58 @@ data class StagedProgramme(
     val icon: String?,
 )
 
+/** An installed Stremio add-on. The manifest link can hold the user's own settings, so it is encrypted. */
+@Entity(tableName = "addons")
+data class Addon(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val manifestUrl: String,
+    val addonId: String,
+    val name: String,
+    val version: String,
+    val description: String?,
+    val logo: String?,
+    val manifestJson: String,
+    val enabled: Boolean,
+    val sortOrder: Int,
+    val addedAt: Long,
+)
+
+/** How far a film or episode has been watched. [videoId] is the film id or "showId:season:episode". */
+@Entity(
+    tableName = "watch_progress",
+    indices = [Index(value = ["videoId"], unique = true)],
+)
+data class WatchProgress(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val videoId: String,
+    val metaId: String,
+    val type: String,
+    val name: String,
+    val episodeLabel: String?,
+    val poster: String?,
+    val background: String?,
+    val position: Long,
+    val duration: Long,
+    val watched: Boolean,
+    /** Removed from Continue watching by the user. */
+    val hidden: Boolean,
+    val updatedAt: Long,
+)
+
+/** Films and series saved to the library. */
+@Entity(
+    tableName = "library",
+    indices = [Index(value = ["metaId"], unique = true)],
+)
+data class LibraryItem(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val metaId: String,
+    val type: String,
+    val name: String,
+    val poster: String?,
+    val addedAt: Long,
+)
+
 /** Favourites are keyed by stream link, which stays the same when a playlist is refreshed. */
 @Entity(
     tableName = "favorites",

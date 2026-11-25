@@ -106,6 +106,34 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("subtitleRaised", value).apply()
         }
 
+    // ---------------------------------------------------------------- films and series
+
+    private val autoPlayFirstState = mutableStateOf(prefs.getBoolean("autoPlayFirst", false))
+    /** Start the first suitable source straight away instead of showing the list. */
+    var autoPlayFirst: Boolean
+        get() = autoPlayFirstState.value
+        set(value) {
+            autoPlayFirstState.value = value
+            prefs.edit().putBoolean("autoPlayFirst", value).apply()
+        }
+
+    private val autoNextEpisodeState = mutableStateOf(prefs.getBoolean("autoNextEpisode", true))
+    var autoNextEpisode: Boolean
+        get() = autoNextEpisodeState.value
+        set(value) {
+            autoNextEpisodeState.value = value
+            prefs.edit().putBoolean("autoNextEpisode", value).apply()
+        }
+
+    private val homeRowsState = stringState("homeRows", "")
+    /** Home screen rows as a JSON list of {"id": ..., "on": ...}, in display order. Empty means defaults. */
+    var homeRowsJson: String
+        get() = homeRowsState.value
+        set(value) {
+            homeRowsState.value = value
+            prefs.edit().putString("homeRows", value).apply()
+        }
+
     var lastUpdateCheck: Long
         get() = prefs.getLong("lastUpdateCheck", 0L)
         set(value) {

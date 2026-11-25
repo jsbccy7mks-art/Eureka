@@ -357,7 +357,7 @@ fun PlayerOverlay(
 }
 
 @Composable
-private fun BottomScrim(content: @Composable () -> Unit) {
+internal fun BottomScrim(content: @Composable () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
@@ -432,7 +432,7 @@ private fun ControlsPanel(
 
 /** Progress and seeking, shown only when the stream can actually be moved through. */
 @Composable
-private fun SeekBar(playback: Playback, active: Boolean) {
+internal fun SeekBar(playback: Playback, active: Boolean) {
     val player = playback.player
     val state by produceState(Triple(0L, 0L, false), active) {
         while (true) {
@@ -484,7 +484,7 @@ private fun SeekBar(playback: Playback, active: Boolean) {
     }
 }
 
-private fun formatClock(ms: Long): String {
+internal fun formatClock(ms: Long): String {
     val total = (ms / 1000).coerceAtLeast(0)
     val h = total / 3600
     val m = (total % 3600) / 60
@@ -494,7 +494,7 @@ private fun formatClock(ms: Long): String {
 }
 
 @Composable
-private fun SidePanel(title: String, content: @Composable () -> Unit) {
+internal fun SidePanel(title: String, content: @Composable () -> Unit) {
     Column(
         Modifier
             .width(360.dp)
@@ -509,7 +509,7 @@ private fun SidePanel(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun TrackPanel(
+internal fun TrackPanel(
     title: String,
     choices: List<TrackChoice>,
     offOption: Boolean?,
@@ -570,7 +570,7 @@ private fun TrackRow(label: String, detail: String, selected: Boolean, requester
 }
 
 @Composable
-private fun DetailsPanel(playback: Playback) {
+internal fun DetailsPanel(playback: Playback) {
     val rows by produceState(playback.details()) {
         while (true) {
             value = playback.details()
@@ -601,7 +601,7 @@ private fun DetailsPanel(playback: Playback) {
 /** Subtitles drawn by the app, so they follow the size and style chosen in Settings. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-private fun SubtitleLayer(cues: List<Cue>, settings: com.zapp.tv.data.Settings, raisedForPanel: Boolean) {
+internal fun SubtitleLayer(cues: List<Cue>, settings: com.zapp.tv.data.Settings, raisedForPanel: Boolean) {
     if (cues.isEmpty()) return
     val size = when (settings.subtitleSize) {
         0 -> 17.sp

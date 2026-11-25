@@ -1,0 +1,315 @@
+package com.zapp.tv.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.zapp.tv.addons.CatalogRef
+import com.zapp.tv.addons.MetaPreview
+import com.zapp.tv.data.WatchProgress
+
+val PosterWidth = 122.dp
+
+/** Film or series poster. Landscape-shaped add-on art gets a wider card. */
+@Composable
+fun PosterCard(
+    meta: MetaPreview,
+    modifier: Modifier = Modifier,
+    onFocus: () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val landscape = meta.posterShape == "landscape"
+    Column(Modifier.width(if (landscape) 216.dp else PosterWidth)) {
+        FocusSurface(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .aspectRatio(if (landscape) 16f / 9f else 2f / 3f),
+            onFocusChange = { if (it) onFocus() },
+            shape = RoundedCornerShape(12.dp),
+            focusScale = 1.08f,
+            restColor = ZappColors.Glass,
+        ) { focused ->
+            Artwork(meta.poster, meta.name)
+            if (focused) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .border(3.dp, Color.White, RoundedCornerShape(12.dp)),
+                )
+            }
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(meta.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZappColors.Dim)
+    }
+}
+
+/** Image that fills its box, with the title as a fallback while it loads (or if there is none). */
+@Composable
+fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentScale.Crop) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            title,
+            color = ZappColors.Faint,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(10.dp),
+        )
+        if (!url.isNullOrBlank()) {
+            AsyncImage(model = url, contentDescription = null, contentScale = contentScale, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** A film or episode you started, with how far you got. */
+@Composable
+fun ContinueCard(
+    progress: WatchProgress,
+    modifier: Modifier = Modifier,
+    onFocus: () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Column(Modifier.width(220.dp)) {
+        FocusSurface(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f),
+            onFocusChange = { if (it) onFocus() },
+            shape = RoundedCornerShape(12.dp),
+            focusScale = 1.06f,
+            restColor = ZappColors.Glass,
+        ) { focused ->
+            Artwork(progress.background ?: progress.poster, progress.name)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xCC000000))),
+            )
+            ProgressLine(
+                (progress.position.toFloat() / progress.duration.coerceAtLeast(1)).coerceIn(0f, 1f),
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 10.dp, vertical = 9.dp)
+                    .fillMaxWidth(),
+                track = Color(0x66FFFFFF),
+                fill = Color.White,
+            )
+            if (focused) {
+                Box(Modifier.fillMaxSize().border(3.dp, Color.White, RoundedCornerShape(12.dp)))
+            }
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(progress.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            listOfNotNull(progress.episodeLabel, minutesLeft(progress)).joinToString(", "),
+            color = ZappColors.Dim,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+fun minutesLeft(p: WatchProgress): String {
+    val left = ((p.duration - p.position) / 60_000).coerceAtLeast(1)
+    return if (left >= 60) "${left / 60} h ${left % 60} min left" else "$left min left"
+}
+
+/** Big artwork header for films and series, used on Home, Movies and Series. */
+@Composable
+fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: String) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(height),
+    ) {
+        if (meta?.background != null || meta?.poster != null) {
+            AsyncImage(
+                model = meta.background ?: meta.poster,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                alpha = 0.85f,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.horizontalGradient(0f to ZappColors.Bg, 0.45f to ZappColors.Bg.copy(alpha = 0.75f), 1f to Color.Transparent)),
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to ZappColors.Bg)),
+        )
+        Column(
+            Modifier
+                .padding(start = 40.dp, top = 30.dp)
+                .widthIn(max = 420.dp),
+        ) {
+            if (meta == null) {
+                Text(emptyTitle, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+                Spacer(Modifier.height(8.dp))
+                Text(emptyBody, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp)
+            } else {
+                if (meta.logo != null) {
+                    AsyncImage(
+                        model = meta.logo,
+                        contentDescription = meta.name,
+                        contentScale = ContentScale.Fit,
+                        alignment = Alignment.CenterStart,
+                        modifier = Modifier
+                            .heightIn(max = 76.dp)
+                            .widthIn(max = 300.dp),
+                    )
+                } else {
+                    Text(meta.name, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.height(10.dp))
+                MetaFacts(meta.releaseInfo, meta.imdbRating, null, meta.genres)
+                meta.description?.let {
+                    Spacer(Modifier.height(10.dp))
+                    Text(it, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+/** Year, rating, runtime and genres as small tags. */
+@Composable
+fun MetaFacts(year: String?, rating: String?, runtime: String?, genres: List<String>) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        year?.let { Tag(it) }
+        rating?.let { Tag("IMDb $it", highlight = true) }
+        runtime?.let { Tag(it) }
+        genres.take(3).forEach { Tag(it) }
+    }
+}
+
+@Composable
+fun Tag(text: String, highlight: Boolean = false) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (highlight) Color(0x33FFC94A) else ZappColors.GlassHigh)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    ) {
+        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (highlight) ZappColors.Star else ZappColors.Text, maxLines = 1)
+    }
+}
+
+/**
+ * One add-on catalogue as a scrolling row. Loads when it comes on screen and fetches more
+ * as you reach the end. Rows that fail or come back empty hide themselves.
+ */
+@Composable
+fun CatalogRow(
+    mvm: MediaViewModel,
+    ref: CatalogRef,
+    title: String,
+    onFocusItem: (MetaPreview) -> Unit,
+    onOpen: (MetaPreview) -> Unit,
+) {
+    val items = remember(ref.key) { mutableStateListOf<MetaPreview>() }
+    var loading by remember(ref.key) { mutableStateOf(true) }
+    var failed by remember(ref.key) { mutableStateOf(false) }
+    var exhausted by remember(ref.key) { mutableStateOf(false) }
+    var requestMore by remember(ref.key) { mutableStateOf(0) }
+    val memory = rememberFocusMemory()
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(ref.key, requestMore) {
+        if (exhausted) return@LaunchedEffect
+        loading = true
+        try {
+            val page = mvm.page(ref, items.size)
+            val fresh = page.filter { p -> items.none { it.id == p.id } }
+            items.addAll(fresh)
+            if (fresh.isEmpty() || !ref.def.pageable) exhausted = true
+        } catch (e: Exception) {
+            if (items.isEmpty()) failed = true
+            exhausted = true
+        } finally {
+            loading = false
+        }
+    }
+
+    if (failed || (!loading && items.isEmpty())) return
+
+    Column {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 40.dp, bottom = 10.dp))
+        LazyRow(
+            state = listState,
+            modifier = Modifier.restoreFocus(memory),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(horizontal = 40.dp),
+        ) {
+            if (items.isEmpty()) {
+                items(7) {
+                    Box(
+                        Modifier
+                            .width(PosterWidth)
+                            .aspectRatio(2f / 3f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(ZappColors.Glass),
+                    )
+                }
+            }
+            itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
+                PosterCard(
+                    meta = meta,
+                    modifier = Modifier.rememberFocus(memory, meta.id),
+                    onFocus = {
+                        onFocusItem(meta)
+                        if (index >= items.size - 6 && !loading && !exhausted) requestMore++
+                    },
+                    onClick = { onOpen(meta) },
+                )
+            }
+        }
+    }
+}

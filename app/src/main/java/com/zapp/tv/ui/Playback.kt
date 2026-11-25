@@ -40,6 +40,20 @@ import kotlinx.coroutines.launch
  * One player for the whole app. The preview corner and fullscreen share it, so pressing OK on
  * a channel that is already previewing goes fullscreen instantly, without reconnecting.
  */
+/** A film or episode being played (as opposed to a live channel). */
+data class MediaInfo(
+    /** The film id or "showId:season:episode". */
+    val videoId: String,
+    val metaId: String,
+    val type: String,
+    val title: String,
+    val episodeLabel: String?,
+    val poster: String?,
+    val background: String?,
+    val url: String,
+    val headers: Map<String, String>,
+)
+
 /** One audio or subtitle choice in the player's menus. */
 data class TrackChoice(
     val label: String,
@@ -57,7 +71,17 @@ class Playback(
     private val resolve: (Channel) -> String,
 ) {
 
-    val player: ExoPlayer = createPlayer(context, settings.largeBuffer)
+    private val dataSourceFactory = DefaultHttpDataSource.Factory()
+        .setUserAgent(USER_AGENT)
+        .setAllowCrossProtocolRedirects(true)
+        .setConnectTimeoutMs(10_000)
+        .setReadTimeoutMs(15_000)
+
+    val player: ExoPlayer = createPlayer(context, settings.largeBuffer, dataSourceFactory)
+
+    /** The film or episode playing, or null for live TV. */
+    var media by mutableStateOf<MediaInfo?>(null)
+        private set
 
     var tracks by mutableStateOf(Tracks.EMPTY)
         private set
@@ -135,14 +159,37 @@ class Playback(
         error = null
         buffering = true
         channel = c
+        media = null
         cues = emptyList()
         applyPreferences()
+        dataSourceFactory.setDefaultRequestProperties(emptyMap())
         player.setMediaItem(MediaItem.fromUri(resolve(c)))
         player.prepare()
         player.playWhenReady = true
     }
 
+    /** Plays a film or episode, optionally from where it was left. */
+    fun playMedia(info: MediaInfo, startMs: Long) {
+        retryJob?.cancel()
+        retries = 0
+        error = null
+        buffering = true
+        channel = null
+        media = info
+        cues = emptyList()
+        applyPreferences()
+        dataSourceFactory.setDefaultRequestProperties(info.headers)
+        player.setMediaItem(MediaItem.fromUri(info.url), startMs.coerceAtLeast(0))
+        player.prepare()
+        player.playWhenReady = true
+    }
+
     fun retry() {
+        media?.let { m ->
+            val at = player.currentPosition
+            playMedia(m, at)
+            return
+        }
         val c = channel ?: return
         error = null
         retries = 0
@@ -236,6 +283,7 @@ class Playback(
         player.stop()
         player.clearMediaItems()
         channel = null
+        media = null
         buffering = false
         error = null
     }
@@ -292,7 +340,7 @@ class Playback(
         } + if ((f.selectionFlags and C.SELECTION_FLAG_FORCED) != 0) ", forced" else ""
 
         @OptIn(UnstableApi::class)
-        private fun createPlayer(context: Context, largeBuffer: Boolean): ExoPlayer {
+        private fun createPlayer(context: Context, largeBuffer: Boolean, dataSourceFactory: DefaultHttpDataSource.Factory): ExoPlayer {
             // Small start-up buffer so channels open quickly when zapping; a larger one for unsteady providers.
             val loadControl = DefaultLoadControl.Builder()
                 .apply {
@@ -300,11 +348,6 @@ class Playback(
                     else setBufferDurationsMs(10_000, 30_000, 1_000, 2_500)
                 }
                 .build()
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(USER_AGENT)
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(10_000)
-                .setReadTimeoutMs(15_000)
             return ExoPlayer.Builder(context)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))

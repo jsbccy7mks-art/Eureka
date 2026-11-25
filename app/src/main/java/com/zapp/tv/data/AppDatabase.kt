@@ -8,8 +8,9 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class, StagedProgramme::class],
-    version = 5,
+    entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class, StagedProgramme::class,
+        Addon::class, WatchProgress::class, LibraryItem::class],
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -19,6 +20,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun programmeDao(): ProgrammeDao
     abstract fun favoriteDao(): FavoriteDao
     abstract fun recentDao(): RecentDao
+    abstract fun mediaDao(): MediaDao
 
     companion object {
         /** Phase 1 -> Phase 2: keeps existing playlists, adds the guide and favourites. */
@@ -80,9 +82,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 0.5 -> 0.6: add-ons, watch progress and library. */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `addons` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`manifestUrl` TEXT NOT NULL, `addonId` TEXT NOT NULL, `name` TEXT NOT NULL, `version` TEXT NOT NULL, " +
+                        "`description` TEXT, `logo` TEXT, `manifestJson` TEXT NOT NULL, `enabled` INTEGER NOT NULL, " +
+                        "`sortOrder` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `watch_progress` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`videoId` TEXT NOT NULL, `metaId` TEXT NOT NULL, `type` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`episodeLabel` TEXT, `poster` TEXT, `background` TEXT, `position` INTEGER NOT NULL, " +
+                        "`duration` INTEGER NOT NULL, `watched` INTEGER NOT NULL, `hidden` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_watch_progress_videoId` ON `watch_progress` (`videoId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `library` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`metaId` TEXT NOT NULL, `type` TEXT NOT NULL, `name` TEXT NOT NULL, `poster` TEXT, `addedAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_library_metaId` ON `library` (`metaId`)")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "zapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
     }

@@ -156,6 +156,8 @@ fun rememberFocusMemory(): FocusMemory = remember { FocusMemory() }
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 fun Modifier.restoreFocus(memory: FocusMemory): Modifier = focusProperties { enter = { memory.target() } }
 
+fun Modifier.focusRequesterSafe(requester: FocusRequester): Modifier = this.focusRequester(requester)
+
 /** Put on an item inside a list using [restoreFocus]. */
 @Composable
 fun Modifier.rememberFocus(memory: FocusMemory, key: Any): Modifier {

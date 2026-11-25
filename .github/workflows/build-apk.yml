@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, dev ]
   workflow_dispatch:
 
 permissions:
@@ -56,7 +56,9 @@ jobs:
 
       # Publishes every successful build as a release, so the newest APK is always at:
       # https://github.com/<owner>/<repo>/releases/latest/download/zapp-tv.apk
+      # Only main publishes an update; dev builds are compile-and-test checks.
       - name: Publish release
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

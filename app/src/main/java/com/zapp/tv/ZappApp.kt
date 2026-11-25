@@ -1,6 +1,7 @@
 package com.zapp.tv
 
 import android.app.Application
+import com.zapp.tv.addons.MediaRepository
 import com.zapp.tv.data.AppDatabase
 import com.zapp.tv.data.CrashReporter
 import com.zapp.tv.data.PlaylistRepository
@@ -27,6 +28,8 @@ class ZappApp : Application() {
     private val database: AppDatabase by lazy { AppDatabase.build(this) }
 
     val repository: PlaylistRepository by lazy { PlaylistRepository(database, httpClient) }
+
+    val media: MediaRepository by lazy { MediaRepository(database, httpClient) }
 
     val settings: Settings by lazy { Settings(this) }
 
