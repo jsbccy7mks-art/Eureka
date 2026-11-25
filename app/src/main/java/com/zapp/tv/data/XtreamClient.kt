@@ -11,7 +11,7 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
-const val USER_AGENT = "Zapp/0.3 (Android TV)"
+const val USER_AGENT = "Zapp/0.4 (Android TV)"
 
 class XtreamClient(private val http: OkHttpClient) {
 

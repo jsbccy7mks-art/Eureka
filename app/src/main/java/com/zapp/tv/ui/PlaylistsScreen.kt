@@ -145,6 +145,11 @@ fun SourcesPane(
     val playlists by vm.playlists.collectAsState()
     val scope by vm.scope.collectAsState()
     val now = rememberNow(60_000)
+    var editingGuide by remember { mutableStateOf<PlaylistItem?>(null) }
+
+    editingGuide?.let { item ->
+        GuideLinkDialog(vm, item, onClose = { editingGuide = null })
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -190,8 +195,59 @@ fun SourcesPane(
                 onWatch = { onWatch(item.playlist.id) },
                 onRefresh = { vm.refresh(item.playlist.id) },
                 onGuide = { vm.refreshGuideFor(item.playlist.id) },
+                onGuideLink = { editingGuide = item },
                 onDelete = { vm.delete(item.playlist.id) },
             )
+        }
+    }
+}
+
+/** Set or change the TV guide link of an existing playlist. */
+@Composable
+private fun GuideLinkDialog(vm: AppViewModel, item: PlaylistItem, onClose: () -> Unit) {
+    var link by remember { mutableStateOf("") }
+    var loaded by remember { mutableStateOf(false) }
+    val field = remember { FocusRequester() }
+    LaunchedEffect(item.playlist.id) {
+        link = vm.guideUrl(item.playlist.id)
+        loaded = true
+        field.tryRequest()
+    }
+    BackHandler(onBack = onClose)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier
+                .width(480.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(ZappColors.Panel)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text("TV guide link", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                if (item.playlist.type == TYPE_XTREAM) {
+                    "Leave empty to use your provider's own guide."
+                } else {
+                    "An XMLTV link (.xml or .xml.gz). Leave empty to use the link inside the playlist, if it has one."
+                },
+                color = ZappColors.Dim,
+                fontSize = 12.sp,
+            )
+            if (loaded) {
+                TvTextField(
+                    "Guide link",
+                    link,
+                    { link = it },
+                    placeholder = "http://example.com/guide.xml.gz",
+                    keyboardType = KeyboardType.Uri,
+                    last = true,
+                    focusRequester = field,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ZButton("Save", { vm.saveGuideUrl(item.playlist.id, link, onClose) }, style = ButtonStyle.Primary)
+                ZButton("Cancel", onClose, style = ButtonStyle.Quiet)
+            }
         }
     }
 }
@@ -214,6 +270,7 @@ private fun PlaylistCard(
     onWatch: () -> Unit,
     onRefresh: () -> Unit,
     onGuide: () -> Unit,
+    onGuideLink: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val p = item.playlist
@@ -277,6 +334,7 @@ private fun PlaylistCard(
                 ZButton("Watch", onWatch)
                 ZButton("Refresh", onRefresh)
                 ZButton("Update guide", onGuide)
+                ZButton("Guide link", onGuideLink)
                 ZButton(
                     text = if (confirmDelete) "Press again to delete" else "Delete",
                     onClick = { if (confirmDelete) onDelete() else confirmDelete = true },

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 (Stage 2: Live TV and guide)
+
+**New**
+- Search in the sidebar: finds channels across all playlists (current playlist first) and programmes in the
+  TV guide. OK on a programme that's on now plays its channel; upcoming ones tell you when they start.
+- Guide filter: All channels or On now only (remembered).
+- Update guide button and "last updated" time on the guide screen.
+- Clear guide messages: no guide link, not downloaded yet, downloading, or nothing matching.
+- Programme artwork from the guide (XMLTV `<icon>`) in the guide info panel, Live TV preview,
+  Home hero and the player's info bar.
+- Settings, Sources: each playlist has a Guide link button to add or change its XMLTV link.
+
+**Fixed**
+- Guide channel ids are now matched without regard to upper/lower case, so more channels get programmes.
+
+**Changed**
+- Database version 4 (adds programme artwork). Upgrades keep all data.
+
 ## 0.3.0 (Stage 1: foundation and navigation)
 
 **New**

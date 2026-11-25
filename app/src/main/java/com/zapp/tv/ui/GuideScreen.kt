@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,14 +46,18 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.zapp.tv.data.ChannelRow
+import com.zapp.tv.data.GuideInfo
 import com.zapp.tv.data.Programme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -80,7 +85,11 @@ fun GuideScreen(
 ) {
     val scope = vm.scope.collectAsState().value ?: return
     val categories by vm.categories.collectAsState()
-    val rows = vm.channels.collectAsLazyPagingItems()
+    val rows = vm.guideChannels.collectAsLazyPagingItems()
+    val liveOnly by vm.guideLiveOnly.collectAsState()
+    val guideInfo by produceState<GuideInfo?>(null, scope.playlistId, vm.guideStatus) {
+        value = vm.guideInfo(scope.playlistId)
+    }
     val listState = rememberLazyListState()
     val now = rememberNow()
     val timeFormat = rememberTimeFormat()
@@ -121,7 +130,44 @@ fun GuideScreen(
 
         Column(Modifier.fillMaxSize()) {
             InfoPanel(selection, categoryName, now, timeFormat)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Segmented(
+                    options = listOf("all" to "All channels", "live" to "On now only"),
+                    value = if (liveOnly) "live" else "all",
+                    onChange = { if ((it == "live") != liveOnly) vm.toggleGuideLiveOnly() },
+                )
+                ZButton(
+                    text = if (vm.guideStatus != null) "Updating…" else "Update guide",
+                    onClick = { vm.refreshGuideFor(scope.playlistId) },
+                    style = ButtonStyle.Quiet,
+                )
+                guideInfo?.let { info ->
+                    if (info.updated > 0) {
+                        Text(
+                            "Updated ${timeFormat.format(info.updated)}",
+                            color = ZappColors.Faint,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            val info = guideInfo
+            val message = when {
+                info == null -> null
+                !info.hasSource -> "This playlist has no TV guide link. Add one in Settings, Sources, Guide link."
+                info.programmes == 0 && vm.guideStatus != null -> "Downloading the TV guide…"
+                info.programmes == 0 && info.updated == 0L -> "The TV guide hasn't downloaded yet. Press Update guide."
+                info.programmes == 0 -> "The TV guide is empty: none of its channels match this playlist."
+                liveOnly && rows.itemCount == 0 && rows.loadState.refresh is LoadState.NotLoading ->
+                    "Nothing on air right now in this list. Switch to All channels."
+                else -> null
+            }
+            if (message != null) {
+                ErrorBanner(message)
+                Spacer(Modifier.height(10.dp))
+            }
             TimeRuler(windowStart, gridWidth, dpPerMs, now, timeFormat)
             Spacer(Modifier.height(6.dp))
 
@@ -197,7 +243,21 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
                 Text("Move onto a programme to see what it's about.", color = ZappColors.Dim, fontSize = 12.sp)
             }
         } else {
-            LogoTile(url = selection.row.channel.logo, fallback = selection.row.channel.name, size = 52.dp)
+            val art = selection.programme?.icon
+            if (art != null) {
+                AsyncImage(
+                    model = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .height(72.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(ZappColors.Glass),
+                )
+            } else {
+                LogoTile(url = selection.row.channel.logo, fallback = selection.row.channel.name, size = 52.dp)
+            }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 val p = selection.programme

@@ -10,7 +10,7 @@ object EpgParser {
     fun parse(
         input: InputStream,
         onChannel: (id: String, names: List<String>) -> Unit,
-        onProgramme: (channel: String, start: Long, stop: Long, title: String, description: String?) -> Unit,
+        onProgramme: (channel: String, start: Long, stop: Long, title: String, description: String?, icon: String?) -> Unit,
     ) {
         val parser = Xml.newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
@@ -32,6 +32,7 @@ object EpgParser {
         var progStop = 0L
         var title: String? = null
         var desc: String? = null
+        var icon: String? = null
 
         var target = 0 // 1 display-name, 2 title, 3 desc
         val text = StringBuilder()
@@ -56,6 +57,10 @@ object EpgParser {
                         progStop = parseTime(parser.getAttributeValue(null, "stop")) ?: 0L
                         title = null
                         desc = null
+                        icon = null
+                    }
+                    "icon" -> if (inProgramme && icon == null) {
+                        icon = parser.getAttributeValue(null, "src")?.trim()?.takeIf { it.startsWith("http") }
                     }
                     "title" -> if (inProgramme && title == null) {
                         target = 2
@@ -90,7 +95,7 @@ object EpgParser {
                     "programme" -> {
                         val ch = progChannel
                         if (inProgramme && ch != null && progStart > 0 && progStop > progStart) {
-                            onProgramme(ch, progStart, progStop, title.orEmpty(), desc?.takeIf { it.isNotBlank() })
+                            onProgramme(ch, progStart, progStop, title.orEmpty(), desc?.takeIf { it.isNotBlank() }, icon)
                         }
                         inProgramme = false
                     }

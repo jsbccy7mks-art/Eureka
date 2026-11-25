@@ -13,6 +13,8 @@ import com.zapp.tv.ZappApp
 import com.zapp.tv.data.Channel
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.FAVORITES
+import com.zapp.tv.data.GuideInfo
+import com.zapp.tv.data.ProgrammeHit
 import com.zapp.tv.data.Playlist
 import com.zapp.tv.data.RECENT
 import com.zapp.tv.data.Programme
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
@@ -83,6 +86,62 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         .filterNotNull()
         .flatMapLatest { repo.channels(it) }
         .cachedIn(viewModelScope)
+
+    /** Guide grid: "On now only" filter, remembered between visits. */
+    private val liveOnlyFlow = MutableStateFlow(settings.guideLiveOnly)
+    val guideLiveOnly: StateFlow<Boolean> = liveOnlyFlow
+
+    fun toggleGuideLiveOnly() {
+        val v = !liveOnlyFlow.value
+        liveOnlyFlow.value = v
+        settings.guideLiveOnly = v
+    }
+
+    val guideChannels: Flow<PagingData<ChannelRow>> = combine(scopeFlow.filterNotNull(), liveOnlyFlow) { s, live -> s to live }
+        .flatMapLatest { (s, live) -> repo.guideChannels(s, live) }
+        .cachedIn(viewModelScope)
+
+    suspend fun guideInfo(playlistId: Long): GuideInfo = repo.guideInfo(playlistId)
+
+    suspend fun guideUrl(playlistId: Long): String = repo.guideUrlShown(playlistId)
+
+    fun saveGuideUrl(playlistId: Long, url: String, onDone: () -> Unit) {
+        viewModelScope.launch {
+            repo.setGuideUrl(playlistId, url)
+            onDone()
+            if (url.isBlank()) showToast("Guide link removed") else refreshGuide(listOf(playlistId), manual = true)
+        }
+    }
+
+    // ------------------------------------------------------------ search
+
+    data class SearchResults(val query: String, val channels: List<ChannelRow>, val programmes: List<ProgrammeHit>)
+
+    private val searchQuery = MutableStateFlow("")
+    var searchText by mutableStateOf("")
+        private set
+
+    fun setSearch(text: String) {
+        searchText = text
+        searchQuery.value = text
+    }
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    val searchResults: StateFlow<SearchResults?> = searchQuery
+        .debounce(300)
+        .map { it.trim() }
+        .distinctUntilChanged()
+        .map { q ->
+            if (q.length < 2) {
+                null
+            } else {
+                val prefer = scopeFlow.value?.playlistId ?: -1L
+                SearchResults(q, repo.searchChannels(q, prefer), repo.searchProgrammes(q))
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    suspend fun channelById(id: Long): Channel? = repo.channel(id)
 
     val categories: StateFlow<List<CategoryItem>> = scopeFlow
         .map { it?.playlistId }

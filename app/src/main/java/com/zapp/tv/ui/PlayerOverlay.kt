@@ -51,6 +51,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -285,6 +287,20 @@ private fun InfoBar(
             .padding(start = 48.dp, end = 48.dp, top = 70.dp, bottom = 30.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            val art = current?.icon
+            if (art != null) {
+                AsyncImage(
+                    model = art,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .height(72.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(ZappColors.Glass),
+                )
+                Spacer(Modifier.width(14.dp))
+            }
             LogoTile(channel.logo, channel.name, 64.dp)
             Spacer(Modifier.width(18.dp))
             Column(Modifier.weight(1f)) {

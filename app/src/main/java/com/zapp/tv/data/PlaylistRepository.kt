@@ -20,6 +20,8 @@ const val FAVORITES = -2L
 const val RECENT = -3L
 
 /** What a channel list shows: one playlist, and all channels, a category, favourites or recently watched. */
+data class GuideInfo(val hasSource: Boolean, val programmes: Int, val updated: Long)
+
 data class Scope(val playlistId: Long, val categoryId: Long?) {
     val favorites: Boolean get() = categoryId == FAVORITES
     val recent: Boolean get() = categoryId == RECENT
@@ -116,6 +118,42 @@ class PlaylistRepository(
     }
 
     // ------------------------------------------------------------------ guide lookups
+
+    suspend fun searchChannels(query: String, preferPlaylist: Long): List<ChannelRow> =
+        db.channelDao().searchRows(query.trim(), preferPlaylist, System.currentTimeMillis(), 60)
+
+    suspend fun searchProgrammes(query: String): List<ProgrammeHit> =
+        db.programmeDao().search(query.trim(), System.currentTimeMillis(), 40)
+
+    suspend fun channel(id: Long): Channel? = db.channelDao().get(id)
+
+    /** Guide channels: everything in the list, or only channels with a programme on now. */
+    fun guideChannels(scope: Scope, liveOnly: Boolean): Flow<PagingData<ChannelRow>> {
+        if (!liveOnly || scope.favorites || scope.recent) return channels(scope)
+        return Pager(
+            PagingConfig(pageSize = 50, prefetchDistance = 50, initialLoadSize = 100, enablePlaceholders = true, jumpThreshold = 150),
+        ) {
+            db.channelDao().pagedOnNowRows(scope.playlistId, scope.categoryId, System.currentTimeMillis())
+        }.flow
+    }
+
+    /** What the guide has for a playlist, so screens can explain an empty guide. */
+    suspend fun guideInfo(playlistId: Long): GuideInfo {
+        val p = db.playlistDao().get(playlistId) ?: return GuideInfo(hasSource = false, programmes = 0, updated = 0)
+        return GuideInfo(
+            hasSource = guideUrlFor(p) != null,
+            programmes = db.programmeDao().count(playlistId),
+            updated = p.epgUpdated,
+        )
+    }
+
+    suspend fun setGuideUrl(playlistId: Long, url: String) {
+        val trimmed = url.trim()
+        db.playlistDao().setEpgUrl(playlistId, if (trimmed.isEmpty()) null else Secrets.encrypt(withScheme(trimmed)))
+    }
+
+    suspend fun guideUrlShown(playlistId: Long): String =
+        db.playlistDao().get(playlistId)?.epgUrl?.let { Secrets.decrypt(it) }.orEmpty()
 
     suspend fun nowNext(channel: Channel): List<Programme> {
         val epgId = channel.epgId?.takeIf { it.isNotBlank() } ?: return emptyList()
@@ -426,7 +464,9 @@ class PlaylistRepository(
             val programmeDao = db.programmeDao()
             programmeDao.deleteForPlaylist(staging)
 
-            val wanted = HashSet(db.channelDao().epgIds(playlistId))
+            // Guide ids are matched without regard to case; programmes are stored under the channel's own spelling.
+            val canonical = HashMap<String, String>()
+            for (id in db.channelDao().epgIds(playlistId)) canonical[id.lowercase()] = id
             val unmatched = HashMap<String, MutableList<Long>>()
             for (c in db.channelDao().withoutEpg(playlistId)) {
                 val key = EpgParser.normalizeName(c.name)
@@ -458,26 +498,28 @@ class PlaylistRepository(
                         EpgParser.parse(
                             input = it,
                             onChannel = { id, names ->
-                                if (id !in wanted && unmatched.isNotEmpty()) {
+                                if (id.lowercase() !in canonical && unmatched.isNotEmpty()) {
                                     var matched = false
                                     for (n in names) {
                                         val ids = unmatched.remove(EpgParser.normalizeName(n)) ?: continue
                                         ids.forEach { channelId -> newMappings[channelId] = id }
                                         matched = true
                                     }
-                                    if (matched) wanted.add(id)
+                                    if (matched) canonical[id.lowercase()] = id
                                 }
                             },
-                            onProgramme = { channel, start, stop, title, description ->
-                                if (stop > from && start < to && channel in wanted) {
+                            onProgramme = { channel, start, stop, title, description, icon ->
+                                val target = if (stop > from && start < to) canonical[channel.lowercase()] else null
+                                if (target != null) {
                                     batch.add(
                                         Programme(
                                             playlistId = staging,
-                                            channelEpgId = channel,
+                                            channelEpgId = target,
                                             start = start,
                                             stop = stop,
                                             title = title.ifBlank { "Untitled" },
                                             description = description,
+                                            icon = icon,
                                         ),
                                     )
                                     if (batch.size >= 2000) flush()

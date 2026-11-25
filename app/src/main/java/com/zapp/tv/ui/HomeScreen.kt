@@ -44,6 +44,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -210,7 +212,14 @@ private fun Hero(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (row != null) LogoTile(row.channel.logo, row.channel.name, 84.dp) else LogoMark(56.dp)
+                    val art = current?.icon
+                    if (art != null) {
+                        AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    } else if (row != null) {
+                        LogoTile(row.channel.logo, row.channel.name, 84.dp)
+                    } else {
+                        LogoMark(56.dp)
+                    }
                 }
             } else if (playback.buffering && playback.error == null) {
                 CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(28.dp))
@@ -296,7 +305,7 @@ private fun Hero(
 }
 
 @Composable
-private fun ChannelCard(
+fun ChannelCard(
     row: ChannelRow,
     now: Long,
     playing: Boolean,

@@ -91,6 +91,8 @@ data class Programme(
     val stop: Long,
     val title: String,
     val description: String?,
+    /** Programme image from the guide, when the guide provides one. */
+    val icon: String? = null,
 )
 
 /** Favourites are keyed by stream link, which stays the same when a playlist is refreshed. */

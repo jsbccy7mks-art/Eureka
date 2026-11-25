@@ -15,6 +15,18 @@ data class CategoryCount(val categoryId: Long?, val total: Int)
 
 data class IdName(val id: Long, val name: String)
 
+/** A search result from the TV guide, with the channel it's on. */
+data class ProgrammeHit(
+    val programmeId: Long,
+    val title: String,
+    val start: Long,
+    val stop: Long,
+    val icon: String?,
+    val channelId: Long,
+    val channelName: String,
+    val channelLogo: String?,
+)
+
 /** A channel plus what is on it right now, for list rows. */
 data class ChannelRow(
     @Embedded val channel: Channel,
@@ -50,6 +62,9 @@ interface PlaylistDao {
     @Update
     suspend fun update(playlist: Playlist)
 
+    @Query("UPDATE playlists SET epgUrl = :epgUrl WHERE id = :id")
+    suspend fun setEpgUrl(id: Long, epgUrl: String?)
+
     @Query("UPDATE playlists SET epgUpdated = :time WHERE id = :id")
     suspend fun setEpgUpdated(id: Long, time: Long)
 
@@ -78,6 +93,25 @@ interface ChannelDao {
             "ORDER BY c.number",
     )
     fun pagedRows(playlistId: Long, categoryId: Long?, now: Long): PagingSource<Int, ChannelRow>
+
+    /** Only channels with a programme on right now (guide "On now" filter). */
+    @Query(
+        "SELECT c.*, " + NOW_COLUMNS + ", " +
+            "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
+            "FROM channels c WHERE c.playlistId = :playlistId AND (:categoryId IS NULL OR c.categoryId = :categoryId) " +
+            "AND c.epgId IS NOT NULL AND EXISTS(SELECT 1 FROM programmes p WHERE p.playlistId = c.playlistId " +
+            "AND p.channelEpgId = c.epgId AND p.start <= :now AND p.stop > :now) ORDER BY c.number",
+    )
+    fun pagedOnNowRows(playlistId: Long, categoryId: Long?, now: Long): PagingSource<Int, ChannelRow>
+
+    /** Channel search across every playlist; the current playlist comes first. */
+    @Query(
+        "SELECT c.*, " + NOW_COLUMNS + ", " +
+            "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
+            "FROM channels c WHERE c.name LIKE '%' || :query || '%' " +
+            "ORDER BY (c.playlistId = :preferPlaylist) DESC, (c.name LIKE :query || '%') DESC, c.number LIMIT :limit",
+    )
+    suspend fun searchRows(query: String, preferPlaylist: Long, now: Long, limit: Int): List<ChannelRow>
 
     @Query(
         "SELECT c.*, " + NOW_COLUMNS + ", 1 AS isFavorite " +
@@ -191,6 +225,19 @@ interface ChannelDao {
 
 @Dao
 interface ProgrammeDao {
+    /** Guide search: programmes on now or later whose title matches. */
+    @Query(
+        "SELECT p.id AS programmeId, p.title AS title, p.start AS start, p.stop AS stop, p.icon AS icon, " +
+            "c.id AS channelId, c.name AS channelName, c.logo AS channelLogo " +
+            "FROM programmes p INNER JOIN channels c ON c.playlistId = p.playlistId AND c.epgId = p.channelEpgId " +
+            "WHERE p.playlistId > 0 AND p.stop > :now AND p.title LIKE '%' || :query || '%' " +
+            "GROUP BY p.id ORDER BY p.start LIMIT :limit",
+    )
+    suspend fun search(query: String, now: Long, limit: Int): List<ProgrammeHit>
+
+    @Query("SELECT COUNT(*) FROM programmes WHERE playlistId = :playlistId")
+    suspend fun count(playlistId: Long): Int
+
     /** Blocking on purpose: called from the streaming guide parser on a background thread. */
     @Insert
     fun insertBlocking(items: List<Programme>)

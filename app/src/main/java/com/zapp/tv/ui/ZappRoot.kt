@@ -61,6 +61,7 @@ enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
     Live("Live TV", Glyph.Live),
     Guide("TV guide", Glyph.Guide),
+    Search("Search", Glyph.Search),
     Settings("Settings", Glyph.Settings),
 }
 
@@ -98,6 +99,12 @@ fun ZappRoot(vm: AppViewModel) {
     fun watch(row: ChannelRow) {
         vm.lastChannelUrl = row.channel.streamUrl
         playback.play(row.channel)
+        playerOpen = true
+    }
+
+    fun watchChannel(channel: com.zapp.tv.data.Channel) {
+        vm.lastChannelUrl = channel.streamUrl
+        playback.play(channel)
         playerOpen = true
     }
 
@@ -179,6 +186,7 @@ fun ZappRoot(vm: AppViewModel) {
                             ScreenHeader("TV guide", vm.guideStatus)
                             GuideScreen(vm, focusTick) { watch(it) }
                         }
+                        Dest.Search -> SearchScreen(vm, playback, focusTick) { watchChannel(it) }
                         Dest.Settings -> SettingsScreen(
                             vm = vm,
                             playback = playback,

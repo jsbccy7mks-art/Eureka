@@ -42,6 +42,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -428,6 +430,7 @@ private fun PreviewPane(
         value = row?.let { vm.nowNext(it.channel) } ?: emptyList()
     }
     val showingVideo = row != null && playback.isOn(row.channel)
+    val art = programmes.firstOrNull { it.start <= now && it.stop > now }?.icon
 
     Column(modifier) {
         Box(
@@ -451,7 +454,14 @@ private fun PreviewPane(
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (row != null) {
+                    if (art != null) {
+                        AsyncImage(
+                            model = art,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else if (row != null) {
                         LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 64.dp)
                     } else {
                         LogoMark(40.dp)
