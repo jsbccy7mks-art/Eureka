@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import androidx.compose.runtime.mutableIntStateOf
 import android.content.Context
 import android.view.SurfaceView
 import android.view.TextureView
@@ -97,6 +98,8 @@ class Playback(
     var error by mutableStateOf<String?>(null)
         private set
     var aspect by mutableFloatStateOf(16f / 9f)
+    /** Height of the picture now playing, in pixels (0 until known). */
+    var videoHeight by mutableIntStateOf(0)
         private set
 
     /** True while the fullscreen player owns the video output. */
@@ -108,6 +111,7 @@ class Playback(
 
     private val listener = object : Player.Listener {
         override fun onVideoSizeChanged(videoSize: VideoSize) {
+            if (videoSize.height > 0) videoHeight = videoSize.height
             if (videoSize.height > 0 && videoSize.width > 0) {
                 aspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
             }

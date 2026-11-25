@@ -179,17 +179,23 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
         val id = youtubeId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }
         """
         <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-        <style>html,body{margin:0;background:transparent;overflow:hidden;height:100%}
-        #p{position:absolute;top:-18%;left:-18%;width:136%;height:136%;pointer-events:none}</style></head>
+        <style>html,body{margin:0;padding:0;background:#000;overflow:hidden;width:100%;height:100%}
+        /* Cover the box like artwork, and zoom in enough to crop away YouTube's title bar and logo. */
+        #p{position:fixed;top:50%;left:50%;width:177.78vh;min-width:100vw;height:56.25vw;min-height:100vh;
+           transform:translate(-50%,-50%) scale(1.32);pointer-events:none;border:0}</style></head>
         <body><div id="p"></div>
         <script src="https://www.youtube.com/iframe_api"></script>
         <script>
         function onYouTubeIframeAPIReady(){
           new YT.Player('p',{videoId:'$id',width:'100%',height:'100%',
-            playerVars:{autoplay:1,mute:$muteFlag,controls:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4},
+            playerVars:{autoplay:1,mute:$muteFlag,controls:0,showinfo:0,cc_load_policy:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4},
             events:{
               onReady:function(e){${onReady}e.target.playVideo();},
-              onStateChange:function(e){ if(e.data==1){Zapp.playing();} if(e.data==0){Zapp.stopped();} },
+              onStateChange:function(e){
+                // Show only while really playing, and only after YouTube's start-up overlay has gone.
+                if(e.data==1){ if(!window.seen){window.seen=true;setTimeout(function(){Zapp.playing();},2600);} else {Zapp.playing();} }
+                if(e.data==0||e.data==2||e.data==3){Zapp.stopped();}
+              },
               onError:function(){Zapp.stopped();}
             }});
         }

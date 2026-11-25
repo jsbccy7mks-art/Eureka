@@ -398,6 +398,10 @@ private fun ChannelItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
+                    qualityBadge(row.channel.name)?.let { q ->
+                        Spacer(Modifier.width(6.dp))
+                        QualityPill(q, focused)
+                    }
                     if (row.isFavorite) {
                         Spacer(Modifier.width(6.dp))
                         StarGlyph(ZappColors.Star, 10.dp)
@@ -510,6 +514,12 @@ private fun PreviewPane(
                     Spacer(Modifier.width(7.dp))
                     StarGlyph(ZappColors.Star, 12.dp)
                 }
+                // The real picture size once it's playing, otherwise what the name says.
+                val realBadge = if (showingVideo && playback.videoHeight > 0) heightBadge(playback.videoHeight) else null
+                (realBadge ?: qualityBadge(row.channel.name))?.let { q ->
+                    Spacer(Modifier.width(8.dp))
+                    QualityPill(q, false)
+                }
             }
             Spacer(Modifier.height(12.dp))
 
@@ -552,4 +562,41 @@ private fun PreviewPane(
             KeyHint("Hold OK", "Favourite")
         }
     }
+}
+
+/** UHD, FHD, HD or SD from a channel's name ("Sky Sports UHD", "BBC One FHD", "ITV 4K"). */
+fun qualityBadge(name: String): String? {
+    val n = " " + name.uppercase().replace(Regex("[^A-Z0-9]+"), " ") + " "
+    return when {
+        " UHD " in n || " 4K " in n || " 2160P " in n -> "UHD"
+        " FHD " in n || " 1080P " in n || " FULLHD " in n || " FULL HD " in n -> "FHD"
+        " HD " in n || " 720P " in n || " HEVC " in n -> "HD"
+        " SD " in n || " 576P " in n || " 480P " in n -> "SD"
+        else -> null
+    }
+}
+
+fun heightBadge(h: Int): String = when {
+    h >= 2000 -> "UHD"
+    h >= 1000 -> "FHD"
+    h >= 700 -> "HD"
+    else -> "SD"
+}
+
+@Composable
+fun QualityPill(text: String, onLight: Boolean) {
+    Text(
+        text,
+        fontSize = 8.5.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.6.sp,
+        color = if (onLight) ZappColors.OnFocus else if (text == "UHD") Color.White else ZappColors.Dim,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .then(
+                if (text == "UHD" && !onLight) Modifier.background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2)))
+                else Modifier.border(1.dp, if (onLight) Color(0x55000000) else Color(0x44FFFFFF), RoundedCornerShape(4.dp)),
+            )
+            .padding(horizontal = 4.dp, vertical = 1.dp),
+    )
 }

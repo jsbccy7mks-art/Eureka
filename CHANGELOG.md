@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.17.1
+
+**New**
+- Live TV quality badges: UHD, FHD, HD and SD from channel names, and the real picture size once the
+  preview is playing.
+
+**Fixed**
+- Trailers fill their space with no gap, are zoomed enough to hide YouTube's title bar and logo, and
+  only show while actually playing (never paused, loading or start-up overlays).
+- Continue watching titles without pictures (often ones synced from Simkl or Stremio) now get their
+  artwork from your add-ons.
+
+
 ## 0.17.0 (smarter Home)
 
 **New**

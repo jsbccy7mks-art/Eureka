@@ -65,6 +65,28 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     val continueWatching: StateFlow<List<WatchProgress>> =
         repo.continueWatching().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // Titles synced from Simkl or Stremio often arrive without pictures: fill them in from your
+    // add-ons once, and save them so Continue watching always has artwork.
+    private val artworkTried = HashSet<String>()
+    init {
+        viewModelScope.launch {
+            continueWatching.collect { list ->
+                for (p in list) {
+                    if (p.background != null && p.poster != null) continue
+                    if (!artworkTried.add(p.videoId)) continue
+                    val d = runCatching { repo.meta(p.type, p.metaId) }.getOrNull() ?: continue
+                    val thumb = d.videos.firstOrNull { it.id == p.videoId }?.thumbnail
+                    repo.saveProgress(
+                        p.copy(
+                            poster = p.poster ?: d.preview.poster,
+                            background = p.background ?: thumb ?: d.preview.background,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
     val library: StateFlow<List<LibraryItem>> =
         repo.library.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
