@@ -38,6 +38,12 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("guideLiveOnly", value).apply()
         }
 
+    var lastUpdateCheck: Long
+        get() = prefs.getLong("lastUpdateCheck", 0L)
+        set(value) {
+            prefs.edit().putLong("lastUpdateCheck", value).apply()
+        }
+
     private val currentPlaylistState = mutableLongStateOf(prefs.getLong("currentPlaylist", -1L))
     var currentPlaylistId: Long
         get() = currentPlaylistState.longValue

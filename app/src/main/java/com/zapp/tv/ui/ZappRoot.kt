@@ -194,6 +194,7 @@ fun ZappRoot(vm: AppViewModel) {
 
                 Sidebar(
                     current = dest,
+                    updateReady = vm.update is UpdateState.Available,
                     railFocus = railFocus,
                     onFocusChanged = { railFocused = it },
                     onSelect = { open(it) },
@@ -269,6 +270,7 @@ private fun ScreenHeader(title: String, guideStatus: String?) {
 @Composable
 private fun Sidebar(
     current: Dest,
+    updateReady: Boolean,
     railFocus: FocusRequester,
     onFocusChanged: (Boolean) -> Unit,
     onSelect: (Dest) -> Unit,
@@ -315,6 +317,15 @@ private fun Sidebar(
                         shape = RoundedCornerShape(14.dp),
                         focusScale = 1.04f,
                     ) { focused ->
+                        if (d == Dest.Settings && updateReady) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(start = 31.dp, top = 9.dp)
+                                    .size(7.dp)
+                                    .background(ZappColors.Brand2, RoundedCornerShape(50)),
+                            )
+                        }
                         Row(
                             Modifier
                                 .height(48.dp)

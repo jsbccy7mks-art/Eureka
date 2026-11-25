@@ -13,6 +13,11 @@
 - Every successful build is published as a GitHub release, so the newest APK is always at
   `github.com/jsbccy7mks-art/Eureka/releases/latest/download/zapp-tv.apk`.
 
+- Built-in updater (Settings, Updates and about): checks GitHub for a newer build, downloads it and opens
+  the installer. It also checks quietly every six hours and marks Settings with a dot when an update is ready.
+- Builds are now release builds (faster on TV hardware than the old debug builds) and the build number
+  becomes the app's version code.
+
 **Security**
 - Playlist logins and links are encrypted with a key in the Android Keystore.
 - Xtream channel links no longer store your username and password; the full link is built only when playing.

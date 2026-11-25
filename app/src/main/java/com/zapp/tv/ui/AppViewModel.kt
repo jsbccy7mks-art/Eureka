@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import com.zapp.tv.BuildConfig
 import com.zapp.tv.ZappApp
 import com.zapp.tv.data.Channel
 import com.zapp.tv.data.ChannelRow
@@ -18,6 +19,8 @@ import com.zapp.tv.data.Programme
 import com.zapp.tv.data.Scope
 import com.zapp.tv.data.SetupServer
 import com.zapp.tv.data.TYPE_XTREAM
+import com.zapp.tv.data.Updater
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,6 +44,15 @@ import org.json.JSONObject
 data class PlaylistItem(val playlist: Playlist, val channelCount: Int)
 
 data class CategoryItem(val id: Long?, val name: String, val count: Int)
+
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class Available(val release: Updater.Release) : UpdateState
+    data class Downloading(val release: Updater.Release, val progress: Float) : UpdateState
+    data class Failed(val message: String, val release: Updater.Release?) : UpdateState
+}
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handler {
@@ -145,6 +157,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 loaded = true
                 ensureScope(list)
             }
+        }
+        // Quietly look for a new app version at most every six hours.
+        viewModelScope.launch {
+            delay(8_000)
+            if (System.currentTimeMillis() - settings.lastUpdateCheck > 6 * 3_600_000L) checkForUpdates(manual = false)
         }
         // Automatic guide updates, checked at start and every 30 minutes while the app is open.
         viewModelScope.launch {
@@ -314,6 +331,73 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 }
             }
             repo.refreshNowPlaying()
+        }
+    }
+
+    // ------------------------------------------------------------ app updates
+
+    val currentBuild: Int = BuildConfig.VERSION_CODE
+
+    var update by mutableStateOf<UpdateState>(UpdateState.Idle)
+        private set
+
+    private var downloadedUpdate: Pair<Int, File>? = null
+
+    fun checkForUpdates(manual: Boolean) {
+        if (update is UpdateState.Checking || update is UpdateState.Downloading) return
+        update = UpdateState.Checking
+        viewModelScope.launch {
+            update = try {
+                val release = zapp.updater.latest()
+                settings.lastUpdateCheck = System.currentTimeMillis()
+                if (release.build > currentBuild) {
+                    if (!manual) showToast("An update is ready. Install it from Settings.")
+                    UpdateState.Available(release)
+                } else {
+                    UpdateState.UpToDate
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (manual) UpdateState.Failed(e.message ?: "Couldn't check for updates.", null) else UpdateState.Idle
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val release = when (val u = update) {
+            is UpdateState.Available -> u.release
+            is UpdateState.Failed -> u.release
+            else -> null
+        } ?: return
+        viewModelScope.launch {
+            try {
+                val cached = downloadedUpdate
+                val file = if (cached != null && cached.first == release.build && cached.second.exists()) {
+                    cached.second
+                } else {
+                    update = UpdateState.Downloading(release, 0f)
+                    zapp.updater.download(release) { p ->
+                        viewModelScope.launch(Dispatchers.Main) { update = UpdateState.Downloading(release, p) }
+                    }.also { downloadedUpdate = release.build to it }
+                }
+                update = when (zapp.updater.install(file)) {
+                    Updater.InstallResult.Started -> UpdateState.Available(release)
+                    Updater.InstallResult.NeedsPermission -> UpdateState.Failed(
+                        "Zapp needs permission to install updates. Allow it on the screen that opened, then press Install again. " +
+                            "On Fire TV: Settings, My Fire TV, Developer options, Install unknown apps, Zapp.",
+                        release,
+                    )
+                    Updater.InstallResult.NoInstaller -> UpdateState.Failed(
+                        "This TV has no app installer. Use the Downloader app with the link below instead.",
+                        release,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                update = UpdateState.Failed(e.message ?: "The update couldn't be downloaded.", release)
+            }
         }
     }
 

@@ -23,18 +23,31 @@ jobs:
         with:
           gradle-version: 8.7
 
-      - name: Run tests
-        run: gradle testDebugUnitTest --no-daemon
+      - name: Restore signing key
+        env:
+          KEY_B64: ${{ secrets.ZAPP_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEY_B64" ]; then
+            echo "$KEY_B64" | base64 -d > zapp.keystore
+            echo "Signing with the permanent Zapp key."
+          else
+            echo "::warning::No ZAPP_KEYSTORE_B64 secret: this APK can't update earlier installs."
+          fi
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Run tests
+        run: gradle testReleaseUnitTest --no-daemon
+
+      - name: Build APK
+        env:
+          ZAPP_KEYSTORE_PASSWORD: ${{ secrets.ZAPP_KEYSTORE_PASSWORD }}
+        run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Name the APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk zapp-tv.apk
+        run: cp app/build/outputs/apk/release/app-release.apk zapp-tv.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: zapp-tv-debug-apk
+          name: zapp-tv-apk
           path: zapp-tv.apk
 
       # Publishes every successful build as a release, so the newest APK is always at:

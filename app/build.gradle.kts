@@ -13,13 +13,30 @@ android {
         applicationId = "com.zapp.tv"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
+        // Each GitHub build number becomes the version code, so the in-app updater can compare builds.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 3
         versionName = "0.3.0"
+    }
+
+    // One permanent key, so every build can update the previous one in place.
+    // CI restores it from the ZAPP_KEYSTORE_B64 / ZAPP_KEYSTORE_PASSWORD secrets; without them
+    // the build falls back to a throwaway debug key (fine for testing, but can't update earlier installs).
+    val zappKeystore = rootProject.file("zapp.keystore")
+    signingConfigs {
+        create("zapp") {
+            if (zappKeystore.exists()) {
+                storeFile = zappKeystore
+                storePassword = System.getenv("ZAPP_KEYSTORE_PASSWORD")
+                keyAlias = "zapp"
+                keyPassword = System.getenv("ZAPP_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (zappKeystore.exists()) signingConfigs.getByName("zapp") else signingConfigs.getByName("debug")
         }
     }
 
@@ -32,6 +49,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

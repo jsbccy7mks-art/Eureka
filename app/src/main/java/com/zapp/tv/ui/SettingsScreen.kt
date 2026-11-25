@@ -122,7 +122,7 @@ fun SettingsScreen(
             when (section) {
                 SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
-                SettingsSection.About -> AboutPane()
+                SettingsSection.About -> AboutPane(vm)
             }
         }
     }
@@ -176,7 +176,7 @@ private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
 }
 
 @Composable
-private fun AboutPane() {
+private fun AboutPane(vm: AppViewModel) {
     val context = LocalContext.current
     val version = remember {
         try {
@@ -195,17 +195,51 @@ private fun AboutPane() {
             Spacer(Modifier.width(14.dp))
             Column {
                 Text("Zapp TV", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Version ${version ?: "unknown"}", color = ZappColors.Dim, fontSize = 12.sp)
+                Text("Version ${version ?: "unknown"}, build ${vm.currentBuild}", color = ZappColors.Dim, fontSize = 12.sp)
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(22.dp))
+        val u = vm.update
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingRow(
+                title = "Check for updates",
+                body = when (u) {
+                    UpdateState.Idle -> "Looks for a newer version of Zapp."
+                    UpdateState.Checking -> "Checking…"
+                    UpdateState.UpToDate -> "You have the latest version."
+                    is UpdateState.Available -> "Build ${u.release.build} is ready to install."
+                    is UpdateState.Downloading -> "Downloading build ${u.release.build}…"
+                    is UpdateState.Failed -> u.message
+                },
+                value = SettingValue.Action,
+                onClick = { vm.checkForUpdates(manual = true) },
+            )
+            val release = when (u) {
+                is UpdateState.Available -> u.release
+                is UpdateState.Downloading -> u.release
+                is UpdateState.Failed -> u.release
+                else -> null
+            }
+            if (release != null) {
+                SettingRow(
+                    title = if (u is UpdateState.Downloading) "Downloading ${(u.progress * 100).toInt()}%" else "Install build ${release.build}",
+                    body = "Downloads the update and opens the installer. Your playlists and settings are kept.",
+                    value = SettingValue.Action,
+                    onClick = { vm.installUpdate() },
+                )
+                if (u is UpdateState.Downloading) {
+                    ProgressLine(u.progress, Modifier.fillMaxWidth().padding(horizontal = 4.dp))
+                }
+            }
+        }
+        Spacer(Modifier.height(18.dp))
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
-                Text("Installing updates", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Updating another way", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Open the Downloader app and enter this address. It always points to the newest version, " +
-                        "and installing over this one keeps your playlists, favourites and settings.",
+                    "If the built-in updater can't install on this TV, open the Downloader app and enter this address. " +
+                        "It always points to the newest version.",
                     color = ZappColors.Dim,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
