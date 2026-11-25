@@ -62,6 +62,28 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     val library: StateFlow<List<LibraryItem>> =
         repo.library.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // ------------------------------------------------------------ profiles
+
+    val profileStore = zapp.profiles
+    val profiles: StateFlow<List<com.zapp.tv.data.Profile>> =
+        profileStore.all.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** The profile in use (null until profiles have loaded). */
+    val currentProfile: com.zapp.tv.data.Profile?
+        get() = profiles.value.firstOrNull { it.id == settings.profileId } ?: profiles.value.firstOrNull()
+
+    val isKids: Boolean get() = currentProfile?.kids == true
+
+    fun switchProfile(id: Long) {
+        settings.profileId = id
+    }
+
+    fun addProfile(name: String, color: Int, kids: Boolean) = viewModelScope.launch { profileStore.add(name, color, kids) }
+    fun updateProfile(p: com.zapp.tv.data.Profile) = viewModelScope.launch { profileStore.update(p) }
+    fun setPin(p: com.zapp.tv.data.Profile, pin: String?) = viewModelScope.launch { profileStore.setPin(p, pin) }
+    fun deleteProfile(id: Long) = viewModelScope.launch { profileStore.delete(id) }
+    fun pinMatches(p: com.zapp.tv.data.Profile, entered: String) = profileStore.pinMatches(p, entered)
+
     var busy by mutableStateOf<String?>(null)
         private set
     var message by mutableStateOf<String?>(null)
@@ -175,7 +197,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Called by the player: "start", "pause" or "stop" with how far through the video it is. */
     fun scrobble(event: String, info: MediaInfo, percent: Double) {
-        if (!simkl.client.signedIn) return
+        // Simkl is linked to the first profile only.
+        if (!simkl.client.signedIn || settings.profileId != 1L) return
         viewModelScope.launch { simkl.scrobble(event, info.videoId, info.type, info.title, percent) }
     }
 
@@ -391,7 +414,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun catalogs(type: String?): List<CatalogRef> = repo.catalogs(type)
 
-    suspend fun page(ref: CatalogRef, skip: Int): List<MetaPreview> = repo.catalogPage(ref, skip)
+    suspend fun page(ref: CatalogRef, skip: Int): List<MetaPreview> =
+        repo.catalogPage(ref, skip).let { list -> if (isKids) list.filter { com.zapp.tv.data.ProfileStore.kidsSafe(it.genres) } else list }
 
     suspend fun meta(type: String, id: String): MetaDetail? = repo.meta(type, id)
 
@@ -409,7 +433,15 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     val searchResults: StateFlow<List<Pair<CatalogRef, List<MetaPreview>>>?> = searchQuery
         .debounce(450)
         .distinctUntilChanged()
-        .map { q -> if (q.length < 2) null else repo.search(q) }
+        .map { q ->
+            if (q.length < 2) {
+                null
+            } else {
+                repo.search(q).let { res ->
+                    if (!isKids) res else res.map { (ref, list) -> ref to list.filter { com.zapp.tv.data.ProfileStore.kidsSafe(it.genres) } }.filter { it.second.isNotEmpty() }
+                }
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // ------------------------------------------------------------ progress and library

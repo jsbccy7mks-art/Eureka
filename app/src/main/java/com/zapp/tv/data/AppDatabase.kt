@@ -9,8 +9,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class, StagedProgramme::class,
-        Addon::class, WatchProgress::class, LibraryItem::class],
-    version = 7,
+        Addon::class, WatchProgress::class, LibraryItem::class, Profile::class],
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -21,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favoriteDao(): FavoriteDao
     abstract fun recentDao(): RecentDao
     abstract fun mediaDao(): MediaDao
+    abstract fun profileDao(): ProfileDao
 
     companion object {
         /** Phase 1 -> Phase 2: keeps existing playlists, adds the guide and favourites. */
@@ -113,9 +114,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Profiles: everything watched so far belongs to the first profile. */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `profiles` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                        "`color` INTEGER NOT NULL, `kids` INTEGER NOT NULL, `pin` TEXT, `sortOrder` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)",
+                )
+                db.execSQL("INSERT INTO `profiles` (`id`, `name`, `color`, `kids`, `pin`, `sortOrder`, `createdAt`) VALUES (1, 'Me', 0, 0, NULL, 0, ${System.currentTimeMillis()})")
+                db.execSQL("ALTER TABLE `watch_progress` ADD COLUMN `profileId` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("DROP INDEX IF EXISTS `index_watch_progress_videoId`")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_watch_progress_profileId_videoId` ON `watch_progress` (`profileId`, `videoId`)")
+                db.execSQL("ALTER TABLE `library` ADD COLUMN `profileId` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("DROP INDEX IF EXISTS `index_library_metaId`")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_library_profileId_metaId` ON `library` (`profileId`, `metaId`)")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "zapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
     }

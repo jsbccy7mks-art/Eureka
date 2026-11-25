@@ -87,7 +87,8 @@ fun SearchScreen(
         }
         Spacer(Modifier.height(22.dp))
 
-        val r = results
+        // Kids profiles search films and series only, never live TV.
+        val r = results?.let { if (mvm.isKids) it.copy(channels = emptyList(), programmes = emptyList()) else it }
         when {
             vm.searchText.trim().length < 2 -> Hint("Type at least two letters. Results come from your playlists, the TV guide and your add-ons.")
             r == null && mediaResults == null -> Hint("Searching…")

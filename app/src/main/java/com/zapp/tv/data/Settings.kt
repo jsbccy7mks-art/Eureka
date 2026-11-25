@@ -220,14 +220,35 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("autoNextEpisode", value).apply()
         }
 
-    private val homeRowsState = stringState("homeRows", "")
-    /** Home screen rows as a JSON list of {"id": ..., "on": ...}, in display order. Empty means defaults. */
+    private val profileState = mutableLongStateOf(prefs.getLong("profileId", 1L))
+    /** The profile in use. Progress, library and Home rows follow it. */
+    var profileId: Long
+        get() = profileState.longValue
+        set(value) {
+            profileState.longValue = value
+            prefs.edit().putLong("profileId", value).apply()
+            homeRowsState.value = prefs.getString(homeRowsKey(value), "") ?: ""
+        }
+
+    private fun homeRowsKey(profile: Long) = if (profile == 1L) "homeRows" else "homeRows_$profile"
+
+    private val homeRowsState = mutableStateOf(prefs.getString(homeRowsKey(prefs.getLong("profileId", 1L)), "") ?: "")
+    /** This profile's Home rows as a JSON list of {"id": ..., "on": ...}, in display order. Empty means defaults. */
     var homeRowsJson: String
         get() = homeRowsState.value
         set(value) {
             homeRowsState.value = value
-            prefs.edit().putString("homeRows", value).apply()
+            prefs.edit().putString(homeRowsKey(profileId), value).apply()
         }
+
+    /** Ask "Who's watching?" when the app opens (when there's more than one profile). */
+    var askProfileOnStart: Boolean
+        get() = askProfileState.value
+        set(value) {
+            askProfileState.value = value
+            prefs.edit().putBoolean("askProfile", value).apply()
+        }
+    private val askProfileState = mutableStateOf(prefs.getBoolean("askProfile", true))
 
     // ---------------------------------------------------------------- Simkl
 

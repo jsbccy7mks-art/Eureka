@@ -29,7 +29,8 @@ class ZappApp : Application() {
 
     val repository: PlaylistRepository by lazy { PlaylistRepository(database, httpClient) }
 
-    val media: MediaRepository by lazy { MediaRepository(database, httpClient) }
+    val media: MediaRepository by lazy { MediaRepository(database, httpClient, settings) }
+    val profiles: com.zapp.tv.data.ProfileStore by lazy { com.zapp.tv.data.ProfileStore(database.profileDao(), settings) }
 
     val settings: Settings by lazy { Settings(this) }
 

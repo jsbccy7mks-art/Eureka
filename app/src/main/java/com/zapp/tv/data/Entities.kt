@@ -1,5 +1,6 @@
 package com.zapp.tv.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -130,10 +131,12 @@ data class Addon(
 /** How far a film or episode has been watched. [videoId] is the film id or "showId:season:episode". */
 @Entity(
     tableName = "watch_progress",
-    indices = [Index(value = ["videoId"], unique = true)],
+    indices = [Index(value = ["profileId", "videoId"], unique = true)],
 )
 data class WatchProgress(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /** Whose progress this is (see [Profile]); 1 is the first profile. */
+    @ColumnInfo(defaultValue = "1") val profileId: Long = 1,
     val videoId: String,
     val metaId: String,
     val type: String,
@@ -154,10 +157,11 @@ data class WatchProgress(
 /** Films and series saved to the library. */
 @Entity(
     tableName = "library",
-    indices = [Index(value = ["metaId"], unique = true)],
+    indices = [Index(value = ["profileId", "metaId"], unique = true)],
 )
 data class LibraryItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(defaultValue = "1") val profileId: Long = 1,
     val metaId: String,
     val type: String,
     val name: String,
@@ -190,4 +194,22 @@ data class RecentChannel(
     val name: String,
     val logo: String?,
     val watchedAt: Long,
+)
+
+/**
+ * Someone who watches on this TV. Each profile has its own Continue watching, library and Home rows.
+ * A kids profile only sees family-friendly catalogues and titles, has no live TV, and needs the
+ * PIN (if one is set) to leave it or open Settings.
+ */
+@Entity(tableName = "profiles")
+data class Profile(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    /** Index into the avatar colours. */
+    val color: Int,
+    val kids: Boolean,
+    /** Four digits, stored encrypted; null for no PIN. */
+    val pin: String?,
+    val sortOrder: Int,
+    val createdAt: Long,
 )

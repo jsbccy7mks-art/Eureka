@@ -214,8 +214,8 @@ class SimklSync(private val db: AppDatabase, val client: SimklClient, private va
         if (!force && all.isNotBlank() && all == previousAll) return@withLock null
 
         val dateFrom = previousAll.takeIf { it.isNotBlank() && !force }
-        val local = dao.allProgress().associateBy { it.videoId }.toMutableMap()
-        val libraryIds = dao.libraryIds().toHashSet()
+        val local = dao.allProgress(1).associateBy { it.videoId }.toMutableMap()
+        val libraryIds = dao.libraryIds(1).toHashSet()
         val progressOut = ArrayList<WatchProgress>()
         val libraryOut = ArrayList<LibraryItem>()
         var watched = 0

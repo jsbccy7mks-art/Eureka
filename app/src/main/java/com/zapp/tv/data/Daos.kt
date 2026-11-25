@@ -344,47 +344,71 @@ interface MediaDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProgress(progress: WatchProgress)
 
-    @Query("SELECT * FROM watch_progress WHERE videoId = :videoId")
-    suspend fun progress(videoId: String): WatchProgress?
+    @Query("SELECT * FROM watch_progress WHERE profileId = :profileId AND videoId = :videoId")
+    suspend fun progress(profileId: Long, videoId: String): WatchProgress?
 
-    @Query("SELECT * FROM watch_progress WHERE metaId = :metaId")
-    fun observeProgressFor(metaId: String): Flow<List<WatchProgress>>
+    @Query("SELECT * FROM watch_progress WHERE profileId = :profileId AND metaId = :metaId")
+    fun observeProgressFor(profileId: Long, metaId: String): Flow<List<WatchProgress>>
 
     /** Unfinished films and episodes, newest first, one entry per film or series. */
     @Query(
-        "SELECT * FROM watch_progress WHERE hidden = 0 AND watched = 0 AND (position > 30000 OR percent > 1) " +
-            "AND id = (SELECT w2.id FROM watch_progress w2 WHERE w2.metaId = watch_progress.metaId " +
+        "SELECT * FROM watch_progress WHERE profileId = :profileId AND hidden = 0 AND watched = 0 AND (position > 30000 OR percent > 1) " +
+            "AND id = (SELECT w2.id FROM watch_progress w2 WHERE w2.profileId = :profileId AND w2.metaId = watch_progress.metaId " +
             "AND w2.hidden = 0 AND w2.watched = 0 AND (w2.position > 30000 OR w2.percent > 1) " +
             "ORDER BY w2.updatedAt DESC LIMIT 1) " +
             "ORDER BY updatedAt DESC LIMIT :limit",
     )
-    fun observeContinueWatching(limit: Int): Flow<List<WatchProgress>>
+    fun observeContinueWatching(profileId: Long, limit: Int): Flow<List<WatchProgress>>
 
-    @Query("SELECT * FROM watch_progress")
-    suspend fun allProgress(): List<WatchProgress>
+    @Query("SELECT * FROM watch_progress WHERE profileId = :profileId")
+    suspend fun allProgress(profileId: Long): List<WatchProgress>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProgressList(items: List<WatchProgress>)
 
-    @Query("SELECT metaId FROM library")
-    suspend fun libraryIds(): List<String>
+    @Query("SELECT metaId FROM library WHERE profileId = :profileId")
+    suspend fun libraryIds(profileId: Long): List<String>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun addToLibraryList(items: List<LibraryItem>)
 
-    @Query("UPDATE watch_progress SET hidden = 1 WHERE metaId = :metaId")
-    suspend fun hideFromContinue(metaId: String)
+    @Query("UPDATE watch_progress SET hidden = 1 WHERE profileId = :profileId AND metaId = :metaId")
+    suspend fun hideFromContinue(profileId: Long, metaId: String)
 
     // ---- library
-    @Query("SELECT * FROM library ORDER BY addedAt DESC")
-    fun observeLibrary(): Flow<List<LibraryItem>>
+    @Query("SELECT * FROM library WHERE profileId = :profileId ORDER BY addedAt DESC")
+    fun observeLibrary(profileId: Long): Flow<List<LibraryItem>>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM library WHERE metaId = :metaId)")
-    fun observeInLibrary(metaId: String): Flow<Boolean>
+    @Query("SELECT EXISTS(SELECT 1 FROM library WHERE profileId = :profileId AND metaId = :metaId)")
+    fun observeInLibrary(profileId: Long, metaId: String): Flow<Boolean>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addToLibrary(item: LibraryItem)
 
-    @Query("DELETE FROM library WHERE metaId = :metaId")
-    suspend fun removeFromLibrary(metaId: String)
+    @Query("DELETE FROM library WHERE profileId = :profileId AND metaId = :metaId")
+    suspend fun removeFromLibrary(profileId: Long, metaId: String)
+}
+
+@Dao
+interface ProfileDao {
+    @Query("SELECT * FROM profiles ORDER BY sortOrder, id")
+    fun observeAll(): Flow<List<Profile>>
+
+    @Query("SELECT * FROM profiles ORDER BY sortOrder, id")
+    suspend fun all(): List<Profile>
+
+    @Insert
+    suspend fun insert(profile: Profile): Long
+
+    @Update
+    suspend fun update(profile: Profile)
+
+    @Query("DELETE FROM profiles WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM watch_progress WHERE profileId = :id")
+    suspend fun deleteProgress(id: Long)
+
+    @Query("DELETE FROM library WHERE profileId = :id")
+    suspend fun deleteLibrary(id: Long)
 }

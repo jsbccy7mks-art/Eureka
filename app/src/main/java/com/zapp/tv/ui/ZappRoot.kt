@@ -104,9 +104,43 @@ fun ZappRoot(vm: AppViewModel) {
         }
     }
 
+    // ---- profiles
+    val profiles by mvm.profiles.collectAsState()
+    var choosingProfile by remember { mutableStateOf(false) }
+    var askedAtStart by rememberSaveable { mutableStateOf(false) }
+    var pinFor by remember { mutableStateOf<com.zapp.tv.data.Profile?>(null) }
+    var settingsPin by remember { mutableStateOf(false) }
+    val kids = mvm.isKids
+    LaunchedEffect(profiles.isNotEmpty()) {
+        if (profiles.isEmpty() || askedAtStart) return@LaunchedEffect
+        askedAtStart = true
+        if (profiles.size > 1 && mvm.settings.askProfileOnStart) choosingProfile = true
+    }
+
     fun open(d: Dest) {
+        // Kids profiles: no live TV; Settings needs the main profile's PIN when it has one.
+        if (kids && (d == Dest.Live || d == Dest.Guide)) return
+        if (kids && d == Dest.Settings && profiles.firstOrNull { it.id == 1L }?.pin != null) {
+            settingsPin = true
+            return
+        }
         dest = d
         requestContentFocus()
+    }
+
+    LaunchedEffect(kids) { if (kids && (dest == Dest.Live || dest == Dest.Guide)) dest = Dest.Home }
+
+    fun useProfile(p: com.zapp.tv.data.Profile) {
+        mvm.switchProfile(p.id)
+        choosingProfile = false
+        pinFor = null
+        playback.stop()
+        dest = Dest.Home
+        requestContentFocus(250)
+    }
+
+    fun pickProfile(p: com.zapp.tv.data.Profile) {
+        if (p.pin != null && p.id != mvm.settings.profileId) pinFor = p else useProfile(p)
     }
 
     fun watch(row: ChannelRow) {
@@ -272,6 +306,9 @@ fun ZappRoot(vm: AppViewModel) {
                 }
 
                 Sidebar(
+                    dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide) },
+                    profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
+                    onProfiles = { choosingProfile = true },
                     current = dest,
                     updateReady = vm.update is UpdateState.Available,
                     railFocus = railFocus,
@@ -279,6 +316,42 @@ fun ZappRoot(vm: AppViewModel) {
                     onSelect = { open(it) },
                 )
             }
+        }
+
+        if (choosingProfile && profiles.isNotEmpty()) {
+            WhoIsWatching(
+                profiles = profiles,
+                currentId = mvm.settings.profileId,
+                canClose = true,
+                onPick = { pickProfile(it) },
+                onClose = {
+                    choosingProfile = false
+                    requestContentFocus()
+                },
+            )
+        }
+        pinFor?.let { p ->
+            PinPad(
+                title = "PIN for ${p.name}",
+                subtitle = null,
+                check = { mvm.pinMatches(p, it) },
+                onDone = { useProfile(p) },
+                onCancel = { pinFor = null },
+            )
+        }
+        if (settingsPin) {
+            val main = profiles.firstOrNull { it.id == 1L }
+            PinPad(
+                title = "Settings are locked",
+                subtitle = "Enter ${main?.name ?: "the main profile"}'s PIN",
+                check = { pin -> main != null && mvm.pinMatches(main, pin) },
+                onDone = {
+                    settingsPin = false
+                    dest = Dest.Settings
+                    requestContentFocus()
+                },
+                onCancel = { settingsPin = false },
+            )
         }
 
         form?.let { xtream ->
@@ -405,6 +478,9 @@ private fun ScreenHeader(title: String, guideStatus: String?) {
 /** Icon rail that opens into a labelled menu while the remote is on it. */
 @Composable
 private fun Sidebar(
+    dests: List<Dest>,
+    profile: com.zapp.tv.data.Profile?,
+    onProfiles: () -> Unit,
     current: Dest,
     updateReady: Boolean,
     railFocus: FocusRequester,
@@ -456,7 +532,7 @@ private fun Sidebar(
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Dest.entries.forEach { d ->
+                dests.forEach { d ->
                     val selected = d == current
                     FocusSurface(
                         onClick = { onSelect(d) },
@@ -519,6 +595,25 @@ private fun Sidebar(
                 }
             }
             Spacer(Modifier.weight(1.3f))
+            // Who's watching: tap to switch profile.
+            if (profile != null) {
+                FocusSurface(
+                    onClick = onProfiles,
+                    modifier = Modifier.width(if (open) RailOpenWidth - 28.dp else 44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    focusScale = 1f,
+                ) { focused ->
+                    Row(Modifier.height(44.dp).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(profile, 28.dp)
+                        AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
+                            Column(Modifier.padding(start = 12.dp)) {
+                                Text(profile.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text, maxLines = 1)
+                                Text("Switch profile", fontSize = 10.5.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

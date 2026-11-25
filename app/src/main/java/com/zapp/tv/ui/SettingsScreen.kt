@@ -51,6 +51,7 @@ private enum class SettingsSection(val label: String) {
     Sources("Playlists"),
     Addons("Add-ons"),
     Appearance("Appearance"),
+    Profiles("Profiles"),
     HomeLayout("Home screen"),
     Live("Live TV and guide"),
     Playback("Playback"),
@@ -139,6 +140,7 @@ fun SettingsScreen(
                 SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist)
                 SettingsSection.Addons -> AddonsPane(vm, mvm)
                 SettingsSection.Appearance -> AppearancePane(vm)
+                SettingsSection.Profiles -> ProfilesPane(mvm)
                 SettingsSection.HomeLayout -> HomeLayoutPane(mvm)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
                 SettingsSection.Playback -> PlaybackSettingsPane(vm)

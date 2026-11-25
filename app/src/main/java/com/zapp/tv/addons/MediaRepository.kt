@@ -1,5 +1,6 @@
 package com.zapp.tv.addons
 
+import kotlinx.coroutines.flow.flatMapLatest
 import com.zapp.tv.data.Addon
 import com.zapp.tv.data.AppDatabase
 import com.zapp.tv.data.LibraryItem
@@ -36,7 +37,7 @@ data class CatalogRef(val addon: InstalledAddon, val def: CatalogDef) {
 /** Streams from one add-on, delivered as soon as that add-on answers. */
 data class StreamBatch(val addonName: String, val streams: List<StreamItem>, val error: String?)
 
-class MediaRepository(private val db: AppDatabase, http: OkHttpClient) {
+class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private val settings: com.zapp.tv.data.Settings) {
 
     val client = AddonClient(http)
     val nuvio = NuvioImport(http)
@@ -202,28 +203,36 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient) {
 
     // ------------------------------------------------------------------ progress and library
 
-    suspend fun progress(videoId: String): WatchProgress? = dao.progress(videoId)
+    private val profile: Long get() = settings.profileId
 
-    fun progressFor(metaId: String): Flow<List<WatchProgress>> = dao.observeProgressFor(metaId)
+    /** Re-runs [query] whenever the profile changes. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun <T> perProfile(query: (Long) -> Flow<T>): Flow<T> =
+        androidx.compose.runtime.snapshotFlow { settings.profileId }.flatMapLatest { query(it) }
 
-    fun continueWatching(limit: Int = 30): Flow<List<WatchProgress>> = dao.observeContinueWatching(limit)
+    suspend fun progress(videoId: String): WatchProgress? = dao.progress(profile, videoId)
+
+    fun progressFor(metaId: String): Flow<List<WatchProgress>> = perProfile { dao.observeProgressFor(it, metaId) }
+
+    fun continueWatching(limit: Int = 30): Flow<List<WatchProgress>> = perProfile { dao.observeContinueWatching(it, limit) }
 
     suspend fun saveProgress(p: WatchProgress) {
-        val existing = dao.progress(p.videoId)
-        dao.saveProgress(p.copy(id = existing?.id ?: 0))
+        val pid = profile
+        val existing = dao.progress(pid, p.videoId)
+        dao.saveProgress(p.copy(id = existing?.id ?: 0, profileId = pid))
     }
 
-    suspend fun hideFromContinue(metaId: String) = dao.hideFromContinue(metaId)
+    suspend fun hideFromContinue(metaId: String) = dao.hideFromContinue(profile, metaId)
 
-    val library: Flow<List<LibraryItem>> = dao.observeLibrary()
+    val library: Flow<List<LibraryItem>> = perProfile { dao.observeLibrary(it) }
 
-    fun inLibrary(metaId: String): Flow<Boolean> = dao.observeInLibrary(metaId)
+    fun inLibrary(metaId: String): Flow<Boolean> = perProfile { dao.observeInLibrary(it, metaId) }
 
     suspend fun toggleLibrary(meta: MetaPreview, currentlyIn: Boolean) {
         if (currentlyIn) {
-            dao.removeFromLibrary(meta.id)
+            dao.removeFromLibrary(profile, meta.id)
         } else {
-            dao.addToLibrary(LibraryItem(metaId = meta.id, type = meta.type, name = meta.name, poster = meta.poster, addedAt = System.currentTimeMillis()))
+            dao.addToLibrary(LibraryItem(profileId = profile, metaId = meta.id, type = meta.type, name = meta.name, poster = meta.poster, addedAt = System.currentTimeMillis()))
         }
     }
 }

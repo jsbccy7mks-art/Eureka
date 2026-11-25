@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.0 (profiles)
+
+**New**
+- Profiles (Settings, Profiles): each has its own Continue watching, library and Home rows, a name
+  and a colour. Everything watched so far belongs to your first profile, which is the one Simkl syncs.
+- "Who's watching?" when Zapp opens (switch it off in Settings, Profiles), and a profile button at the
+  bottom of the sidebar to switch at any time.
+- Optional four-digit PIN per profile, asked when switching to it (remote number keys or the on-screen
+  pad).
+- Kids profiles: only titles marked animation, family or kids (never horror, thriller, crime or war),
+  no Live TV or guide, no channels in search, and Settings asks for the main profile's PIN if it has one.
+
+
 ## 0.10.3
 
 **Fixed**
