@@ -149,6 +149,7 @@ fun SourcesPane(
     vm: AppViewModel,
     onForm: (xtream: Boolean) -> Unit,
     onWatch: (Long) -> Unit,
+    onPhone: () -> Unit = {},
 ) {
     val playlists by vm.playlists.collectAsState()
     val scope by vm.scope.collectAsState()
@@ -165,29 +166,10 @@ fun SourcesPane(
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item(key = "add") {
-            Panel(Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    PhoneSetupCard(vm, qrSize = 120, modifier = Modifier.width(170.dp))
-                    Spacer(Modifier.width(22.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Add a playlist", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Scan the code to type the details on your phone, or enter them with the remote.",
-                            color = ZappColors.Dim,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ZButton("Xtream login", { onForm(true) })
-                            ZButton("M3U link", { onForm(false) })
-                        }
-                    }
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton("Add on my phone", onPhone, style = ButtonStyle.Primary)
+                ZButton("Xtream login", { onForm(true) })
+                ZButton("M3U link", { onForm(false) })
             }
         }
         vm.error?.let { message ->

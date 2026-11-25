@@ -79,40 +79,15 @@ fun MinimalScrolling(content: @Composable () -> Unit) {
 }
 
 /** Hide everything above [line] (it stays laid out and focusable, just invisible). */
-fun Modifier.fadeAbove(line: Dp): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val px = line.toPx()
-        val h = size.height.coerceAtLeast(1f)
-        drawRect(
-            Brush.verticalGradient(
-                0f to Color.Transparent,
-                (px / h).coerceIn(0f, 1f) to Color.Transparent,
-                ((px + 3.dp.toPx()) / h).coerceIn(0f, 1f) to Color.Black,
-                1f to Color.Black,
-            ),
-            blendMode = BlendMode.DstIn,
-        )
-    }
+fun Modifier.fadeAbove(line: Dp): Modifier = drawWithContent {
+    // A plain clip: much cheaper than a blended mask, and a clean edge.
+    androidx.compose.ui.graphics.drawscope.clipRect(top = line.toPx()) { this@drawWithContent.drawContent() }
+}
 
 /** Hide everything left of [line]. */
-fun Modifier.fadeLeftOf(line: Dp): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val px = line.toPx()
-        val w = size.width.coerceAtLeast(1f)
-        drawRect(
-            Brush.horizontalGradient(
-                0f to Color.Transparent,
-                ((px - 4.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Transparent,
-                ((px - 1.dp.toPx()) / w).coerceIn(0f, 1f) to Color.Black,
-                1f to Color.Black,
-            ),
-            blendMode = BlendMode.DstIn,
-        )
-    }
+fun Modifier.fadeLeftOf(line: Dp): Modifier = drawWithContent {
+    androidx.compose.ui.graphics.drawscope.clipRect(left = line.toPx() - 3.dp.toPx()) { this@drawWithContent.drawContent() }
+}
 
 /**
  * Let a row reach [extra] further left than its slot (under the margin), so the card before the

@@ -68,6 +68,8 @@ fun PosterCard(
     width: Dp? = null,
     landscape: Boolean = false,
     showTitle: Boolean = true,
+    /** Ranked landscape cards: a big number set into the left of the picture. */
+    rank: Int? = null,
 ) {
     val wide = landscape || meta.posterShape == "landscape"
     val w = width ?: if (wide) 216.dp else PosterWidth
@@ -103,6 +105,25 @@ fun PosterCard(
                 }
             } else {
                 Artwork(meta.poster, meta.name)
+            }
+            if (rank != null) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Brush.horizontalGradient(0f to Color(0xCC000000), 0.45f to Color(0x33000000), 0.7f to Color.Transparent)),
+                )
+                Text(
+                    rank.toString(),
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontFamily = TitleFont,
+                        fontSize = (w.value * 0.36f).sp,
+                        lineHeight = (w.value * 0.36f).sp,
+                        brush = Brush.verticalGradient(listOf(Color.White, Color.White.copy(alpha = 0.35f))),
+                        shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 4f), 14f),
+                    ),
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),
+                )
             }
         }
         if (showTitle) {
@@ -364,8 +385,10 @@ fun CatalogRow(
 
     Column {
         RowHeader(title, subtitle)
-        val extra = (if (top10) width * 1.62f else width) + 24.dp
-        PivotScrolling(RowInset + extra) {
+        val numbered = top10 && !landscape
+        val extra = (if (numbered) width * 1.62f else width) + 24.dp
+        // With numbers beside posters, focus lands on the poster, so line the poster up (keeps "1" in view).
+        PivotScrolling(RowInset + extra + if (numbered) width * 0.62f else 0.dp) {
             LazyRow(
                 state = listState,
                 modifier = Modifier
@@ -408,11 +431,12 @@ fun CatalogRow(
                             onClick = { onOpen(meta) },
                             onLongClick = onLongPress?.let { f -> { f(meta) } },
                             width = width,
-                            landscape = landscape && !top10,
+                            landscape = landscape,
                             showTitle = showTitles,
+                            rank = if (top10 && landscape) index + 1 else null,
                         )
                     }
-                    if (top10) TopTenItem(index + 1, width, card) else card()
+                    if (numbered) TopTenItem(index + 1, width, card) else card()
                 }
             }
         }

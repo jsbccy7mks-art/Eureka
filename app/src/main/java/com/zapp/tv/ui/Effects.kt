@@ -92,8 +92,9 @@ fun rememberArtColor(url: String?): Color? {
 
 // ---------------------------------------------------------------------------- slow drift
 
-/** A slow, gentle zoom and pan, so still artwork feels alive. */
+/** A slow, gentle zoom and pan, so still artwork feels alive (off with "Moving artwork"). */
 fun Modifier.drift(): Modifier = composed {
+    if (!FocusStyle.drift) return@composed this
     val t = rememberInfiniteTransition(label = "drift")
     val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse), label = "p")
     graphicsLayer {
@@ -225,7 +226,7 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier) {
 
 /** Shows [TrailerBackground] once the same title has been on screen for a moment. */
 @Composable
-fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier, waitMs: Long = 2_500) {
+fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier, waitMs: Long = 4_000) {
     var show by remember(key) { mutableStateOf(false) }
     LaunchedEffect(key, youtubeId, FocusStyle.trailers) {
         show = false

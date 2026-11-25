@@ -2,6 +2,7 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -48,6 +49,7 @@ import kotlinx.coroutines.delay
 const val UPDATE_LINK = "github.com/jsbccy7mks-art/Eureka/releases/latest/download/zapp-tv.apk"
 
 private enum class SettingsSection(val label: String) {
+    Phone("Phone setup"),
     Sources("Playlists"),
     Addons("Add-ons"),
     Appearance("Appearance"),
@@ -74,6 +76,12 @@ fun SettingsScreen(
         mutableStateOf(SettingsSection.entries.firstOrNull { it.name == initialSection } ?: SettingsSection.Sources)
     }
     var focusedSection by remember { mutableStateOf<SettingsSection?>(null) }
+    // The phone page is in one place only (Phone setup); other sections send you there, on the right tab.
+    var phoneTab by remember { mutableStateOf<String?>(null) }
+    fun openPhone(tab: String) {
+        phoneTab = tab
+        section = SettingsSection.Phone
+    }
     val firstFocus = remember { FocusRequester() }
     val sectionMemory = rememberFocusMemory()
     var handledTick by remember { mutableIntStateOf(focusTick) }
@@ -86,6 +94,7 @@ fun SettingsScreen(
     LaunchedEffect(focusedSection) {
         val s = focusedSection ?: return@LaunchedEffect
         delay(200)
+        if (s != section) phoneTab = null
         section = s
     }
 
@@ -137,16 +146,17 @@ fun SettingsScreen(
                 .fillMaxHeight(),
         ) {
             when (section) {
-                SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist)
-                SettingsSection.Addons -> AddonsPane(vm, mvm)
+                SettingsSection.Phone -> PhoneSetupPane(vm, phoneTab)
+                SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist, onPhone = { openPhone("xtream") })
+                SettingsSection.Addons -> AddonsPane(vm, mvm) { openPhone("addon") }
                 SettingsSection.Appearance -> AppearancePane(vm)
                 SettingsSection.Profiles -> ProfilesPane(mvm)
                 SettingsSection.HomeLayout -> HomeLayoutPane(mvm)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
                 SettingsSection.Playback -> PlaybackSettingsPane(vm)
                 SettingsSection.Subtitles -> SubtitleSettingsPane(vm)
-                SettingsSection.Accounts -> AccountsPane(vm, mvm)
-                SettingsSection.About -> AboutPane(vm)
+                SettingsSection.Accounts -> AccountsPane(vm, mvm) { openPhone(it) }
+                SettingsSection.About -> AboutPane(vm) { openPhone("help") }
             }
         }
     }
@@ -216,12 +226,7 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SettingRow(
-            title = "Preferred audio language",
-            body = "Used when a channel offers more than one language. You can still switch in the player.",
-            value = SettingValue.Choice(languageLabel(s.audioLanguage)),
-            onClick = { s.audioLanguage = next(s.audioLanguage) },
-        )
+        SettingsGroup("Starting films and series", "Autoplay, which sources, quality", startOpen = true) {
         SettingRow(
             title = "Autoplay",
             body = "For films and series: start the best source straight away instead of showing the list. You can still choose with \"Let me choose\".",
@@ -252,6 +257,14 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             value = SettingValue.Toggle(s.autoNextEpisode),
             onClick = { s.autoNextEpisode = !s.autoNextEpisode },
         )
+        }
+        SettingsGroup("Player", "Language and buffering") {
+        SettingRow(
+            title = "Preferred audio language",
+            body = "Used when a channel offers more than one language. You can still switch in the player.",
+            value = SettingValue.Choice(languageLabel(s.audioLanguage)),
+            onClick = { s.audioLanguage = next(s.audioLanguage) },
+        )
         SettingRow(
             title = "Bigger buffer",
             body = "Holds more video in reserve for unsteady connections, at the cost of slower channel changes. " +
@@ -259,6 +272,7 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             value = SettingValue.Toggle(s.largeBuffer),
             onClick = { s.largeBuffer = !s.largeBuffer },
         )
+        }
         Spacer(Modifier.height(6.dp))
         Text(
             "In the player: OK opens the controls (audio, subtitles, stream info), Left opens the channel list, " +
@@ -346,7 +360,7 @@ private fun SubtitleSettingsPane(vm: AppViewModel) {
 }
 
 @Composable
-private fun AboutPane(vm: AppViewModel) {
+private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
     val context = LocalContext.current
     val version = remember {
         try {
@@ -407,8 +421,6 @@ private fun AboutPane(vm: AppViewModel) {
             Spacer(Modifier.height(18.dp))
             Panel(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    PhoneSetupCard(vm, qrSize = 110, modifier = Modifier.width(150.dp), path = "/crash", caption = "Open on your phone")
-                    Spacer(Modifier.width(20.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Zapp closed unexpectedly", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
@@ -418,14 +430,11 @@ private fun AboutPane(vm: AppViewModel) {
                             fontSize = 11.sp,
                             maxLines = 3,
                         )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            "Scan the code to open the full report on your phone, then copy it into your chat about the app.",
-                            color = ZappColors.Faint,
-                            fontSize = 11.sp,
-                        )
                         Spacer(Modifier.height(10.dp))
-                        ZButton("Clear report", { vm.clearCrash() }, style = ButtonStyle.Quiet)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ZButton("Open on my phone", onPhone, style = ButtonStyle.Primary)
+                            ZButton("Clear report", { vm.clearCrash() }, style = ButtonStyle.Quiet)
+                        }
                     }
                 }
             }
@@ -456,7 +465,7 @@ private fun AboutPane(vm: AppViewModel) {
 }
 
 @Composable
-private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel) {
+private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Unit) {
     val addons by mvm.addons.collectAsState()
     var adding by remember { mutableStateOf(false) }
     var confirmRemove by remember { mutableStateOf<Long?>(null) }
@@ -469,26 +478,18 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel) {
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
     ) {
         item(key = "add") {
-            Panel(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    PhoneSetupCard(vm, qrSize = 120, modifier = Modifier.width(170.dp), caption = "Paste a link on your phone")
-                    Spacer(Modifier.width(22.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Add a Stremio add-on", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "Scan the code and choose Add-on, then paste the add-on's install link (it ends in manifest.json). " +
-                                "Zapp doesn't include any add-ons; you choose your own.",
-                            color = ZappColors.Dim,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                        )
-                        Spacer(Modifier.height(14.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ZButton("Type a link", { adding = true })
-                            if (addons.isNotEmpty()) ZButton("Refresh add-ons", { mvm.refreshAddons() }, style = ButtonStyle.Quiet)
-                        }
-                    }
+            Column {
+                Text(
+                    "Paste an add-on's install link (it ends in manifest.json). Zapp doesn't include any add-ons; you choose your own.",
+                    color = ZappColors.Dim,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ZButton("Paste on my phone", onPhone, style = ButtonStyle.Primary)
+                    ZButton("Type a link", { adding = true })
+                    if (addons.isNotEmpty()) ZButton("Refresh add-ons", { mvm.refreshAddons() }, style = ButtonStyle.Quiet)
                 }
             }
         }
@@ -580,7 +581,7 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel) {
 }
 
 @Composable
-private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
+private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String) -> Unit) {
     LaunchedEffect(Unit) { mvm.refreshSimklState() }
     val state = mvm.simklState
     val focus = remember { FocusRequester() }
@@ -590,7 +591,13 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("Simkl", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        SettingsGroup(
+            "Simkl",
+            when (state) {
+                is MediaViewModel.SimklState.SignedIn -> "Connected" + if (state.user.isNotBlank()) " as ${state.user}" else ""
+                else -> "Syncs watched, progress and library (and Nuvio through it)"
+            },
+        ) {
         Text(
             "Keeps what you've watched, where you got to, and your library in step with Simkl, and with Nuvio " +
                 "when Nuvio uses Simkl for watch progress and library. Films and series only; live channels aren't sent.",
@@ -600,23 +607,19 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
         )
         Spacer(Modifier.height(4.dp))
         when (state) {
-            MediaViewModel.SimklState.NeedsAppId -> Panel(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    PhoneSetupCard(vm, qrSize = 120, modifier = Modifier.width(170.dp), caption = "Open on your phone")
-                    Spacer(Modifier.width(22.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("First, a Simkl app ID", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "On your phone, create an app at simkl.com/settings/developer (choose a device or TV app). " +
-                                "Then scan this code, choose the Simkl tab and paste its Client ID. You only do this once.",
-                            color = ZappColors.Dim,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        ZButton("I've added it", { mvm.refreshSimklState() }, focusRequester = focus)
-                    }
+            MediaViewModel.SimklState.NeedsAppId -> Column {
+                Text("First, a Simkl app ID", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Create an app at simkl.com/settings/developer (choose a device or TV app), then paste its Client ID on your phone. You only do this once.",
+                    color = ZappColors.Dim,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ZButton("Paste it on my phone", { onPhone("simkl") }, style = ButtonStyle.Primary, focusRequester = focus)
+                    ZButton("I've added it", { mvm.refreshSimklState() })
                 }
             }
 
@@ -676,20 +679,23 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        StremioSection(vm, mvm)
-        Spacer(Modifier.height(16.dp))
-        NuvioSection(mvm)
-        Spacer(Modifier.height(16.dp))
-        DebridSection(vm, mvm)
+        }
+        SettingsGroup("Stremio", if (mvm.stremio.signedIn) "Signed in as ${mvm.settings.stremioUser}" else "Bring over your Stremio library and Continue watching") {
+            StremioSection(vm, mvm) { onPhone("stremio") }
+        }
+        SettingsGroup("Nuvio", "Import your Nuvio add-ons") {
+            NuvioSection(mvm)
+        }
+        SettingsGroup("Debrid services", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ")?.let { "Connected: $it" } ?: "Real-Debrid, AllDebrid, Premiumize, TorBox") {
+            DebridSection(vm, mvm)
+        }
     }
 }
 
 @Composable
-private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel) {
+private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Unit) {
     mvm.stremioVersion
     val s = mvm.settings
-    Text("Stremio", fontSize = 17.sp, fontWeight = FontWeight.Bold)
     if (mvm.stremio.signedIn) {
         SettingRow(
             title = "Signed in as ${s.stremioUser.ifBlank { "your Stremio account" }}",
@@ -719,7 +725,7 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel) {
                 }
             }
             Spacer(Modifier.width(16.dp))
-            PhoneSetupCard(vm, qrSize = 110, modifier = Modifier.width(150.dp), caption = "Sign in on your phone", tab = "stremio")
+            ZButton("Sign in on my phone", onPhone, style = ButtonStyle.Primary)
         }
     }
 }
@@ -727,7 +733,6 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel) {
 @Composable
 private fun NuvioSection(mvm: MediaViewModel) {
     var otherDevice by remember { mutableStateOf("") }
-    Text("Bring over from Nuvio", fontSize = 17.sp, fontWeight = FontWeight.Bold)
     Text(
         "Add-ons: in Nuvio TV open Add-ons, choose Manage from phone, then press Home (leave it open), " +
             "come back here and press Import. Watch history, progress and library come across through Simkl above.",
@@ -754,7 +759,6 @@ private fun NuvioSection(mvm: MediaViewModel) {
 @Composable
 private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
     val version = mvm.settings.debridVersion
-    Text("Debrid services", fontSize = 17.sp, fontWeight = FontWeight.Bold)
     Text(
         "Lets torrent sources from your add-ons play: Zapp asks your own debrid account for a normal link. " +
             "If you connect more than one, they're tried in this order.",
@@ -846,18 +850,16 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
 private fun AppearancePane(vm: AppViewModel) {
     val s = vm.settings
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Theme", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Text("Colours for the glow, highlights and progress bars across the app.", color = ZappColors.Dim, fontSize = 12.sp)
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        SettingsGroup("Theme", (Palettes.all.firstOrNull { it.id == s.theme }?.name ?: "Custom") + ": colours for the glow, highlights and progress bars", startOpen = true) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             (Palettes.all + Palettes.custom(s.customColors.first, s.customColors.second)).forEach { p ->
                 val chosen = s.theme == p.id
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     FocusSurface(
                         onClick = { s.theme = p.id },
                         modifier = Modifier
-                            .width(110.dp)
-                            .height(70.dp)
+                            .width(84.dp)
+                            .height(54.dp)
                             .border(2.dp, if (chosen) Color.White else Color.Transparent, RoundedCornerShape(14.dp)),
                         shape = RoundedCornerShape(14.dp),
                         focusScale = 1.05f,
@@ -907,18 +909,28 @@ private fun AppearancePane(vm: AppViewModel) {
                 Spacer(Modifier.height(10.dp))
             }
         }
-        Spacer(Modifier.height(22.dp))
-        Text("Focus", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(4.dp))
+        }
+        SettingsGroup("Focus", "Outline and glow around the card you're on") {
         SettingRow(
             title = "Focus outline",
             body = "How thick the outline is around the card you're on.",
             value = SettingValue.Choice(listOf("Thin", "Medium", "Thick")[s.focusRing.coerceIn(0, 2)]),
             onClick = { s.focusRing = (s.focusRing + 1) % 3 },
         )
-        Spacer(Modifier.height(14.dp))
-        Text("Motion and colour", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(4.dp))
+        SettingRow(
+            title = "Pulsing glow",
+            body = "A soft glow in the theme's colour that gently pulses around the card you're on.",
+            value = SettingValue.Toggle(s.focusGlow),
+            onClick = { s.focusGlow = !s.focusGlow },
+        )
+        }
+        SettingsGroup("Trailers and motion", if (s.trailers) "Trailers on" else "Trailers off") {
+        SettingRow(
+            title = "Moving artwork",
+            body = "A slow zoom and pan on the pictures behind Home and details. Turn off if your TV feels slow.",
+            value = SettingValue.Toggle(s.drift),
+            onClick = { s.drift = !s.drift },
+        )
         SettingRow(
             title = "Colour from artwork",
             body = "The background glow takes its colour from the title you're on.",
@@ -931,12 +943,7 @@ private fun AppearancePane(vm: AppViewModel) {
             value = SettingValue.Toggle(s.trailers),
             onClick = { s.trailers = !s.trailers },
         )
-        SettingRow(
-            title = "Pulsing glow",
-            body = "A soft glow in the theme's colour that gently pulses around the card you're on.",
-            value = SettingValue.Toggle(s.focusGlow),
-            onClick = { s.focusGlow = !s.focusGlow },
-        )
+        }
     }
 }
 
@@ -1050,5 +1057,85 @@ private fun Switch(checked: Boolean, focused: Boolean) {
                 .clip(RoundedCornerShape(50))
                 .background(Color.White),
         )
+    }
+}
+
+/** A heading that opens and closes its settings, so long pages stay short. */
+@Composable
+fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, content: @Composable () -> Unit) {
+    var open by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(startOpen) }
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, androidx.compose.animation.core.tween(200), label = "chevron")
+    Column(Modifier.fillMaxWidth()) {
+        FocusSurface(
+            onClick = { open = !open },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            focusScale = 1.01f,
+            restColor = ZappColors.Glass,
+        ) { focused ->
+            Row(Modifier.padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+                    Text(summary, fontSize = 12.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Text(
+                    "›",
+                    fontSize = 22.sp,
+                    color = if (focused) ZappColors.OnFocus else ZappColors.Faint,
+                    modifier = Modifier.graphicsLayer { rotationZ = turn },
+                )
+            }
+        }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = open,
+            enter = androidx.compose.animation.expandVertically(androidx.compose.animation.core.tween(240)) + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240)),
+            exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(200)) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
+        ) {
+            Column(
+                Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) { content() }
+        }
+    }
+}
+
+/** The one place with the phone code: everything you can type on your phone instead of the remote. */
+@Composable
+private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
+    Row(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Panel {
+            PhoneSetupCard(vm, qrSize = 200, modifier = Modifier.padding(24.dp).width(230.dp), tab = tab)
+        }
+        Spacer(Modifier.width(28.dp))
+        Column(Modifier.weight(1f).padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text("Set up from your phone", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "Scan the code with your phone's camera (same Wi-Fi as the TV). Typing there is much quicker than the remote, and everything appears here straight away.",
+                color = ZappColors.Dim,
+                fontSize = 12.5.sp,
+                lineHeight = 18.sp,
+            )
+            listOf(
+                "Playlist" to "Xtream logins and M3U links, with a TV guide link",
+                "Add-on" to "Stremio add-ons by their install link",
+                "Accounts" to "Stremio sign-in, the Simkl app ID, Premiumize and TorBox keys",
+                "Help" to "The crash report, to copy into your chat about the app",
+            ).forEach { (t, b) ->
+                Row {
+                    Box(
+                        Modifier
+                            .padding(top = 6.dp)
+                            .size(6.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(Brush.linearGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(t, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
+                        Text(b, color = ZappColors.Dim, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
     }
 }

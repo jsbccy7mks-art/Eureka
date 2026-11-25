@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.13.0 (faster, tidier settings)
+
+**Faster**
+- The app is now optimised when it's built (R8) and ships its startup profiles, so scrolling and
+  screens are noticeably quicker, especially on slower TVs. The download is smaller too.
+- Cheaper drawing for Home rows, no blur behind the sidebar, trailers start after 4 seconds, and a
+  "Moving artwork" switch (Settings, Appearance) for TVs that still feel slow.
+
+**Settings**
+- One "Phone setup" page holds the phone code; everything else sends you there, on the right tab.
+- Long pages fold into sections you open and close (Accounts, Appearance, Playback).
+- Theme tiles fit the page, so Custom is reachable.
+
+**Phone page**
+- Redesigned: Playlist, Add-on, Accounts (Stremio, Simkl, Debrid) and Help, with clearer forms.
+
+**Top 10**
+- "1" stays in view. Ranked rows can be landscape too, with the number set into the left of the
+  picture. Hold OK on a row: Cards (Posters or Landscape) and Ranked (Off or Top 10).
+
+
 ## 0.12.1
 
 **New**

@@ -259,12 +259,9 @@ fun ZappRoot(vm: AppViewModel) {
                     }
                 }
 
-                // With the sidebar open, the page behind it softly blurs (Android 12 and newer).
-                val pageBlur by androidx.compose.animation.core.animateDpAsState(if (railFocused) 14.dp else 0.dp, tween(220), label = "blur")
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .then(if (pageBlur > 0.5.dp) Modifier.blur(pageBlur) else Modifier.blur(0.dp))
                         .padding(start = RailWidth),
                 ) {
                     androidx.compose.animation.AnimatedContent(

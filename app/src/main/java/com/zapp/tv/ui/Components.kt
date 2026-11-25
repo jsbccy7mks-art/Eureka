@@ -304,6 +304,8 @@ object FocusStyle {
     var artGlow by mutableStateOf(true)
     /** Play muted trailers behind the header on Home and details. */
     var trailers by mutableStateOf(true)
+    /** Slow zoom and pan on artwork. */
+    var drift by mutableStateOf(true)
 }
 
 /** One shared, slow pulse (0..1) for the focus glow, so cards don't each run an animation. */

@@ -3,140 +3,114 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0E1A">
+<meta name="theme-color" content="#09090F">
 <title>Zapp setup</title>
 <style>
   :root {
-    --bg: #0A0E1A; --panel: #121A2C; --panel-2: #1B2540; --line: #26314F;
-    --text: #EDF1FA; --dim: #94A0BD; --faint: #5E6A88;
-    --accent: #6C7BFF; --ok: #39D0F0; --err: #FF8A9A;
+    --bg: #09090F; --panel: #13131C; --panel-2: #1C1C28; --line: #272735;
+    --text: #F1F2F6; --dim: #A3A7B4; --faint: #6B7080;
+    --a: #4D7CFF; --b: #FF5FA2; --ok: #6EE7B7; --err: #FF8A9A;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   body {
     font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
     background:
-      radial-gradient(60% 40% at 0% 0%, rgba(122, 92, 255, .22), transparent 70%),
-      radial-gradient(50% 35% at 100% 100%, rgba(47, 211, 240, .12), transparent 70%),
+      radial-gradient(70% 40% at 0% 0%, rgba(77, 124, 255, .20), transparent 70%),
+      radial-gradient(60% 35% at 100% 100%, rgba(255, 95, 162, .14), transparent 70%),
       var(--bg);
-    padding: max(20px, env(safe-area-inset-top)) 16px 40px;
+    padding: max(22px, env(safe-area-inset-top)) 18px 48px;
   }
-  main { max-width: 440px; margin: 0 auto; }
-  header { display: flex; align-items: center; gap: 10px; margin: 8px 0 28px; }
-  header span { font-weight: 700; font-size: 22px; letter-spacing: -.02em; }
-  h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 6px; }
-  p.lead { color: var(--dim); margin: 0 0 24px; }
-  .seg { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--panel); border-radius: 12px; padding: 4px; margin-bottom: 20px; }
-  .seg button { font-size: 13px !important; border: 0; background: transparent; color: var(--dim); font: inherit; font-weight: 600; padding: 10px; border-radius: 9px; }
-  .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+  main { max-width: 460px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 10px; margin: 4px 0 26px; }
+  header span { font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+  h1 { font-size: 24px; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 6px; }
+  p.lead { color: var(--dim); margin: 0 0 22px; font-size: 15px; }
+
+  /* Main sections */
+  .tabs { display: flex; gap: 4px; background: var(--panel); border-radius: 14px; padding: 4px; margin-bottom: 14px; }
+  .tabs button { flex: 1; border: 0; background: transparent; color: var(--dim); font: inherit; font-size: 14px; font-weight: 600; padding: 10px 4px; border-radius: 10px; }
+  .tabs button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+
+  /* Choices inside a section */
+  .subs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+  .subs button { border: 1px solid var(--line); background: transparent; color: var(--dim); font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 999px; }
+  .subs button[aria-pressed="true"] { border-color: transparent; color: #fff; background: linear-gradient(135deg, var(--a), var(--b)); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  .card h2 { font-size: 16px; margin: 0 0 4px; }
+  .card p { color: var(--dim); font-size: 14px; margin: 0 0 16px; }
   label { display: block; font-size: 13px; color: var(--dim); margin: 0 0 6px; }
   .field { margin-bottom: 14px; }
   input {
-    width: 100%; font: inherit; color: var(--text); background: var(--panel);
+    width: 100%; font: inherit; color: var(--text); background: var(--bg);
     border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; outline: none;
   }
-  input:focus { border-color: var(--accent); }
+  input:focus { border-color: var(--a); }
   .row { display: flex; gap: 8px; }
-  .row .chip { flex: 1; text-align: center; padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); color: var(--dim); font-weight: 600; font-size: 14px; }
-  .row .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+  .row .chip { flex: 1; text-align: center; padding: 10px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); color: var(--dim); font-weight: 600; font-size: 14px; }
+  .row .chip[aria-pressed="true"] { border-color: var(--a); color: var(--text); }
   .hint { color: var(--faint); font-size: 13px; margin-top: 6px; }
   .primary {
-    width: 100%; margin-top: 10px; border: 0; border-radius: 12px; padding: 15px;
+    width: 100%; margin-top: 6px; border: 0; border-radius: 12px; padding: 15px;
     font: inherit; font-weight: 700; color: #fff;
-    background: linear-gradient(135deg, #7A5CFF, #2FD3F0);
+    background: linear-gradient(135deg, var(--a), var(--b));
   }
   .primary:disabled { opacity: .55; }
-  .status { margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-size: 15px; display: none; }
-  .status.ok { display: block; background: rgba(57, 208, 240, .12); color: var(--ok); }
+  .ghost { display: block; text-align: center; width: 100%; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 14px; color: var(--text); text-decoration: none; font-weight: 600; }
+  .status { margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 15px; display: none; }
+  .status.ok { display: block; background: rgba(110, 231, 183, .10); color: var(--ok); }
   .status.err { display: block; background: rgba(255, 79, 106, .12); color: var(--err); }
-  .status.work { display: block; background: var(--panel); color: var(--dim); }
-  section.list { margin-top: 34px; }
-  section.list h2 { font-size: 15px; color: var(--dim); font-weight: 600; margin: 0 0 10px; }
-  .pl { background: var(--panel); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
-  .pl b { display: block; }
-  .pl small { color: var(--faint); }
+  .status.work { display: block; background: var(--panel-2); color: var(--dim); }
+  section.list { margin-top: 30px; }
+  section.list h3 { font-size: 13px; color: var(--faint); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 10px; }
+  .pl { background: var(--panel); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; gap: 10px; }
+  .pl small { color: var(--faint); white-space: nowrap; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <svg width="30" height="30" viewBox="0 0 100 100" aria-hidden="true">
-      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7A5CFF"/><stop offset="1" stop-color="#2FD3F0"/></linearGradient></defs>
+    <svg width="28" height="28" viewBox="0 0 100 100" aria-hidden="true">
+      <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4D7CFF"/><stop offset="1" stop-color="#FF5FA2"/></linearGradient></defs>
       <rect width="100" height="100" rx="28" fill="url(#g)"/>
       <path d="M58 12 L28 56 L47 56 L42 88 L73 43 L54 43 L62 12 Z" fill="#fff"/>
     </svg>
-    <span>zapp</span>
+    <span>Zapp</span>
   </header>
 
-  <h1>Add to your TV</h1>
-  <p class="lead">Add a playlist from your provider, or a Stremio add-on by its install link. Your TV sets it up straight away.</p>
+  <h1>Set up your TV</h1>
+  <p class="lead">Typing on your phone is much quicker than the remote. Whatever you add here appears on your TV straight away.</p>
 
   <div class="field" id="codeBox" hidden>
     <label for="code">Code shown on your TV</label>
     <input id="code" autocomplete="off" autocapitalize="characters" maxlength="6" placeholder="ABC123">
   </div>
 
-  <div class="seg" role="group" aria-label="Playlist type">
+  <nav class="tabs" role="group" aria-label="What to set up">
+    <button type="button" data-tab="playlist" aria-pressed="true">Playlist</button>
+    <button type="button" data-tab="addon" aria-pressed="false">Add-on</button>
+    <button type="button" data-tab="accounts" aria-pressed="false">Accounts</button>
+    <button type="button" data-tab="help" aria-pressed="false">Help</button>
+  </nav>
+
+  <div class="subs" data-subs="playlist">
     <button type="button" data-type="xtream" aria-pressed="true">Xtream login</button>
     <button type="button" data-type="m3u" aria-pressed="false">M3U link</button>
-    <button type="button" data-type="addon" aria-pressed="false">Add-on</button>
+  </div>
+  <div class="subs" data-subs="accounts" hidden>
+    <button type="button" data-type="stremio" aria-pressed="true">Stremio</button>
     <button type="button" data-type="simkl" aria-pressed="false">Simkl</button>
     <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
-    <button type="button" data-type="stremio" aria-pressed="false">Stremio</button>
   </div>
 
-  <form id="form" autocomplete="off">
-    <div class="field" data-not="addon">
-      <label for="name">Name (optional)</label>
-      <input id="name" placeholder="My provider">
-    </div>
-
-    <div data-for="simkl" hidden>
-      <div class="field">
-        <label for="simklClientId">Simkl Client ID</label>
-        <input id="simklClientId" autocapitalize="off" spellcheck="false" placeholder="From simkl.com/settings/developer">
-        <div class="hint">Create an app at simkl.com/settings/developer (device or TV type), then copy its Client ID here. You only do this once.</div>
-      </div>
-    </div>
-
-    <div data-for="stremio" hidden>
-      <div class="field">
-        <label for="stremioEmail">Stremio email</label>
-        <input id="stremioEmail" type="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
-      </div>
-      <div class="field">
-        <label for="stremioPassword">Stremio password</label>
-        <input id="stremioPassword" type="password" autocapitalize="off" spellcheck="false">
-        <div class="hint">Used once to sign in. Zapp keeps only Stremio's sign-in key (encrypted), never your password. It brings over your Stremio library and Continue watching.</div>
-      </div>
-    </div>
-
-    <div data-for="debrid" hidden>
-      <div class="field">
-        <label>Service</label>
-        <div class="row" role="group" aria-label="Debrid service">
-          <span class="chip dchip" role="button" tabindex="0" data-service="pm" aria-pressed="true">Premiumize</span>
-          <span class="chip dchip" role="button" tabindex="0" data-service="tb" aria-pressed="false">TorBox</span>
-        </div>
-        <div class="hint">Real-Debrid and AllDebrid sign in with a code on the TV instead (Settings, Accounts and sync).</div>
-      </div>
-      <div class="field">
-        <label for="debridKey">API key</label>
-        <input id="debridKey" autocapitalize="off" spellcheck="false" placeholder="From your account page">
-      </div>
-    </div>
-
-    <div data-for="addon" hidden>
-      <div class="field">
-        <label for="addonUrl">Add-on install link</label>
-        <input id="addonUrl" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/manifest.json">
-        <div class="hint">Copy it from the add-on's website (the link ending in manifest.json, or a stremio:// link).</div>
-      </div>
-    </div>
-
+  <form id="form" class="card" autocomplete="off">
+    <!-- Xtream -->
     <div data-for="xtream">
+      <h2>Xtream login</h2>
+      <p>The server address, username and password from your provider.</p>
       <div class="field">
         <label for="server">Server address</label>
         <input id="server" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com:8080">
@@ -152,32 +126,100 @@
       <div class="field">
         <label>Stream type</label>
         <div class="row" role="group" aria-label="Stream type">
-          <span class="chip" role="button" tabindex="0" data-format="ts" aria-pressed="true">TS</span>
-          <span class="chip" role="button" tabindex="0" data-format="m3u8" aria-pressed="false">HLS (M3U8)</span>
+          <span class="chip fchip" role="button" tabindex="0" data-format="ts" aria-pressed="true">TS</span>
+          <span class="chip fchip" role="button" tabindex="0" data-format="m3u8" aria-pressed="false">HLS (M3U8)</span>
         </div>
         <div class="hint">Leave on TS unless channels don't play.</div>
       </div>
     </div>
 
+    <!-- M3U -->
     <div data-for="m3u" hidden>
+      <h2>M3U link</h2>
+      <p>A playlist link from your provider.</p>
       <div class="field">
         <label for="url">Playlist link</label>
         <input id="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com/playlist.m3u">
       </div>
     </div>
 
-    <div class="field" data-not="addon">
-      <label for="epg">TV guide link (optional)</label>
-      <input id="epg" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com/guide.xml.gz">
-      <div class="hint" id="epgHint">Leave empty to use your provider's own guide.</div>
+    <!-- Shared playlist fields -->
+    <div data-playlist>
+      <div class="field">
+        <label for="name">Name (optional)</label>
+        <input id="name" placeholder="My provider">
+      </div>
+      <div class="field">
+        <label for="epg">TV guide link (optional)</label>
+        <input id="epg" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="http://example.com/guide.xml.gz">
+        <div class="hint" id="epgHint">Leave empty to use your provider's own guide.</div>
+      </div>
+    </div>
+
+    <!-- Add-on -->
+    <div data-for="addon" hidden>
+      <h2>Stremio add-on</h2>
+      <p>Paste the add-on's install link. It ends in manifest.json, or starts with stremio://.</p>
+      <div class="field">
+        <label for="addonUrl">Install link</label>
+        <input id="addonUrl" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/manifest.json">
+      </div>
+    </div>
+
+    <!-- Stremio -->
+    <div data-for="stremio" hidden>
+      <h2>Stremio account</h2>
+      <p>Brings your Stremio library and Continue watching to your TV.</p>
+      <div class="field">
+        <label for="stremioEmail">Email</label>
+        <input id="stremioEmail" type="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label for="stremioPassword">Password</label>
+        <input id="stremioPassword" type="password" autocapitalize="off" spellcheck="false">
+        <div class="hint">Used once to sign in. Zapp keeps only Stremio's sign-in key (encrypted), never your password.</div>
+      </div>
+    </div>
+
+    <!-- Simkl -->
+    <div data-for="simkl" hidden>
+      <h2>Simkl app ID</h2>
+      <p>Create an app at simkl.com/settings/developer (device or TV type) and paste its Client ID. You only do this once; then connect Simkl on the TV.</p>
+      <div class="field">
+        <label for="simklClientId">Client ID</label>
+        <input id="simklClientId" autocapitalize="off" spellcheck="false">
+      </div>
+    </div>
+
+    <!-- Debrid -->
+    <div data-for="debrid" hidden>
+      <h2>Debrid service</h2>
+      <p>Premiumize and TorBox use an API key from your account page. Real-Debrid and AllDebrid sign in with a code on the TV instead.</p>
+      <div class="field">
+        <div class="row" role="group" aria-label="Debrid service">
+          <span class="chip dchip" role="button" tabindex="0" data-service="pm" aria-pressed="true">Premiumize</span>
+          <span class="chip dchip" role="button" tabindex="0" data-service="tb" aria-pressed="false">TorBox</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="debridKey">API key</label>
+        <input id="debridKey" autocapitalize="off" spellcheck="false">
+      </div>
     </div>
 
     <button class="primary" type="submit" id="submit">Add to TV</button>
     <div class="status" id="status"></div>
   </form>
 
+  <!-- Help -->
+  <div class="card" id="help" hidden>
+    <h2>Crash report</h2>
+    <p>If Zapp closed unexpectedly, open the report here and copy it into your chat about the app. Logins are removed from it.</p>
+    <a class="ghost" id="crashLink" href="#">Open crash report</a>
+  </div>
+
   <section class="list" id="list" hidden>
-    <h2>Already on your TV</h2>
+    <h3>Already on your TV</h3>
     <div id="items"></div>
   </section>
 </main>
@@ -186,45 +228,59 @@
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
   let token = (params.get('t') || '').trim().toUpperCase();
+  let tab = 'playlist';
   let type = 'xtream';
   let format = 'ts';
+  let debridService = 'pm';
+  const remembered = { playlist: 'xtream', accounts: 'stremio' };
+  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', simkl: 'Save', debrid: 'Connect' };
 
   if (!token) $('codeBox').hidden = false;
+  function currentToken() { return token || $('code').value.trim().toUpperCase(); }
 
-  function currentToken() {
-    return token || $('code').value.trim().toUpperCase();
+  function show() {
+    document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.tab === tab));
+    document.querySelectorAll('[data-subs]').forEach((el) => { el.hidden = el.dataset.subs !== tab; });
+    document.querySelectorAll('.subs button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.type === type));
+    document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
+    document.querySelector('[data-playlist]').hidden = !(type === 'xtream' || type === 'm3u');
+    $('form').hidden = tab === 'help';
+    $('help').hidden = tab !== 'help';
+    $('submit').textContent = buttonText[type] || 'Add to TV';
+    $('epgHint').textContent = type === 'xtream'
+      ? "Leave empty to use your provider's own guide."
+      : 'Leave empty to use the guide link inside the playlist, if it has one.';
+    $('crashLink').href = '/crash?t=' + encodeURIComponent(currentToken());
+    setStatus('', '');
   }
 
-  document.querySelectorAll('.seg button').forEach((b) => {
-    b.addEventListener('click', () => {
-      type = b.dataset.type;
-      document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
-      document.querySelectorAll('[data-for]').forEach((el) => { el.hidden = el.dataset.for !== type; });
-      document.querySelectorAll('[data-not]').forEach((el) => { el.hidden = el.dataset.not === type || type === 'simkl' || type === 'debrid' || type === 'stremio'; });
-      $('epgHint').textContent = type === 'xtream'
-        ? "Leave empty to use your provider's own guide."
-        : 'Leave empty to use the guide link inside the playlist, if it has one.';
-    });
-  });
+  function choose(t) {
+    tab = t;
+    type = t === 'addon' ? 'addon' : t === 'help' ? 'help' : remembered[t];
+    show();
+  }
 
-  // Open a tab straight away when the TV asked for one (e.g. ?tab=stremio).
-  const wantTab = params.get('tab');
-  if (wantTab) { const b = document.querySelector('.seg button[data-type="' + wantTab + '"]'); if (b) setTimeout(() => b.click(), 0); }
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => choose(b.dataset.tab)));
+  document.querySelectorAll('.subs button').forEach((b) => b.addEventListener('click', () => {
+    type = b.dataset.type;
+    remembered[tab] = type;
+    show();
+  }));
+  document.querySelectorAll('.dchip').forEach((c) => c.addEventListener('click', () => {
+    debridService = c.dataset.service;
+    document.querySelectorAll('.dchip').forEach((x) => x.setAttribute('aria-pressed', x === c));
+  }));
+  document.querySelectorAll('.fchip').forEach((c) => c.addEventListener('click', () => {
+    format = c.dataset.format;
+    document.querySelectorAll('.fchip').forEach((x) => x.setAttribute('aria-pressed', x === c));
+  }));
 
-  let debridService = 'pm';
-  document.querySelectorAll('.dchip').forEach((c) => {
-    c.addEventListener('click', () => {
-      debridService = c.dataset.service;
-      document.querySelectorAll('.dchip').forEach((x) => x.setAttribute('aria-pressed', x === c));
-    });
-  });
-
-  document.querySelectorAll('.chip:not(.dchip)').forEach((c) => {
-    c.addEventListener('click', () => {
-      format = c.dataset.format;
-      document.querySelectorAll('.chip:not(.dchip)').forEach((x) => x.setAttribute('aria-pressed', x === c));
-    });
-  });
+  // The TV can open a particular part of this page (?tab=stremio and so on).
+  const want = params.get('tab');
+  if (want === 'xtream' || want === 'm3u') { remembered.playlist = want; choose('playlist'); }
+  else if (want === 'stremio' || want === 'simkl' || want === 'debrid') { remembered.accounts = want; choose('accounts'); }
+  else if (want === 'addon' || want === 'help') { choose(want); }
+  else { show(); }
 
   function setStatus(kind, text) {
     const s = $('status');
@@ -244,7 +300,7 @@
       data.playlists.forEach((p) => {
         const div = document.createElement('div');
         div.className = 'pl';
-        const b = document.createElement('b');
+        const b = document.createElement('span');
         b.textContent = p.name;
         const small = document.createElement('small');
         small.textContent = p.type === 'xtream' ? 'Xtream login' : (p.type === 'addon' ? 'Add-on' : 'M3U link');
@@ -255,11 +311,27 @@
     } catch (e) { /* TV unreachable; ignore */ }
   }
 
+  const missing = {
+    xtream: (b) => (!b.server.trim() || !b.username.trim() || !b.password.trim()) && 'Fill in the server address, username and password.',
+    m3u: (b) => !b.url.trim() && 'Paste the playlist link first.',
+    addon: (b) => !b.addonUrl.trim() && 'Paste the add-on install link first.',
+    stremio: (b) => (!b.stremioEmail.trim() || !b.stremioPassword) && 'Enter your Stremio email and password.',
+    simkl: (b) => !b.simklClientId.trim() && 'Paste the Client ID first.',
+    debrid: (b) => !b.debridKey.trim() && 'Paste the API key first.',
+  };
+  const working = {
+    xtream: 'Adding the playlist. Big playlists can take a minute…',
+    m3u: 'Adding the playlist. Big playlists can take a minute…',
+    addon: 'Installing the add-on…',
+    stremio: 'Signing in to Stremio…',
+    simkl: 'Saving…',
+    debrid: 'Connecting…',
+  };
+
   $('form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const t = currentToken();
     if (!t) { setStatus('err', 'Enter the code shown on your TV.'); return; }
-
     const body = {
       type,
       name: $('name').value,
@@ -276,33 +348,11 @@
       stremioEmail: $('stremioEmail').value,
       stremioPassword: $('stremioPassword').value,
     };
-    if (type === 'stremio' && (!body.stremioEmail.trim() || !body.stremioPassword)) {
-      setStatus('err', 'Enter your Stremio email and password.');
-      return;
-    }
-    if (type === 'debrid' && !body.debridKey.trim()) {
-      setStatus('err', 'Paste the API key first.');
-      return;
-    }
-    if (type === 'simkl' && !body.simklClientId.trim()) {
-      setStatus('err', 'Paste the Client ID first.');
-      return;
-    }
-    if (type === 'addon' && !body.addonUrl.trim()) {
-      setStatus('err', 'Paste the add-on install link first.');
-      return;
-    }
-    if (type === 'xtream' && (!body.server.trim() || !body.username.trim() || !body.password.trim())) {
-      setStatus('err', 'Fill in the server address, username and password.');
-      return;
-    }
-    if (type === 'm3u' && !body.url.trim()) {
-      setStatus('err', 'Paste the playlist link first.');
-      return;
-    }
+    const problem = missing[type] && missing[type](body);
+    if (problem) { setStatus('err', problem); return; }
 
     $('submit').disabled = true;
-    setStatus('work', type === 'addon' ? 'Installing the add-on…' : type === 'simkl' ? 'Saving…' : type === 'stremio' ? 'Signing in to Stremio…' : 'Adding the playlist. Big playlists can take a minute…');
+    setStatus('work', working[type] || 'Working…');
     try {
       const r = await fetch('/api/playlists?t=' + encodeURIComponent(t), {
         method: 'POST',
@@ -324,7 +374,7 @@
     }
   });
 
-  $('code').addEventListener('input', () => { if ($('code').value.trim().length === 6) loadList(); });
+  $('code').addEventListener('input', () => { if ($('code').value.trim().length === 6) { loadList(); show(); } });
   loadList();
 </script>
 </body>

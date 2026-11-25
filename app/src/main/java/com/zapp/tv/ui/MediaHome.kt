@@ -358,13 +358,15 @@ fun RowOptionsDialog(
             if (row.id != CONTINUE_ROW) {
                 OptionLine("Cards") {
                     Segmented(
-                        listOf("poster" to "Posters", "landscape" to "Landscape", "top10" to "Top 10"),
-                        when {
-                            row.top10 == true -> "top10"
-                            row.landscape -> "landscape"
-                            else -> "poster"
-                        },
-                    ) { v -> onChange { it.copy(landscape = v == "landscape", top10 = v == "top10") } }
+                        listOf("poster" to "Posters", "landscape" to "Landscape"),
+                        if (row.landscape) "landscape" else "poster",
+                    ) { v -> onChange { it.copy(landscape = v == "landscape") } }
+                }
+                OptionLine("Ranked") {
+                    Segmented(
+                        listOf("off" to "Off", "on" to "Top 10"),
+                        if (row.top10 == true) "on" else "off",
+                    ) { v -> onChange { it.copy(top10 = v == "on") } }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

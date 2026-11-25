@@ -220,6 +220,16 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.artGlow = value
         }
 
+    private val driftState = mutableStateOf(prefs.getBoolean("drift", true))
+    /** Slow zoom and pan on artwork. */
+    var drift: Boolean
+        get() = driftState.value
+        set(value) {
+            driftState.value = value
+            prefs.edit().putBoolean("drift", value).apply()
+            com.zapp.tv.ui.FocusStyle.drift = value
+        }
+
     private val trailersState = mutableStateOf(prefs.getBoolean("trailers", true))
     /** Muted trailers behind the header on Home and details. */
     var trailers: Boolean
@@ -237,6 +247,7 @@ class Settings(context: Context) {
         com.zapp.tv.ui.FocusStyle.glow = prefs.getBoolean("focusGlow", true)
         com.zapp.tv.ui.FocusStyle.artGlow = prefs.getBoolean("artGlow", true)
         com.zapp.tv.ui.FocusStyle.trailers = prefs.getBoolean("trailers", true)
+        com.zapp.tv.ui.FocusStyle.drift = prefs.getBoolean("drift", true)
     }
 
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))
