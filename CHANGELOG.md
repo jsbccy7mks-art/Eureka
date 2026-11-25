@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.22.0 (new details page, same source)
+
+**New**
+- Details page in three pages you move down through:
+  1. The title: artwork, poster lettering, a one-line tagline, facts, and the actions along the
+     bottom (Play, Trailer with sound, library, start over, sources), "Ends at" and some of the cast.
+  2. Episodes (series): the episode you're on fills the page with its picture and story; season tabs,
+     a thread joining the season's episodes (watched ones filled), and cards that grow when chosen.
+  3. Cast with photos (when the add-on has them) beside the credits, then More like this, under a slim
+     header that keeps the title in view.
+- Same source when resuming (Settings, Playback, on by default): autoplay tries the source you used
+  last time first; for the next episode, the same release (binge group), then the same add-on at the
+  same quality.
+
+
 ## 0.21.0 (Live TV redesign)
 
 **Changed**

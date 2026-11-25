@@ -273,6 +273,20 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    private val sameSourceState = mutableStateOf(prefs.getBoolean("sameSource", true))
+    /** Resuming (or the next episode) tries the source you used last time first. */
+    var sameSource: Boolean
+        get() = sameSourceState.value
+        set(value) {
+            sameSourceState.value = value
+            prefs.edit().putBoolean("sameSource", value).apply()
+        }
+
+    /** The last source per title, as JSON (per profile). */
+    var lastSourcesJson: String
+        get() = prefs.getString(acct("lastSources"), "") ?: ""
+        set(value) = prefs.edit().putString(acct("lastSources"), value).apply()
+
     private val skipIntroState = mutableIntStateOf(prefs.getInt("skipIntro", 1))
     /** Intros: 0 leave, 1 show a Skip button, 2 skip by themselves. */
     var skipIntro: Int

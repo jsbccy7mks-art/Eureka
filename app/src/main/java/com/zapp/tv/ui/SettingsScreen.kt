@@ -267,6 +267,12 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             onClick = { s.maxQuality = (s.maxQuality + 1) % 3 },
         )
         SettingRow(
+            title = "Same source when resuming",
+            body = "Tries the source you used last time first; for series, the same release for the next episode (like Nuvio's binge groups).",
+            value = SettingValue.Toggle(s.sameSource),
+            onClick = { s.sameSource = !s.sameSource },
+        )
+        SettingRow(
             title = "Skip intros",
             body = "Using IntroDB's community timings, where an episode has them.",
             value = SettingValue.Choice(listOf("Off", "Show a Skip button", "Skip by itself")[s.skipIntro.coerceIn(0, 2)]),

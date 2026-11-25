@@ -130,6 +130,24 @@ class AddonClient(private val http: OkHttpClient) {
         videos.sortWith(compareBy({ it.season ?: 0 }, { it.episode ?: 0 }))
         val trailer = o.optJSONArray("trailerStreams")?.optJSONObject(0)?.optString("ytId")
             ?: o.optJSONArray("trailers")?.optJSONObject(0)?.optString("source")
+        val writers = ArrayList<String>()
+        o.optJSONArray("writer")?.strings()?.let { writers.addAll(it) }
+        o.optJSONArray("links")?.let { links ->
+            for (i in 0 until links.length()) {
+                val l = links.optJSONObject(i) ?: continue
+                if (l.optString("category").lowercase().startsWith("writer")) writers.add(l.optString("name"))
+            }
+        }
+        val people = ArrayList<com.zapp.tv.addons.Person>()
+        o.optJSONObject("app_extras")?.optJSONArray("cast")?.let { arr ->
+            for (i in 0 until minOf(arr.length(), 20)) {
+                val p = arr.optJSONObject(i) ?: continue
+                val n = p.optString("name")
+                if (n.isBlank()) continue
+                people.add(com.zapp.tv.addons.Person(n, p.optString("character").takeIf { it.isNotBlank() }, p.optString("photo").takeIf { it.startsWith("http") }))
+            }
+        }
+        if (people.isEmpty()) cast.filter { it.isNotBlank() }.distinct().take(12).forEach { people.add(com.zapp.tv.addons.Person(it, null, null)) }
         MetaDetail(
             preview = preview,
             runtime = o.optString("runtime").takeIf { it.isNotBlank() },
@@ -137,6 +155,11 @@ class AddonClient(private val http: OkHttpClient) {
             directors = directors.filter { it.isNotBlank() }.distinct(),
             videos = videos,
             trailerYoutube = trailer?.takeIf { it.isNotBlank() },
+            people = people,
+            writers = writers.filter { it.isNotBlank() }.distinct(),
+            country = o.optString("country").takeIf { it.isNotBlank() },
+            awards = o.optString("awards").takeIf { it.isNotBlank() && it != "N/A" },
+            released = o.optString("released").takeIf { it.isNotBlank() },
         )
     }
 

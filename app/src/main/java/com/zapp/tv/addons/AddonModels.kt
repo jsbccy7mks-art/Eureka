@@ -70,7 +70,15 @@ data class MetaDetail(
     val directors: List<String>,
     val videos: List<Video>,
     val trailerYoutube: String?,
+    /** Cast with roles and photos, when the add-on provides them (Cinemeta does). */
+    val people: List<Person> = emptyList(),
+    val writers: List<String> = emptyList(),
+    val country: String? = null,
+    val awards: String? = null,
+    val released: String? = null,
 )
+
+data class Person(val name: String, val role: String?, val photo: String?)
 
 /** One playable (or not directly playable) source from an add-on. */
 data class StreamItem(

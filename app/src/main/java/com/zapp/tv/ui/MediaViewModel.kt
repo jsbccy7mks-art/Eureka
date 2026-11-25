@@ -655,6 +655,32 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     /** Intro, recap and credits timings for a film or episode (null when IntroDB doesn't know it). */
     suspend fun segments(videoId: String, type: String): com.zapp.tv.data.Segments? = zapp.introDb.segments(videoId, type)
 
+    /** The source last used for a title: its link or torrent, binge group, add-on and quality. */
+    data class LastSource(val videoId: String, val key: String?, val binge: String?, val addon: String, val quality: Int)
+
+    fun rememberSource(metaId: String, videoId: String, s: com.zapp.tv.addons.StreamItem) {
+        val o = try { JSONObject(settings.lastSourcesJson.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
+        o.put(
+            metaId,
+            JSONObject().put("v", videoId).put("k", s.url ?: s.infoHash ?: "").put("b", s.bingeGroup ?: "")
+                .put("a", s.addonName).put("q", s.qualityRank).put("t", System.currentTimeMillis()),
+        )
+        // Keep the 300 most recent.
+        if (o.length() > 300) {
+            val oldest = o.keys().asSequence().minByOrNull { o.optJSONObject(it)?.optLong("t") ?: 0L }
+            oldest?.let { o.remove(it) }
+        }
+        settings.lastSourcesJson = o.toString()
+    }
+
+    fun lastSource(metaId: String): LastSource? = try {
+        JSONObject(settings.lastSourcesJson.ifBlank { "{}" }).optJSONObject(metaId)?.let {
+            LastSource(it.optString("v"), it.optString("k").ifBlank { null }, it.optString("b").ifBlank { null }, it.optString("a"), it.optInt("q"))
+        }
+    } catch (e: Exception) {
+        null
+    }
+
     fun hideFromContinue(metaId: String) = viewModelScope.launch { repo.hideFromContinue(metaId) }
 
     fun inLibrary(metaId: String): Flow<Boolean> = repo.inLibrary(metaId)

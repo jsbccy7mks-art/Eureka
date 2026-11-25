@@ -1,5 +1,10 @@
 package com.zapp.tv.ui
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.core.tween
@@ -82,6 +87,36 @@ fun episodeLabel(v: Video): String =
 private fun shortLabel(v: Video): String =
     if (v.season != null && v.episode != null) "S${v.season} E${v.episode}" else v.title
 
+
+private fun runtimeMinutes(runtime: String?): Int? =
+    runtime?.let { Regex("""(\d+)""").find(it)?.groupValues?.get(1)?.toIntOrNull() }?.takeIf { it in 1..600 }
+
+/** A small square action (library, sources, start over…), outlined until focused. */
+@Composable
+private fun IconAction(symbol: String, onClick: () -> Unit, highlight: Boolean = false) {
+    var f by remember { mutableStateOf(false) }
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier
+            .size(40.dp)
+            .border(1.dp, if (f) Color.Transparent else if (highlight) ZappColors.Brand2.copy(alpha = 0.7f) else Color(0x2EFFFFFF), RoundedCornerShape(12.dp)),
+        onFocusChange = { f = it },
+        shape = RoundedCornerShape(12.dp),
+        focusScale = 1.06f,
+    ) { focused ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(symbol, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+        }
+    }
+}
+
+/**
+ * Details: three calm "pages" you move down through.
+ * 1. The title: artwork, poster lettering, a one-line tagline, facts, and the actions along the bottom.
+ * 2. Episodes (series): the episode you're on fills the page; a season tab, a thread joining the
+ *    episodes, and cards that grow when chosen.
+ * 3. Cast and credits, then more like this, under a slim header that keeps the title in view.
+ */
 @Composable
 fun DetailScreen(
     mvm: MediaViewModel,
@@ -100,8 +135,26 @@ fun DetailScreen(
     val progress by remember(request.id) { mvm.progressFor(request.id) }.collectAsState(initial = emptyList<WatchProgress>())
     val inLibrary by remember(request.id) { mvm.inLibrary(request.id) }.collectAsState(initial = false)
     val playFocus = remember { FocusRequester() }
+    val now = rememberNow(30_000)
+    val timeFormat = rememberTimeFormat()
+    var trailerOpen by remember(request.id) { mutableStateOf(false) }
 
     LaunchedEffect(done, focusTick) { if (done) playFocus.tryRequest() }
+
+    val isSeries = request.type == "series" && !detail?.videos.isNullOrEmpty()
+    val videos = detail?.videos.orEmpty()
+    val nextUp = remember(videos, progress) { nextUp(videos, progress) }
+    val seasons = remember(videos) { seasonsOf(videos) }
+    var season by remember(request.id, nextUp.first?.season) { mutableStateOf(nextUp.first?.season ?: seasons.firstOrNull()) }
+    var focusedEpisode by remember(request.id) { mutableStateOf<Video?>(null) }
+    var section by remember(request.id) { mutableIntStateOf(0) } // 0 title, 1 episodes, 2 more
+
+    fun playEpisode(v: Video) {
+        val p = progress.firstOrNull { it.videoId == v.id }
+        val resume = if (p != null && !p.watched) p.position else 0L
+        val m = meta ?: return
+        onPlay(PlayRequest(m, v, videos, resume, mvm.settings.autoPlayFirst, resumePercent = p?.takeIf { !it.watched }?.percent))
+    }
 
     Box(
         Modifier
@@ -109,19 +162,31 @@ fun DetailScreen(
             .trapFocus()
             .background(ZappColors.Bg),
     ) {
-        // Artwork at full strength, fading into the page only where the text sits.
-        (meta?.background ?: meta?.poster)?.let {
-            AsyncImage(
-                model = it,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                alignment = Alignment.TopCenter,
-                modifier = Modifier.fillMaxSize().drift(),
-            )
+        // ---- the picture behind everything: the title, or the episode you're on
+        val backdrop = when {
+            section == 1 && focusedEpisode?.thumbnail != null -> focusedEpisode?.thumbnail
+            else -> meta?.background ?: meta?.poster
         }
-        DelayedTrailer(detail?.trailerYoutube, request.id, Modifier.fillMaxSize(), onDetail = true)
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(*easedFade(start = 0f, end = 0.55f))))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(*easedFade(start = 1f, end = 0.45f))))
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .fillMaxWidth(0.78f)
+                .fillMaxHeight(if (section == 1) 0.72f else 0.9f)
+                .clipToBounds()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.55f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                },
+        ) {
+            androidx.compose.animation.Crossfade(targetState = backdrop, animationSpec = androidx.compose.animation.core.tween(600), label = "detailArt", modifier = Modifier.fillMaxSize()) { u ->
+                if (u != null) {
+                    AsyncImage(model = u, contentDescription = null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize().drift())
+                }
+            }
+            if (section == 0) DelayedTrailer(detail?.trailerYoutube, request.id, Modifier.fillMaxSize(), onDetail = true)
+        }
         AmbientGlow(0.6f, tint = rememberArtColor(meta?.poster ?: meta?.background))
 
         if (!done && meta == null) {
@@ -139,167 +204,342 @@ fun DetailScreen(
             return@Box
         }
 
-        val isSeries = request.type == "series" && !detail?.videos.isNullOrEmpty()
-        val videos = detail?.videos.orEmpty()
-        var openSeason by remember(request.id) { mutableStateOf<Int?>(null) }
-        val seasonFocus = remember(request.id) { HashMap<Int, FocusRequester>() }
-        fun playEpisode(v: Video) {
-            val p = progress.firstOrNull { it.videoId == v.id }
-            val resume = if (p != null && !p.watched) p.position else 0L
-            onPlay(PlayRequest(meta, v, videos, resume, mvm.settings.autoPlayFirst, resumePercent = p?.takeIf { !it.watched }?.percent))
-        }
-        val nextUp = remember(videos, progress) { nextUp(videos, progress) }
         val movieProgress = progress.firstOrNull { it.videoId == meta.id && !it.watched && (it.position > 30_000 || (it.percent ?: 0.0) > 1) }
+        val minutes = runtimeMinutes(detail?.runtime)
+        val endsAt: Long? = when {
+            movieProgress != null && movieProgress.duration > 0 -> now + (movieProgress.duration - movieProgress.position)
+            minutes != null -> now + minutes * 60_000L
+            else -> null
+        }
+        val playLabel = if (isSeries) {
+            val (v, resume) = nextUp
+            when {
+                v == null -> "Play"
+                resume > 0 -> "Resume ${shortLabel(v)}"
+                else -> "Play ${shortLabel(v)}"
+            }
+        } else if (movieProgress != null) "Resume" else "Play"
+        fun playMain() {
+            if (isSeries) {
+                nextUp.first?.let { playEpisode(it) }
+            } else {
+                onPlay(PlayRequest(meta, null, emptyList(), movieProgress?.position ?: 0L, mvm.settings.autoPlayFirst, resumePercent = movieProgress?.percent))
+            }
+        }
 
-        // The first screen is the title, pinned to the bottom over the artwork; scrolling down
-        // (moving below the buttons or episodes) shows more like this and the full details.
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val screenHeight = maxHeight
             val scroll = remember(request.id) { androidx.compose.foundation.ScrollState(0) }
             val scope = rememberCoroutineScope()
-            val dim = if (scroll.maxValue > 0) scroll.value.toFloat() / scroll.maxValue else 0f
-            Box(Modifier.fillMaxSize().background(ZappColors.Bg.copy(alpha = 0.8f * dim)))
+            val px = with(androidx.compose.ui.platform.LocalDensity.current) { screenHeight.toPx() }.toInt()
+            fun goTo(sec: Int) {
+                section = sec
+                scope.launch {
+                    scroll.animateScrollTo(
+                        when (sec) {
+                            0 -> 0
+                            1 -> px
+                            else -> scroll.maxValue
+                        },
+                        androidx.compose.animation.core.tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                    )
+                }
+            }
+            val dim by androidx.compose.animation.core.animateFloatAsState(if (section == 2) 0.88f else 0f, androidx.compose.animation.core.tween(500), label = "dim")
+            Box(Modifier.fillMaxSize().background(ZappColors.Bg.copy(alpha = dim)))
+
             NoAutoScroll {
                 Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+                    // ================================================= 1. the title
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .height(screenHeight)
-                            .onFocusChanged { if (it.hasFocus) scope.launch { scroll.animateScrollTo(0, tween(450)) } },
+                            .onFocusChanged { if (it.hasFocus && section != 0) goTo(0) },
                     ) {
-                    // Everything sits along the bottom of the screen, over the picture.
-                    Column(
-                        Modifier
-                            .align(Alignment.BottomStart)
-                            .fillMaxWidth()
-                            .padding(start = 56.dp, bottom = if (isSeries) 22.dp else 44.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier
-                                    .width(14.dp)
-                                    .height(2.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
-                            )
-                            Spacer(Modifier.width(8.dp))
+                        Column(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .padding(start = 56.dp, end = 48.dp, bottom = 30.dp),
+                        ) {
+                            val credit = when {
+                                isSeries && detail?.writers?.isNotEmpty() == true -> "CREATED BY " + detail.writers.first().uppercase()
+                                detail?.directors?.isNotEmpty() == true -> "DIRECTED BY " + detail.directors.take(2).joinToString(", ").uppercase()
+                                else -> null
+                            }
                             Text(
-                                if (isSeries) "SERIES" else "FILM",
-                                color = ZappColors.Dim,
+                                listOfNotNull(if (isSeries) "SERIES" else "FILM", credit).joinToString("   ·   "),
+                                color = ZappColors.Brand2.copy(alpha = 0.9f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 2.2.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            MovieTitle(meta.name, if (meta.name.length > 24) 38.sp else 48.sp, maxLines = 2, modifier = Modifier.widthIn(max = 600.dp))
+                            // Tagline: the first sentence of the story, after a short accent line.
+                            val tagline = meta.description?.let { d -> d.split(Regex("(?<=[.!?])\\s")).firstOrNull()?.trim() }?.takeIf { it.length in 8..140 }
+                            if (tagline != null) {
+                                Spacer(Modifier.height(12.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier
+                                            .width(26.dp)
+                                            .height(2.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(tagline, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = ZappColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            FactsLine(
+                                meta.releaseInfo,
+                                meta.imdbRating,
+                                if (isSeries) (seasons.count { it > 0 }.takeIf { it > 0 }?.let { "$it season" + if (it > 1) "s" else "" }) else detail?.runtime,
+                                meta.genres,
+                                size = 12.sp,
+                            )
+                            Spacer(Modifier.height(26.dp))
+                            Text(
+                                "↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "CAST, CREDITS AND MORE",
+                                color = ZappColors.Faint,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = 2.sp,
                             )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        MovieTitle(meta.name, if (isSeries) 32.sp else 38.sp, maxLines = 2, modifier = Modifier.widthIn(max = 460.dp))
-                        Spacer(Modifier.height(8.dp))
-                        FactsLine(meta.releaseInfo, meta.imdbRating, detail?.runtime, meta.genres, size = 11.5.sp)
-                        meta.description?.let {
                             Spacer(Modifier.height(10.dp))
-                            Text(
-                                it,
-                                color = Color(0xFFC9CCD6),
-                                fontSize = 12.sp,
-                                lineHeight = 18.sp,
-                                letterSpacing = 0.1.sp,
-                                maxLines = if (isSeries) 2 else 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 430.dp),
-                            )
-                        }
-                        val people = listOfNotNull(
-                            detail?.cast?.takeIf { it.isNotEmpty() }?.take(4)?.joinToString(", ")?.let { "With $it" },
-                            detail?.directors?.takeIf { it.isNotEmpty() }?.take(2)?.joinToString(", ")?.let { "Directed by $it" },
-                        )
-                        if (people.isNotEmpty()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                people.joinToString("   ·   "),
-                                color = ZappColors.Faint,
-                                fontSize = 10.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 460.dp),
-                            )
-                        }
-
-                        Spacer(Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (isSeries) {
-                                val (video, resume) = nextUp
-                                if (video != null) {
-                                    val p = progress.firstOrNull { it.videoId == video.id && !it.watched }
-                                    PlayButton(
-                                        when {
-                                            resume > 0 -> "Resume ${shortLabel(video)}"
-                                            progress.isEmpty() -> "Play ${shortLabel(video)}"
-                                            else -> "Play ${shortLabel(video)}"
-                                        },
-                                        p?.takeIf { resume > 0 },
-                                        playFocus,
-                                    ) {
-                                        onPlay(PlayRequest(meta, video, videos, resume, mvm.settings.autoPlayFirst, resumePercent = p?.percent))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                PlayButton(playLabel, if (isSeries) progress.firstOrNull { it.videoId == nextUp.first?.id && !it.watched && it.position > 30_000 } else movieProgress, playFocus) { playMain() }
+                                Spacer(Modifier.width(8.dp))
+                                if (detail?.trailerYoutube != null) {
+                                    ZButton("Trailer", { trailerOpen = true })
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                IconAction(if (inLibrary) "✓" else "+", { mvm.toggleLibrary(meta, inLibrary) }, highlight = inLibrary)
+                                Spacer(Modifier.width(8.dp))
+                                if (!isSeries && movieProgress != null) {
+                                    IconAction("↺", { onPlay(PlayRequest(meta, null, emptyList(), 0, mvm.settings.autoPlayFirst)) })
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                IconAction("⋯", {
+                                    if (isSeries) {
+                                        nextUp.first?.let { v -> onPlay(PlayRequest(meta, v, videos, nextUp.second, autoPlay = false)) }
+                                    } else {
+                                        onPlay(PlayRequest(meta, null, emptyList(), movieProgress?.position ?: 0L, autoPlay = false))
                                     }
-                                    ZButton("Sources", { onPlay(PlayRequest(meta, video, videos, resume, autoPlay = false)) })
+                                })
+                                if (endsAt != null && !isSeries) {
+                                    Spacer(Modifier.width(16.dp))
+                                    Text("Ends at ${timeFormat.format(endsAt)}", color = ZappColors.Dim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                 }
-                            } else {
-                                val resume = movieProgress?.position ?: 0L
-                                PlayButton(if (movieProgress != null) "Resume" else "Play", movieProgress, playFocus) {
-                                    onPlay(PlayRequest(meta, null, emptyList(), resume, mvm.settings.autoPlayFirst, resumePercent = movieProgress?.percent))
+                                Spacer(Modifier.weight(1f))
+                                // A few of the cast, quietly, on the right.
+                                Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                                    detail?.people.orEmpty().take(2).forEach {
+                                        Text(it.name.uppercase(), color = ZappColors.Dim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.8.sp, maxLines = 1)
+                                    }
                                 }
-                                if (movieProgress != null) {
-                                    ZButton("Start over", { onPlay(PlayRequest(meta, null, emptyList(), 0, mvm.settings.autoPlayFirst)) })
-                                }
-                                ZButton("Sources", { onPlay(PlayRequest(meta, null, emptyList(), resume, autoPlay = false)) })
                             }
-                            ZButton(if (inLibrary) "✓  In library" else "+  Library", { mvm.toggleLibrary(meta, inLibrary) })
-                        }
-                        if (!done) {
-                            Spacer(Modifier.height(8.dp))
-                            Text("Loading details…", color = ZappColors.Faint, fontSize = 11.sp)
-                        }
-
-                        if (isSeries) {
-                            Spacer(Modifier.height(14.dp))
-                            SeasonButtons(videos, progress, seasonFocus) { openSeason = it }
+                            if (!done) {
+                                Spacer(Modifier.height(8.dp))
+                                Text("Loading details…", color = ZappColors.Faint, fontSize = 11.sp)
+                            }
                         }
                     }
 
+                    // ================================================= 2. episodes
+                    if (isSeries) {
+                        val episodes = videos.filter { season == null || it.season == season }
+                        val shown = focusedEpisode?.takeIf { it.season == season } ?: nextUp.first?.takeIf { it.season == season } ?: episodes.firstOrNull()
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(screenHeight)
+                                .onFocusChanged { if (it.hasFocus && section != 1) goTo(1) },
+                        ) {
+                            // The episode you're on.
+                            Column(Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 40.dp).widthIn(max = 600.dp)) {
+                                if (shown != null) {
+                                    Text(
+                                        "SEASON ${shown.season ?: 0}   ·   EPISODE ${shown.episode ?: 0}",
+                                        color = ZappColors.Brand2.copy(alpha = 0.9f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 2.2.sp,
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(shown.title.ifBlank { "Episode ${shown.episode}" }, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    shown.released?.take(10)?.let {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(it, color = ZappColors.Dim, fontSize = 12.sp)
+                                    }
+                                    shown.overview?.let {
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(it, color = Color(0xFFC9CCD6), fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                            }
+                            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 26.dp)) {
+                                // Season tabs.
+                                if (seasons.size > 1) {
+                                    MinimalScrolling {
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(horizontal = 50.dp)) {
+                                            items(seasons) { sn ->
+                                                FocusSurface(
+                                                    onClick = { season = sn },
+                                                    shape = RoundedCornerShape(50),
+                                                    focusScale = 1f,
+                                                ) { focused ->
+                                                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(
+                                                            seasonName(sn),
+                                                            fontSize = 13.sp,
+                                                            fontWeight = if (sn == season || focused) FontWeight.SemiBold else FontWeight.Medium,
+                                                            color = when {
+                                                                focused -> ZappColors.OnFocus
+                                                                sn == season -> ZappColors.Text
+                                                                else -> ZappColors.Faint
+                                                            },
+                                                        )
+                                                        if (sn == season) {
+                                                            Spacer(Modifier.width(6.dp))
+                                                            Text("${videos.count { it.season == sn }} episodes", fontSize = 11.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                } else {
+                                    Text(
+                                        (season?.let { seasonName(it) } ?: "Episodes") + "  ·  ${episodes.size} episodes",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(start = 56.dp, bottom = 10.dp),
+                                    )
+                                }
+                                // The thread: one dot per episode; watched ones filled, the one you're on bright.
+                                EpisodeThread(
+                                    count = episodes.size,
+                                    focusedIndex = episodes.indexOf(shown).coerceAtLeast(0),
+                                    watched = episodes.map { v -> progress.any { it.videoId == v.id && it.watched } },
+                                    modifier = Modifier.padding(horizontal = 56.dp).fillMaxWidth().height(18.dp),
+                                )
+                                Spacer(Modifier.height(10.dp))
+                                val memory = rememberFocusMemory()
+                                PivotScrolling(56.dp) {
+                                    LazyRow(
+                                        modifier = Modifier.restoreFocus(memory),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        contentPadding = PaddingValues(horizontal = 56.dp),
+                                        verticalAlignment = Alignment.Bottom,
+                                    ) {
+                                        items(episodes, key = { it.id }) { v ->
+                                            val p = progress.firstOrNull { it.videoId == v.id }
+                                            EpisodeCard(
+                                                v,
+                                                p,
+                                                Modifier.rememberFocus(memory, v.id),
+                                                upNext = v.id == nextUp.first?.id,
+                                                onFocus = { focusedEpisode = v },
+                                            ) { playEpisode(v) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
+
+                    // ================================================= 3. cast, credits and more
                     MoreSection(
                         mvm = mvm,
                         meta = meta,
                         detail = detail,
                         onOpen = onOpenTitle,
-                        modifier = Modifier.onFocusChanged {
-                            if (it.hasFocus) scope.launch { scroll.animateScrollTo(scroll.maxValue, tween(450)) }
-                        },
+                        modifier = Modifier.onFocusChanged { if (it.hasFocus && section != 2) goTo(2) },
                     )
                 }
             }
 
-            openSeason?.let { sn ->
-                EpisodesSheet(
-                    showName = meta.name,
-                    videos = videos,
-                    progress = progress,
-                    season = sn,
-                    onSeason = { openSeason = it },
-                    onPlay = { playEpisode(it) },
-                    onClose = {
-                        openSeason = null
-                        seasonFocus[sn]?.tryRequest()
-                    },
-                )
+            // Slim header over the last page, so you always know where you are.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = section == 2,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { -it / 2 },
+                exit = androidx.compose.animation.fadeOut(),
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(ZappColors.Bg, ZappColors.Bg.copy(alpha = 0.92f), Color.Transparent)))
+                        .padding(start = 56.dp, end = 48.dp, top = 22.dp, bottom = 22.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MovieTitle(meta.name, 22.sp, maxLines = 1, modifier = Modifier.widthIn(max = 360.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        if (isSeries) "${seasons.count { it > 0 }} seasons  ·  ${videos.size} episodes" else listOfNotNull(meta.releaseInfo, prettyRuntime(detail?.runtime)).joinToString("  ·  "),
+                        color = ZappColors.Dim,
+                        fontSize = 12.sp,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text("Up to go back", color = ZappColors.Faint, fontSize = 11.sp)
+                }
+            }
+        }
+
+        // Trailer with sound, full screen.
+        if (trailerOpen && detail?.trailerYoutube != null) {
+            BackHandler { trailerOpen = false }
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                ZappLoader(40.dp, Modifier.align(Alignment.Center))
+                TrailerBackground(detail.trailerYoutube, Modifier.fillMaxSize(), sound = true)
+                Text("Back to close", color = Color(0x99FFFFFF), fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp))
+            }
+        }
+    }
+}
+
+/** A line joining a season's episodes: watched ones filled, the one you're on larger and bright. */
+@Composable
+private fun EpisodeThread(count: Int, focusedIndex: Int, watched: List<Boolean>, modifier: Modifier) {
+    if (count <= 0) return
+    val a = ZappColors.Brand1
+    val b = ZappColors.Brand2
+    val faint = ZappColors.Line
+    androidx.compose.foundation.Canvas(modifier) {
+        val y = size.height / 2
+        val n = count.coerceAtMost(40)
+        val step = if (n > 1) size.width / (n - 1) else 0f
+        drawLine(faint, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), strokeWidth = 2f)
+        val lastWatched = watched.take(n).indexOfLast { it }
+        if (lastWatched > 0) {
+            drawLine(Brush.horizontalGradient(listOf(a, b)), androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(step * lastWatched, y), strokeWidth = 3f)
+        }
+        for (i in 0 until n) {
+            val x = if (n > 1) step * i else 0f
+            val c = androidx.compose.ui.geometry.Offset(x, y)
+            when {
+                i == focusedIndex -> {
+                    drawCircle(Color.White, radius = 7.dp.toPx(), center = c)
+                    drawCircle(ZappColors.Bg, radius = 4.dp.toPx(), center = c)
+                }
+                watched.getOrNull(i) == true -> drawCircle(b, radius = 4.dp.toPx(), center = c)
+                else -> {
+                    drawCircle(ZappColors.Bg, radius = 4.5.dp.toPx(), center = c)
+                    drawCircle(Color(0x88FFFFFF), radius = 4.5.dp.toPx(), center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                }
             }
         }
     }
 }
 
 /**
- * Below the first screen: more titles like this one (from your catalogues of the same kind that share
- * a genre) and the full details.
+ * The last page: cast (with photos when the add-on has them) beside the credits, then more like this.
  */
 @Composable
 private fun MoreSection(
@@ -325,25 +565,69 @@ private fun MoreSection(
     Column(
         modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 48.dp),
+            .padding(top = 86.dp, bottom = 40.dp),
     ) {
-        Text("Details", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 12.dp))
-        Row(Modifier.padding(horizontal = 56.dp), horizontalArrangement = Arrangement.spacedBy(48.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetailFact("Released", meta.releaseInfo)
-                DetailFact("Runtime", prettyRuntime(detail?.runtime))
-                DetailFact("Genres", meta.genres.joinToString(", ").ifBlank { null })
-                DetailFact("IMDb", meta.imdbRating?.let { "$it / 10" })
+        Row(Modifier.padding(horizontal = 56.dp)) {
+            // Cast.
+            Column(Modifier.weight(1.5f)) {
+                val people = detail?.people.orEmpty()
+                if (people.isNotEmpty()) {
+                    Text("Cast", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(12.dp))
+                    val memory = rememberFocusMemory()
+                    MinimalScrolling {
+                        LazyRow(modifier = Modifier.restoreFocus(memory), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(people, key = { it.name }) { person ->
+                                Column(Modifier.width(92.dp)) {
+                                    FocusSurface(
+                                        onClick = {},
+                                        modifier = Modifier
+                                            .rememberFocus(memory, person.name)
+                                            .fillMaxWidth()
+                                            .aspectRatio(0.78f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        focusScale = 1f,
+                                        restColor = ZappColors.Glass,
+                                        focusColor = ZappColors.Glass,
+                                        ring = true,
+                                        ringCorner = 12.dp,
+                                    ) {
+                                        if (person.photo != null) {
+                                            AsyncImage(model = person.photo, contentDescription = person.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                        } else {
+                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Text(person.name.split(' ').mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString(""), fontFamily = TitleFont, fontSize = 26.sp, color = ZappColors.Dim)
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(person.name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    person.role?.let { Text(it, fontSize = 10.5.sp, color = ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            Column(Modifier.weight(1.4f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                DetailFact("Directed by", detail?.directors?.joinToString(", ")?.ifBlank { null })
-                DetailFact("Cast", detail?.cast?.take(12)?.joinToString(", ")?.ifBlank { null })
-                DetailFact("About", meta.description)
+            Spacer(Modifier.width(36.dp))
+            // Credits, with dotted leaders.
+            Column(Modifier.weight(1f)) {
+                Text("Credits", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(12.dp))
+                CreditLine(if (meta.type == "series") "Created by" else "Directed by", (if (meta.type == "series") detail?.writers?.take(2) else detail?.directors?.take(2))?.joinToString(", ")?.ifBlank { null })
+                CreditLine("Written by", detail?.writers?.take(2)?.joinToString(", ")?.ifBlank { null }?.takeIf { meta.type != "series" })
+                CreditLine("Released", detail?.released?.take(10) ?: meta.releaseInfo)
+                CreditLine("Runtime", prettyRuntime(detail?.runtime))
+                CreditLine("Genres", meta.genres.take(3).joinToString(", ").ifBlank { null })
+                CreditLine("Country", detail?.country)
+                CreditLine("IMDb", meta.imdbRating?.let { "★ $it / 10" })
+                CreditLine("Awards", detail?.awards)
             }
         }
-        Spacer(Modifier.height(28.dp))
+
         if (similar.isNotEmpty()) {
-            Text("More like this", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
+            Spacer(Modifier.height(30.dp))
+            Text("More like this", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
             val memory = rememberFocusMemory()
             PivotScrolling(56.dp) {
                 LazyRow(
@@ -363,20 +647,24 @@ private fun MoreSection(
                     }
                 }
             }
-        } else {
-            // Something to land on, so the details above can still be reached.
-            Box(Modifier.padding(start = 56.dp)) { ZButton("Back to top", {}, style = ButtonStyle.Quiet) }
         }
     }
 }
 
 @Composable
-private fun DetailFact(label: String, value: String?) {
+private fun CreditLine(label: String, value: String?) {
     if (value.isNullOrBlank()) return
-    Column {
-        Text(label.uppercase(), color = ZappColors.Faint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp)
-        Spacer(Modifier.height(3.dp))
-        Text(value, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Bottom) {
+        Text(label.uppercase(), color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, maxLines = 1)
+        // Dotted leader between the label and the value.
+        androidx.compose.foundation.Canvas(Modifier.weight(1f).height(10.dp).padding(horizontal = 8.dp)) {
+            var x = 0f
+            while (x < size.width) {
+                drawCircle(Color(0x44FFFFFF), radius = 1f, center = androidx.compose.ui.geometry.Offset(x, size.height - 2f))
+                x += 6f
+            }
+        }
+        Text(value, color = ZappColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
     }
 }
 
@@ -442,209 +730,67 @@ private fun seasonsOf(videos: List<Video>): List<Int> =
 
 private fun seasonName(s: Int) = if (s == 0) "Specials" else "Season $s"
 
-/** One quiet button per season; choosing one opens its episodes. */
 @Composable
-private fun SeasonButtons(
-    videos: List<Video>,
-    progress: List<WatchProgress>,
-    requesters: HashMap<Int, FocusRequester>,
-    onOpen: (Int) -> Unit,
-) {
-    val seasons = remember(videos) { seasonsOf(videos) }
-    if (seasons.isEmpty()) return
-    MinimalScrolling {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 40.dp)) {
-            items(seasons) { sn ->
-                val eps = videos.filter { it.season == sn }
-                val watched = eps.count { v -> progress.any { it.videoId == v.id && it.watched } }
-                val r = requesters.getOrPut(sn) { FocusRequester() }
-                FocusSurface(
-                    onClick = { onOpen(sn) },
-                    focusRequester = r,
-                    shape = RoundedCornerShape(50),
-                    focusScale = 1.03f,
-                    restColor = Color.Transparent,
-                    modifier = Modifier.border(1.dp, Color(0x2EFFFFFF), RoundedCornerShape(50)),
-                ) { focused ->
-                    Row(Modifier.padding(horizontal = 14.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            seasonName(sn),
-                            color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (watched == eps.size && watched > 0) "Watched" else "${eps.size} ep",
-                            color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                            fontSize = 11.sp,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** A season's episodes over the details page: large cards, and the focused episode's story below. */
-@Composable
-private fun EpisodesSheet(
-    showName: String,
-    videos: List<Video>,
-    progress: List<WatchProgress>,
-    season: Int,
-    onSeason: (Int) -> Unit,
-    onPlay: (Video) -> Unit,
-    onClose: () -> Unit,
-) {
-    BackHandler(onBack = onClose)
-    val seasons = remember(videos) { seasonsOf(videos) }
-    val episodes = videos.filter { it.season == season }
-    var focusedEp by remember(season) { mutableStateOf(episodes.firstOrNull()) }
-    val first = remember(season) { FocusRequester() }
-    // Start on the episode to watch next in this season.
-    val startId = remember(season, progress) {
-        episodes.firstOrNull { v -> progress.any { it.videoId == v.id && !it.watched && it.position > 30_000 } }?.id
-            ?: episodes.firstOrNull { v -> progress.none { it.videoId == v.id && it.watched } }?.id
-            ?: episodes.firstOrNull()?.id
-    }
-    LaunchedEffect(season) {
-        kotlinx.coroutines.delay(60)
-        first.tryRequest()
-    }
-
-    Box(
-        Modifier
-            .fillMaxSize()
-            .trapFocus()
-            .background(ZappColors.Bg.copy(alpha = 0.94f)),
-    ) {
-        AmbientGlow(0.7f)
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 36.dp)) {
-            Text(showName.uppercase(), color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(start = 56.dp))
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.padding(start = 56.dp), verticalAlignment = Alignment.Bottom) {
-                MovieTitle(seasonName(season), 30.sp, maxLines = 1)
-                Spacer(Modifier.width(14.dp))
-                Text("${episodes.size} episodes", color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
-            }
-            if (seasons.size > 1) {
-                Spacer(Modifier.height(12.dp))
-                MinimalScrolling {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(horizontal = 50.dp),
-                    ) {
-                        items(seasons) { sn ->
-                            FocusSurface(
-                                onClick = { onSeason(sn) },
-                                shape = RoundedCornerShape(50),
-                                focusScale = 1f,
-                            ) { focused ->
-                                Text(
-                                    seasonName(sn),
-                                    color = when {
-                                        focused -> ZappColors.OnFocus
-                                        sn == season -> ZappColors.Text
-                                        else -> ZappColors.Faint
-                                    },
-                                    fontSize = 12.sp,
-                                    fontWeight = if (sn == season || focused) FontWeight.SemiBold else FontWeight.Medium,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            val memory = rememberFocusMemory()
-            PivotScrolling(56.dp) {
-                LazyRow(
-                    modifier = Modifier.restoreFocus(memory),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(horizontal = 56.dp),
-                ) {
-                    items(episodes, key = { it.id }) { v ->
-                        val p = progress.firstOrNull { it.videoId == v.id }
-                        val own = remember { FocusRequester() }
-                        EpisodeCard(
-                            v,
-                            p,
-                            Modifier
-                                .rememberFocus(memory, v.id)
-                                .focusRequester(if (v.id == startId) first else own),
-                            width = 210.dp,
-                            onFocus = { focusedEp = v },
-                        ) { onPlay(v) }
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Column(Modifier.padding(start = 56.dp).width(520.dp).height(66.dp)) {
-                focusedEp?.let { v ->
-                    Text(
-                        listOfNotNull(v.episode?.let { "Episode $it" }, v.title.takeIf { it.isNotBlank() }).joinToString("  ·  "),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    v.overview?.let {
-                        Spacer(Modifier.height(4.dp))
-                        Text(it, color = ZappColors.Dim, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, width: androidx.compose.ui.unit.Dp = 160.dp, onFocus: () -> Unit = {}, onClick: () -> Unit) {
-    Column(Modifier.width(width)) {
+private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    // The card you're on grows; the others stay compact.
+    val w by androidx.compose.animation.core.animateDpAsState(if (focused) 290.dp else 190.dp, androidx.compose.animation.core.tween(220), label = "epw")
+    Column(Modifier.width(w)) {
         FocusSurface(
             onClick = onClick,
-            onFocusChange = { if (it) onFocus() },
+            onFocusChange = {
+                focused = it
+                if (it) onFocus()
+            },
             modifier = modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f),
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(12.dp),
             focusScale = 1f,
             restColor = ZappColors.Glass,
             focusColor = ZappColors.Glass,
             ring = true,
-        ) { focused ->
+            ringCorner = 12.dp,
+        ) { f ->
             Artwork(v.thumbnail, shortLabel(v))
-            if (p != null) {
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to Color(0xAA000000))))
-                if (p.watched) {
-                    Box(
-                        Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(ZappColors.Bg.copy(alpha = 0.80f))
-                            .padding(horizontal = 7.dp, vertical = 2.dp),
-                    ) { Text("Watched", fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
-                } else {
-                    ProgressLine(
-                        (p.position.toFloat() / p.duration.coerceAtLeast(1)).coerceIn(0f, 1f),
-                        Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 8.dp).fillMaxWidth(),
-                        track = Color(0x66FFFFFF),
-                        fill = Color.White,
+            if (f) {
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
+                Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+                    Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        listOfNotNull(if (upNext) "Up next" else null, if (p?.watched == true) "Watched" else null, p?.takeIf { !it.watched && it.position > 30_000 }?.let { minutesLeft(it) }).joinToString("  ·  ").ifBlank { " " },
+                        fontSize = 11.sp,
+                        color = Color(0xCCFFFFFF),
                     )
                 }
             }
+            if (p != null && !p.watched && p.duration > 0) {
+                ProgressLine(
+                    (p.position.toFloat() / p.duration).coerceIn(0f, 1f),
+                    Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
+                    track = Color(0x55FFFFFF),
+                    fill = Color.White,
+                )
+            }
+            if (p?.watched == true && !f) {
+                Text(
+                    "✓",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(7.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(ZappColors.Bg.copy(alpha = 0.75f))
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                )
+            }
         }
-        Spacer(Modifier.height(7.dp))
-        Text(
-            (if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" },
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            color = ZappColors.Dim,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (!focused) {
+            Spacer(Modifier.height(6.dp))
+            Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (upNext) "Up next" else v.released?.take(10).orEmpty(), fontSize = 10.5.sp, color = if (upNext) ZappColors.Brand2 else ZappColors.Faint, maxLines = 1)
+        }
     }
 }

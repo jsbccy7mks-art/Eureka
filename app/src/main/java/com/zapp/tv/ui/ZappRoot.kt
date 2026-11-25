@@ -179,6 +179,7 @@ fun ZappRoot(vm: AppViewModel) {
             return
         }
         currentSourceKey = stream.url ?: stream.infoHash
+        if (!req.videoId.startsWith("catchup:")) mvm.rememberSource(req.meta.id, req.videoId, stream)
         val info = MediaInfo(
             videoId = req.videoId,
             metaId = req.meta.id,

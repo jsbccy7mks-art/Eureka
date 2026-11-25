@@ -121,12 +121,18 @@ fun SourcesOverlay(
     // Autoplay: wait briefly for the add-ons to answer, then take the first playable source.
     LaunchedEffect(autoPlay, finished, batches.size) {
         if (!autoPlay) return@LaunchedEffect
-        val preferred = request.preferBingeGroup?.let { g -> all.firstOrNull { canPlay(it) && it.bingeGroup == g } }
+        // Same source as last time first (when resuming, or the next episode of the same release),
+        // then the same "binge group" (a series' release), then the same add-on at the same quality.
+        val last = if (mvm.settings.sameSource) mvm.lastSource(request.meta.id) else null
+        val exact = last?.takeIf { it.videoId == request.videoId && it.key != null }?.let { l -> all.firstOrNull { canPlay(it) && (it.url ?: it.infoHash) == l.key } }
+        val group = (request.preferBingeGroup ?: last?.binge)?.let { g -> all.firstOrNull { canPlay(it) && it.bingeGroup == g } }
+        val preferred = exact ?: group
         val firstAddonDone = sorted.firstOrNull()?.addonName == order.firstOrNull { name -> addons.any { it.manifest.name == name && it.addon.enabled } }
         if (preferred != null) {
             pick(preferred)
         } else if (finished || firstAddonDone) {
-            all.firstOrNull { canPlay(it) }?.let { pick(it) } ?: run { autoPlay = false }
+            val style = last?.let { l -> all.firstOrNull { canPlay(it) && it.addonName == l.addon && it.qualityRank == l.quality } }
+            (style ?: all.firstOrNull { canPlay(it) })?.let { pick(it) } ?: run { autoPlay = false }
         }
     }
     LaunchedEffect(autoPlay) {
