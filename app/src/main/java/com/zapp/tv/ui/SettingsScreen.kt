@@ -853,6 +853,17 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
             )
         }
     }
+    if (linked != 0) {
+        SettingRow(
+            title = "Nuvio is the source for Continue watching",
+            body = "On: Continue watching shows exactly what Nuvio's does, in the same order. Titles only in Zapp are hidden from the row, not deleted.",
+            value = SettingValue.Toggle(nuvio.mirror(pid)),
+            onClick = {
+                nuvio.setMirror(pid, !nuvio.mirror(pid))
+                mvm.syncNuvio()
+            },
+        )
+    }
     SettingRow(
         title = "Disconnect Nuvio",
         body = "Stops syncing and signs Zapp out of Nuvio. What's already here stays.",

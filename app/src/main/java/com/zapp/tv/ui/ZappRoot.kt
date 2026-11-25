@@ -66,12 +66,12 @@ import kotlinx.coroutines.launch
 
 enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
+    Search("Search", Glyph.Search),
     Live("Live TV", Glyph.Live),
     Guide("TV guide", Glyph.Guide),
     Movies("Movies", Glyph.Movies),
     Series("Series", Glyph.Series),
     Library("Library", Glyph.Library),
-    Search("Search", Glyph.Search),
     Settings("Settings", Glyph.Settings),
 }
 
@@ -149,8 +149,12 @@ fun ZappRoot(vm: AppViewModel) {
         pinFor = null
         playback.stop()
         dest = Dest.Home
+        StartFocus.fresh = true
         requestContentFocus(250)
     }
+
+    NavShortcuts.search = { open(Dest.Search) }
+    NavShortcuts.settings = { open(Dest.Settings) }
 
     fun pickProfile(p: com.zapp.tv.data.Profile) {
         if (p.pin != null && p.id != mvm.settings.profileId) pinFor = p else useProfile(p)
@@ -437,6 +441,7 @@ fun ZappRoot(vm: AppViewModel) {
                 ready = { mvm.addons.value.isNotEmpty() },
                 onDone = {
                     launching = false
+                    StartFocus.fresh = true
                     requestContentFocus(0)
                 },
             )
@@ -575,6 +580,8 @@ private fun ScreenHeader(title: String, guideStatus: String?) {
             Text(guideStatus, color = ZappColors.Dim, fontSize = 12.sp)
             Spacer(Modifier.width(20.dp))
         }
+        HeaderShortcuts()
+        Spacer(Modifier.width(14.dp))
         Text(timeFormat.format(now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }
@@ -593,6 +600,8 @@ private fun Sidebar(
     onSelect: (Dest) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val scope = rememberCoroutineScope()
     val width by animateDpAsState(if (open) RailOpenWidth else RailWidth, tween(200), label = "rail")
     // The selection bar follows the title's colour too, so the sidebar matches the page.
     val sideTint by androidx.compose.animation.animateColorAsState(
@@ -624,6 +633,28 @@ private fun Sidebar(
             Modifier
                 .width(width)
                 .fillMaxHeight()
+                // The whole sidebar (destinations, Settings and the profile) opens while the remote
+                // is anywhere on it, and closes the moment focus leaves it.
+                .onFocusChanged {
+                    open = it.hasFocus
+                    onFocusChanged(it.hasFocus)
+                }
+                .focusProperties { enter = { railFocus } }
+                .onPreviewKeyEvent { e ->
+                    // Right goes back to where you were on the page. If the page can't take focus
+                    // (still loading), focus moves right anyway, so the sidebar always closes.
+                    if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionRight) {
+                        onRight()
+                        scope.launch {
+                            delay(220)
+                            if (open) focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+                .focusGroup()
                 .padding(start = 16.dp, end = 12.dp, top = 26.dp, bottom = 26.dp),
         ) {
             Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -633,26 +664,8 @@ private fun Sidebar(
                 }
             }
             Spacer(Modifier.weight(1f))
-            Column(
-                Modifier
-                    .onFocusChanged {
-                        open = it.hasFocus
-                        onFocusChanged(it.hasFocus)
-                    }
-                    .focusProperties { enter = { railFocus } }
-                    .onPreviewKeyEvent { e ->
-                        // Right always goes back to where you were on the page.
-                        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionRight) {
-                            onRight()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    .focusGroup(),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                dests.forEach { d ->
+            @Composable
+            fun Item(d: Dest) {
                     val selected = d == current
                     FocusSurface(
                         onClick = { onSelect(d) },
@@ -712,9 +725,16 @@ private fun Sidebar(
                             }
                         }
                     }
-                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                dests.filter { it != Dest.Settings }.forEach { Item(it) }
             }
             Spacer(Modifier.weight(1.3f))
+            // Settings stays at the bottom.
+            if (Dest.Settings in dests) {
+                Item(Dest.Settings)
+                Spacer(Modifier.height(6.dp))
+            }
             // Who's watching: tap to switch profile.
             if (profile != null) {
                 FocusSurface(

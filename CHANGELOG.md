@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.26.0
+
+**Fixed**
+- Live TV and the TV guide were blank: their background picture was taking up the whole page and
+  pushing everything off screen. It now sits behind the page.
+- The sidebar closes whenever focus leaves it (including from the profile button), and Right always
+  leaves it, back to where you were, even if the page is still loading.
+- Focus glow: one smooth, blurred halo (no more lines), and it's no longer cut off above and below.
+
+**New**
+- Search and Settings buttons beside the clock (press Up from the top of a page). In the sidebar,
+  Search sits under Home and Settings stays at the bottom.
+- Nuvio: "Nuvio is the source for Continue watching" (Settings, Accounts and sync, Nuvio) makes the
+  row show exactly what Nuvio's does, in the same order.
+
+**Changed**
+- Progress bars use your theme's colours everywhere, including the player's seek bar.
+- Continue watching and New episodes are always wide cards; New episodes shows "New · S2 E3"
+  bottom right, like the time left on Continue watching.
+- Zapp opens on the first Continue watching card (after the opening animation or choosing a profile).
+
 ## 0.25.0
 
 **New**

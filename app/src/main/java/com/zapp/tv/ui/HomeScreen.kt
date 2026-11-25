@@ -65,6 +65,11 @@ private data class HomeFocus(val rowKey: String, val itemKey: String)
 
 
 /** A long press on a card: options for its row (and for that title, in Continue watching). */
+/** Set when Zapp has just opened (or the profile changed): Home then starts on Continue watching. */
+object StartFocus {
+    var fresh = true
+}
+
 private data class RowOptions(val rowId: String, val progress: WatchProgress? = null, val meta: MetaPreview? = null)
 
 fun WatchProgress.asPreview() =
@@ -133,6 +138,7 @@ fun HomeScreen(
             else -> HomeFocus(first.id, "")
         }
         val target = when {
+            StartFocus.fresh && start != null -> start.also { StartFocus.fresh = false }
             tickChanged && lastFocus != null && moves > 1 -> lastFocus
             moves <= 1 -> start
             else -> null
@@ -193,7 +199,8 @@ fun HomeScreen(
                     items = items,
                     badges = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "New · ${it.second}" } else emptyMap(),
                     size = row.size,
-                    landscape = row.landscape,
+                    // New episodes is always wide, like Continue watching.
+                    landscape = row.landscape || row.id == NEW_EPISODES_ROW,
                     pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
                     onPendingDone = { pending = null },
                     onFocusItem = { meta ->
@@ -433,19 +440,15 @@ private fun MetaRow(
                         )
                         // Minimal: a small line of text over a soft shade at the bottom of the card.
                         badges[meta.id]?.let { b ->
-                            Box(
-                                Modifier
-                                    .matchParentSize()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to Color(0xCC000000))),
-                            )
+                            // Bottom right, like the time left on Continue watching (the logo is bottom left).
                             Text(
                                 b,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White,
                                 maxLines = 1,
-                                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                                style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1f), 4f)),
+                                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp),
                             )
                         }
                     }

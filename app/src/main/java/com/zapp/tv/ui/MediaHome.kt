@@ -396,7 +396,7 @@ fun RowOptionsDialog(
                                 ) { v -> onChange { it.copy(size = v.toInt()) } }
                             }
                         }
-                        if (row.id != CONTINUE_ROW) {
+                        if (row.id != CONTINUE_ROW && row.id != NEW_EPISODES_ROW) {
                             OptionLine("Cards") {
                                 Segmented(
                                     listOf("poster" to "Posters", "landscape" to "Landscape"),

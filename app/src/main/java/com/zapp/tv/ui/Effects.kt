@@ -14,10 +14,12 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -147,12 +149,40 @@ fun DialogBlurBehind() {
 // ---------------------------------------------------------------------------- clock
 
 /** Small clock (and avatar when there are profiles) for the top right of Home, Movies and Series. */
+/** Set by the app so headers can open Search and Settings. */
+object NavShortcuts {
+    var search: () -> Unit = {}
+    var settings: () -> Unit = {}
+}
+
+/** Small Search and Settings buttons beside the clock (Up from the top of a page reaches them). */
+@Composable
+fun HeaderShortcuts() {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(Glyph.Search to { NavShortcuts.search() }, Glyph.Settings to { NavShortcuts.settings() }).forEach { (g, go) ->
+            FocusSurface(
+                onClick = go,
+                modifier = Modifier.size(32.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                focusScale = 1.06f,
+                restColor = ZappColors.Glass,
+            ) { focused ->
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    GlyphIcon(g, if (focused) ZappColors.OnFocus else ZappColors.Dim, 16.dp)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ClockAndAvatar(mvm: MediaViewModel) {
     val now = rememberNow(15_000)
     val fmt = rememberTimeFormat()
     val profiles = mvm.profiles.value
     Row(verticalAlignment = Alignment.CenterVertically) {
+        HeaderShortcuts()
+        Spacer(Modifier.width(14.dp))
         Text(fmt.format(now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ZappColors.Text)
         val p = mvm.currentProfile
         if (p != null && profiles.size > 1) {

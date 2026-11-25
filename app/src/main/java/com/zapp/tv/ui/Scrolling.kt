@@ -82,12 +82,16 @@ fun MinimalScrolling(content: @Composable () -> Unit) {
 /** Hide everything above [line] (it stays laid out and focusable, just invisible). */
 fun Modifier.fadeAbove(line: Dp): Modifier = drawWithContent {
     // A plain clip: much cheaper than a blended mask, and a clean edge.
-    clipRect(top = line.toPx()) { this@drawWithContent.drawContent() }
+    // Only the top edge is cut; the sides and bottom are left open so focus glows aren't clipped.
+    val big = 200.dp.toPx()
+    clipRect(left = -big, top = line.toPx(), right = size.width + big, bottom = size.height + big) { this@drawWithContent.drawContent() }
 }
 
 /** Hide everything left of [line]. */
 fun Modifier.fadeLeftOf(line: Dp): Modifier = drawWithContent {
-    clipRect(left = line.toPx() - 3.dp.toPx()) { this@drawWithContent.drawContent() }
+    // Only the left edge is cut; above and below stay open so a focused card's glow isn't sliced off.
+    val big = 200.dp.toPx()
+    clipRect(left = line.toPx() - 3.dp.toPx(), top = -big, right = size.width + big, bottom = size.height + big) { this@drawWithContent.drawContent() }
 }
 
 /**

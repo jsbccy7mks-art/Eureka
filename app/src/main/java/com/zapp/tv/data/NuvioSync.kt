@@ -52,6 +52,10 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
     fun linkedProfile(pid: Long): Int = settings.acctLongFor(pid, "nuvioProfile").toInt()
     fun linkedProfileName(pid: Long) = settings.acctStrFor(pid, "nuvioProfileName")
     fun lastSync(pid: Long) = settings.acctLongFor(pid, "nuvioLastSync")
+    /** Continue watching shows exactly what Nuvio's does (titles only in Zapp are hidden, not deleted). */
+    fun mirror(pid: Long) = settings.acctLongFor(pid, "nuvioMirror") == 1L
+    fun setMirror(pid: Long, on: Boolean) = settings.setAcctLongFor(pid, "nuvioMirror", if (on) 1 else 0)
+
     fun pending(pid: Long): Int = synchronized(queueLock) { readQueue(pid).length() }
 
     private fun resetSyncState(pid: Long) {
@@ -411,6 +415,7 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
                 pullDeltas(pid, profile, counter)
                 s
             }
+            if (mirror(pid)) mirrorContinue(pid, profile, counter)
             settings.setAcctLongFor(pid, "nuvioLastSync", System.currentTimeMillis())
             Summary(counter.progress, counter.watched, counter.library, counter.removed, sent)
         }
@@ -498,6 +503,32 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
         settings.setAcctLongFor(pid, "nuvioCurLibrary", curLibrary)
         settings.setAcctLongFor(pid, "nuvioSeeded", 1)
         return sent
+    }
+
+    /**
+     * Nuvio as the source: everything in Nuvio's progress shows in Continue watching, in Nuvio's
+     * order (by when it was last watched); anything else unfinished is hidden from the row.
+     * Up next entries Zapp adds after an episode stay.
+     */
+    private suspend fun mirrorContinue(pid: Long, profile: Int, c: Counter) {
+        val remote = rpcArray(pid, "sync_pull_watch_progress", JSONObject().put("p_profile_id", profile))
+        val shown = HashMap<String, Long>()
+        for (i in 0 until remote.length()) {
+            val o = remote.optJSONObject(i) ?: continue
+            if (applyProgress(pid, o)) c.progress++
+            val ids = idsFrom(o.optString("content_id"), o.optString("content_type"), o.intOrNull("season"), o.intOrNull("episode")) ?: continue
+            shown[ids.videoId] = o.optLong("last_watched")
+        }
+        for (w in dao.allProgress(pid)) {
+            if (w.watched || (w.percent ?: 0.0) < 0) continue
+            val inNuvio = w.videoId in shown
+            if (!inNuvio && !w.hidden) {
+                dao.saveProgress(w.copy(hidden = true))
+                c.removed++
+            } else if (inNuvio && w.hidden) {
+                dao.saveProgress(w.copy(hidden = false))
+            }
+        }
     }
 
     private suspend fun pullDeltas(pid: Long, profile: Int, c: Counter) {

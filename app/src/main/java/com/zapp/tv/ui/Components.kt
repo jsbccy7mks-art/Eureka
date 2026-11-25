@@ -81,6 +81,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.google.zxing.BarcodeFormat
@@ -279,6 +282,8 @@ fun FocusSurface(
             }
             .focusable()
             .drawWithContent {
+                // The glow sits behind the card; the ring on top of it.
+                if (ring && ringAlpha > 0.01f) drawFocusGlow(ringCorner.toPx(), pulse.value, ringAlpha)
                 drawContent()
                 if (ring && ringAlpha > 0.01f) drawFocusRing(ringCorner.toPx(), pulse.value, ringAlpha)
             }
@@ -320,22 +325,46 @@ val LocalFocusPulse = androidx.compose.runtime.staticCompositionLocalOf<androidx
 }
 
 /** The theme-coloured ring around a focused card, with an optional soft pulsing glow outside it. */
-fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float, alpha: Float = 1f) {
-    val stroke = FocusStyle.ringWidth.dp.toPx()
-    if (FocusStyle.glow) {
-        val spread = 10.dp.toPx()
-        val steps = 5
+private val glowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+private var glowBlur: android.graphics.BlurMaskFilter? = null
+private var glowBlurRadius = 0f
+
+/** A soft, smooth halo in the theme colour behind the focused card, gently pulsing. */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusGlow(corner: Float, pulse: Float, alpha: Float = 1f) {
+    if (!FocusStyle.glow) return
+    val a = alpha * (0.42f + 0.30f * pulse)
+    if (android.os.Build.VERSION.SDK_INT >= 28) {
+        // One blurred shape: no steps or bands.
+        val r = 13.dp.toPx()
+        if (glowBlur == null || glowBlurRadius != r) {
+            glowBlur = android.graphics.BlurMaskFilter(r, android.graphics.BlurMaskFilter.Blur.NORMAL)
+            glowBlurRadius = r
+        }
+        val g = 1.dp.toPx()
+        glowPaint.maskFilter = glowBlur
+        glowPaint.color = androidx.compose.ui.graphics.lerp(ZappColors.Brand1, ZappColors.Brand2, 0.35f).copy(alpha = a).toArgb()
+        drawIntoCanvas { c ->
+            c.nativeCanvas.drawRoundRect(-g, -g, size.width + g, size.height + g, corner + g, corner + g, glowPaint)
+        }
+    } else {
+        // Older Android: many fine steps, which read as smooth.
+        val spread = 12.dp.toPx()
+        val steps = 16
         for (i in 1..steps) {
             val grow = spread * i / steps
             drawRoundRect(
-                color = ZappColors.Brand1.copy(alpha = alpha * (0.10f + 0.16f * pulse) * (1f - i / (steps + 1f))),
+                color = ZappColors.Brand1.copy(alpha = a * 0.22f * (1f - i / (steps + 1f))),
                 topLeft = Offset(-grow, -grow),
                 size = androidx.compose.ui.geometry.Size(size.width + grow * 2, size.height + grow * 2),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner + grow),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(spread / steps + 1f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(spread / steps + 0.6f),
             )
         }
     }
+}
+
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float, alpha: Float = 1f) {
+    val stroke = FocusStyle.ringWidth.dp.toPx()
     drawRoundRect(
         brush = Brush.linearGradient(listOf(ZappColors.Focus, ZappColors.Brand2.copy(alpha = 0.9f).compositeOverWhite())),
         topLeft = Offset(stroke / 2, stroke / 2),
@@ -547,7 +576,9 @@ fun LogoTile(
 }
 
 @Composable
-fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, track: Color = ZappColors.Line, fill: Color = ZappColors.Signal) {
+fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, track: Color = ZappColors.Line, fill: Color = Color.Unspecified) {
+    // No colour given: the theme's gradient, like the focus ring.
+    val brush = if (fill == Color.Unspecified) Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2)) else SolidColor(fill)
     Box(
         modifier
             .height(3.dp)
@@ -559,7 +590,7 @@ fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, track: Color = 
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
                 .height(3.dp)
                 .clip(RoundedCornerShape(50))
-                .background(fill),
+                .background(brush),
         )
     }
 }

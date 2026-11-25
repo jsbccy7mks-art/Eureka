@@ -476,7 +476,7 @@ internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 6.dp),
-                    fill = if (focused) Color.White else ZappColors.Signal,
+                    fill = Color.Unspecified,
                 )
                 // Intro, recap and credits marked on the bar.
                 if (markers.isNotEmpty()) {

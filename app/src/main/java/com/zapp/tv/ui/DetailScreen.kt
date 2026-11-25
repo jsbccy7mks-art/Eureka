@@ -1093,7 +1093,6 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
                     (p.position.toFloat() / p.duration).coerceIn(0f, 1f),
                     Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
                     track = Color(0x55FFFFFF),
-                    fill = Color.White,
                 )
             }
             if (p?.watched == true) {

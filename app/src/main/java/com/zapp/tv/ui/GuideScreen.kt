@@ -121,6 +121,8 @@ fun GuideScreen(
     val categoryName = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
 
     // The programme you're on, softly behind the page (only the top, above the grid).
+    // A Box, so the backdrop sits behind the page instead of taking up room above it.
+    Box(Modifier.fillMaxSize()) {
     SoftBackdrop(selection?.programme?.icon, strength = 0.35f)
 
     BoxWithConstraints(
@@ -226,6 +228,7 @@ fun GuideScreen(
                 }
             }
         }
+    }
     }
 }
 

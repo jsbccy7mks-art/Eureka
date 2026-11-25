@@ -266,7 +266,6 @@ fun ContinueCard(
                 .padding(horizontal = 12.dp, vertical = 5.dp)
                 .fillMaxWidth(),
             track = Color(0x40FFFFFF),
-            fill = Color.White,
         )
     }
 }
