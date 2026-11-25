@@ -20,6 +20,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -81,12 +82,12 @@ fun MinimalScrolling(content: @Composable () -> Unit) {
 /** Hide everything above [line] (it stays laid out and focusable, just invisible). */
 fun Modifier.fadeAbove(line: Dp): Modifier = drawWithContent {
     // A plain clip: much cheaper than a blended mask, and a clean edge.
-    androidx.compose.ui.graphics.drawscope.clipRect(top = line.toPx()) { this@drawWithContent.drawContent() }
+    clipRect(top = line.toPx()) { this@drawWithContent.drawContent() }
 }
 
 /** Hide everything left of [line]. */
 fun Modifier.fadeLeftOf(line: Dp): Modifier = drawWithContent {
-    androidx.compose.ui.graphics.drawscope.clipRect(left = line.toPx() - 3.dp.toPx()) { this@drawWithContent.drawContent() }
+    clipRect(left = line.toPx() - 3.dp.toPx()) { this@drawWithContent.drawContent() }
 }
 
 /**
