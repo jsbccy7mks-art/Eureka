@@ -51,7 +51,13 @@ import com.zapp.tv.data.TYPE_XTREAM
 // ---------------------------------------------------------------------------- phone setup card
 
 @Composable
-fun PhoneSetupCard(vm: AppViewModel, qrSize: Int, modifier: Modifier = Modifier) {
+fun PhoneSetupCard(
+    vm: AppViewModel,
+    qrSize: Int,
+    modifier: Modifier = Modifier,
+    path: String = "/",
+    caption: String = "Scan with your phone camera",
+) {
     DisposableEffect(Unit) {
         vm.startSetup()
         onDispose { vm.stopSetup() }
@@ -61,12 +67,12 @@ fun PhoneSetupCard(vm: AppViewModel, qrSize: Int, modifier: Modifier = Modifier)
 
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (address != null) {
-            QrCode("http://$address/?t=${vm.setupServer.token}", qrSize.dp)
+            QrCode("http://$address$path?t=${vm.setupServer.token}", qrSize.dp)
             Spacer(Modifier.height(14.dp))
-            Text("Scan with your phone camera", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text(
-                "Or open $address and enter code ${vm.setupServer.token}",
+                if (path == "/") "Or open $address and enter code ${vm.setupServer.token}" else "Same Wi-Fi as the TV",
                 color = ZappColors.Dim,
                 fontSize = 11.5.sp,
             )

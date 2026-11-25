@@ -95,6 +95,22 @@ data class Programme(
     val icon: String? = null,
 )
 
+/**
+ * Guide rows being downloaded. They are swapped into [Programme] in one step at the end, so
+ * channel lists don't reload over and over while a big guide is coming in.
+ */
+@Entity(tableName = "programmes_staging")
+data class StagedProgramme(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val playlistId: Long,
+    val channelEpgId: String,
+    val start: Long,
+    val stop: Long,
+    val title: String,
+    val description: String?,
+    val icon: String?,
+)
+
 /** Favourites are keyed by stream link, which stays the same when a playlist is refreshed. */
 @Entity(
     tableName = "favorites",

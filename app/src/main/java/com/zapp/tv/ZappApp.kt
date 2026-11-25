@@ -2,6 +2,7 @@ package com.zapp.tv
 
 import android.app.Application
 import com.zapp.tv.data.AppDatabase
+import com.zapp.tv.data.CrashReporter
 import com.zapp.tv.data.PlaylistRepository
 import com.zapp.tv.data.Settings
 import com.zapp.tv.data.Updater
@@ -9,6 +10,11 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
 class ZappApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        CrashReporter.install(this, "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
+    }
+
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

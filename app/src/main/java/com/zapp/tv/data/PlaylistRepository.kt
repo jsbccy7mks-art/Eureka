@@ -324,7 +324,7 @@ class PlaylistRepository(
             logins.remove(playlistId)
             db.withTransaction {
                 db.programmeDao().deleteForPlaylist(playlistId)
-                db.programmeDao().deleteForPlaylist(-playlistId)
+                db.programmeDao().clearStaging(playlistId)
                 db.favoriteDao().deleteForPlaylist(playlistId)
                 db.recentDao().deleteForPlaylist(playlistId)
                 db.playlistDao().delete(playlistId) // categories and channels cascade
@@ -449,8 +449,8 @@ class PlaylistRepository(
      * Downloads and stores the guide for one playlist. Returns the number of programmes stored,
      * or -1 when the playlist has no guide link.
      *
-     * New rows are written under a temporary negative playlist id and swapped in at the end,
-     * so the old guide stays visible while the new one downloads.
+     * New rows go into a separate staging table and are swapped in with one transaction at the end:
+     * the old guide stays visible meanwhile, and open channel lists only reload once.
      */
     suspend fun refreshGuide(playlistId: Long): Int = guideLock.withLock {
         withContext(Dispatchers.IO) {
@@ -460,9 +460,8 @@ class PlaylistRepository(
             val now = System.currentTimeMillis()
             val from = now - 3 * HOUR
             val to = now + 48 * HOUR
-            val staging = -playlistId
             val programmeDao = db.programmeDao()
-            programmeDao.deleteForPlaylist(staging)
+            programmeDao.clearStaging(playlistId)
 
             // Guide ids are matched without regard to case; programmes are stored under the channel's own spelling.
             val canonical = HashMap<String, String>()
@@ -473,12 +472,12 @@ class PlaylistRepository(
                 if (key.isNotEmpty()) unmatched.getOrPut(key) { ArrayList() }.add(c.id)
             }
             val newMappings = HashMap<Long, String>()
-            val batch = ArrayList<Programme>(2000)
+            val batch = ArrayList<StagedProgramme>(2000)
             var total = 0
 
             fun flush() {
                 if (batch.isEmpty()) return
-                programmeDao.insertBlocking(ArrayList(batch))
+                programmeDao.insertStagingBlocking(ArrayList(batch))
                 total += batch.size
                 batch.clear()
             }
@@ -512,8 +511,8 @@ class PlaylistRepository(
                                 val target = if (stop > from && start < to) canonical[channel.lowercase()] else null
                                 if (target != null) {
                                     batch.add(
-                                        Programme(
-                                            playlistId = staging,
+                                        StagedProgramme(
+                                            playlistId = playlistId,
                                             channelEpgId = target,
                                             start = start,
                                             stop = stop,
@@ -530,18 +529,19 @@ class PlaylistRepository(
                 }
                 flush()
             } catch (e: Exception) {
-                programmeDao.deleteForPlaylist(staging)
+                programmeDao.clearStaging(playlistId)
                 throw e
             }
 
             if (total == 0) {
-                programmeDao.deleteForPlaylist(staging)
+                programmeDao.clearStaging(playlistId)
                 error("The guide downloaded, but none of its channels match this playlist.")
             }
 
             db.withTransaction {
                 programmeDao.deleteForPlaylist(playlistId)
-                programmeDao.movePlaylist(staging, playlistId)
+                programmeDao.promoteStaging(playlistId)
+                programmeDao.clearStaging(playlistId)
                 newMappings.forEach { (channelId, epgId) -> db.channelDao().setEpgId(channelId, epgId) }
                 programmeDao.deleteEndedBefore(now - 6 * HOUR)
                 db.playlistDao().setEpgUpdated(playlistId, System.currentTimeMillis())

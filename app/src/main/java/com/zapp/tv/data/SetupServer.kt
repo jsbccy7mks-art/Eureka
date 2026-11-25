@@ -35,6 +35,7 @@ class SetupServer(private val context: Context, private val handler: Handler) {
     interface Handler {
         suspend fun playlistsForPhone(): JSONArray
         suspend fun addFromPhone(body: JSONObject): String
+        fun crashReport(): String?
     }
 
     val token: String = (1..6).map { ALPHABET.random() }.joinToString("")
@@ -144,6 +145,14 @@ class SetupServer(private val context: Context, private val handler: Handler) {
                     method == "GET" && (path == "/" || path == "/index.html") ->
                         respond(out, 200, "text/html; charset=utf-8", page)
 
+                    path == "/crash" -> {
+                        if (query["t"]?.trim()?.uppercase() != token) {
+                            respond(out, 403, "text/plain; charset=utf-8", "Scan the code on your TV again.".toByteArray())
+                            return
+                        }
+                        respond(out, 200, "text/html; charset=utf-8", crashPage(handler.crashReport()).toByteArray(Charsets.UTF_8))
+                    }
+
                     path == "/api/playlists" -> {
                         if (query["t"]?.trim()?.uppercase() != token) {
                             respondJson(out, 403, error("That code doesn't match. Check the code on your TV."))
@@ -186,6 +195,19 @@ class SetupServer(private val context: Context, private val handler: Handler) {
     }
 
     private fun error(message: String) = JSONObject().put("ok", false).put("error", message)
+
+    private fun crashPage(report: String?): String {
+        val body = (report ?: "No crash report saved. Zapp hasn't closed unexpectedly since the report was last cleared.")
+            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return """<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Zapp crash report</title>
+<style>body{margin:0;padding:18px;background:#0A0E1A;color:#EDF1FA;font:15px -apple-system,Segoe UI,Roboto,sans-serif}
+h1{font-size:20px}p{color:#94A0BD}pre{white-space:pre-wrap;word-break:break-word;background:#121A2C;padding:12px;border-radius:12px;font-size:12px}
+button{width:100%;padding:14px;border:0;border-radius:12px;font:inherit;font-weight:700;color:#fff;background:linear-gradient(135deg,#7A5CFF,#2FD3F0)}</style>
+</head><body><h1>Zapp crash report</h1><p>Copy this and paste it into your chat about the app. Logins have been removed.</p>
+<button onclick="navigator.clipboard.writeText(document.getElementById('r').innerText).then(()=>{this.textContent='Copied'})">Copy report</button>
+<pre id="r">$body</pre></body></html>"""
+    }
 
     private fun readHead(input: InputStream): String? {
         val buffer = ByteArrayOutputStream()

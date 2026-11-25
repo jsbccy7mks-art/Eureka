@@ -232,6 +232,34 @@ private fun AboutPane(vm: AppViewModel) {
                 }
             }
         }
+        val crash = vm.lastCrash
+        if (crash != null) {
+            Spacer(Modifier.height(18.dp))
+            Panel(Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PhoneSetupCard(vm, qrSize = 110, modifier = Modifier.width(150.dp), path = "/crash", caption = "Open on your phone")
+                    Spacer(Modifier.width(20.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Zapp closed unexpectedly", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            crash.lineSequence().drop(5).firstOrNull { it.isNotBlank() }?.take(160) ?: "",
+                            color = ZappColors.Dim,
+                            fontSize = 11.sp,
+                            maxLines = 3,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Scan the code to open the full report on your phone, then copy it into your chat about the app.",
+                            color = ZappColors.Faint,
+                            fontSize = 11.sp,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ZButton("Clear report", { vm.clearCrash() }, style = ButtonStyle.Quiet)
+                    }
+                }
+            }
+        }
         Spacer(Modifier.height(18.dp))
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {

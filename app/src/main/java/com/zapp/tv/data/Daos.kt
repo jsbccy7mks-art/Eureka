@@ -240,7 +240,17 @@ interface ProgrammeDao {
 
     /** Blocking on purpose: called from the streaming guide parser on a background thread. */
     @Insert
-    fun insertBlocking(items: List<Programme>)
+    fun insertStagingBlocking(items: List<StagedProgramme>)
+
+    @Query("DELETE FROM programmes_staging WHERE playlistId = :playlistId")
+    suspend fun clearStaging(playlistId: Long)
+
+    @Query(
+        "INSERT INTO programmes (playlistId, channelEpgId, start, stop, title, description, icon) " +
+            "SELECT playlistId, channelEpgId, start, stop, title, description, icon " +
+            "FROM programmes_staging WHERE playlistId = :playlistId",
+    )
+    suspend fun promoteStaging(playlistId: Long)
 
     @Query("DELETE FROM programmes WHERE playlistId = :playlistId")
     suspend fun deleteForPlaylist(playlistId: Long)

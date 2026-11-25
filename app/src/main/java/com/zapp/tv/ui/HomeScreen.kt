@@ -137,7 +137,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         contentPadding = PaddingValues(horizontal = 40.dp),
                     ) {
-                        items(row.items, key = { it.channel.playlistId.toString() + "|" + it.channel.streamUrl }) { item ->
+                        items(row.items, key = { it.channel.id }) { item ->
                             val requester = remember { FocusRequester() }
                             val p = pending
                             if (p != null && p.rowKey == row.key && p.streamUrl == item.channel.streamUrl) {

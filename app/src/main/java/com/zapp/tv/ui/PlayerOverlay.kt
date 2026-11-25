@@ -59,7 +59,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.itemKey
 import com.zapp.tv.data.Channel
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.Programme
@@ -413,7 +412,7 @@ private fun ChannelListPanel(
             verticalArrangement = Arrangement.spacedBy(3.dp),
             contentPadding = PaddingValues(vertical = 4.dp),
         ) {
-            items(count = rows.itemCount, key = rows.itemKey { it.channel.id }) { index ->
+            items(count = rows.itemCount, key = { it }) { index ->
                 val row = rows[index]
                 if (row == null) {
                     Spacer(

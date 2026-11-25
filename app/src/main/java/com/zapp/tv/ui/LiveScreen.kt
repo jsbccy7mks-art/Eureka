@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.FAVORITES
 import com.zapp.tv.data.RECENT
@@ -218,35 +217,32 @@ fun LiveScreen(
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
                 ) {
-                    items(count = rows.itemCount, key = rows.itemKey { it.channel.id }) { index ->
+                    // Keyed by position, and a row that is still loading is the same focusable element
+                    // as a loaded one: when the list reloads (for example as the guide updates),
+                    // the item under the remote is never removed from the screen.
+                    items(count = rows.itemCount, key = { it }) { index ->
                         val row = rows[index]
-                        if (row == null) {
-                            Spacer(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(RowHeight),
-                            )
-                        } else {
-                            val focusRequester = remember { FocusRequester() }
-                            if (row.channel.streamUrl == pendingFocusUrl) {
-                                LaunchedEffect(Unit) {
-                                    focusRequester.tryRequest()
-                                    pendingFocusUrl = null
-                                }
+                        val focusRequester = remember { FocusRequester() }
+                        if (row != null && row.channel.streamUrl == pendingFocusUrl) {
+                            LaunchedEffect(Unit) {
+                                focusRequester.tryRequest()
+                                pendingFocusUrl = null
                             }
-                            ChannelItem(
-                                row = row,
-                                playing = playback.isOn(row.channel),
-                                now = now,
-                                focusRequester = focusRequester,
-                                onFocus = {
+                        }
+                        ChannelItem(
+                            row = row,
+                            playing = row != null && playback.isOn(row.channel),
+                            now = now,
+                            focusRequester = focusRequester,
+                            onFocus = {
+                                if (row != null) {
                                     focusedRow = row
                                     vm.lastChannelUrl = row.channel.streamUrl
-                                },
-                                onClick = { onWatch(row) },
-                                onLongClick = { vm.toggleFavorite(row.channel) },
-                            )
-                        }
+                                }
+                            },
+                            onClick = { if (row != null) onWatch(row) },
+                            onLongClick = { if (row != null) vm.toggleFavorite(row.channel) },
+                        )
                     }
                 }
 
@@ -339,7 +335,7 @@ private fun CategoryItemRow(
 
 @Composable
 private fun ChannelItem(
-    row: ChannelRow,
+    row: ChannelRow?,
     playing: Boolean,
     now: Long,
     focusRequester: FocusRequester,
@@ -358,6 +354,7 @@ private fun ChannelItem(
         shape = RoundedCornerShape(11.dp),
         focusScale = 1.025f,
     ) { focused ->
+        if (row == null) return@FocusSurface
         Row(
             Modifier
                 .fillMaxSize()

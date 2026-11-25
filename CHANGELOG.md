@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.1 (crash fix)
+
+**Fixed**
+- Likely cause of the app closing while the TV guide updates and you scroll categories or channels:
+  guide downloads now go into a separate staging table and are swapped in at the end, so open
+  channel lists reload once instead of every few seconds. Channel rows also stay the same on-screen
+  element while they reload, so the item under the remote is never removed.
+- Home rows use unique keys even when an M3U playlist lists the same stream twice.
+
+**New**
+- Crash reports: if Zapp closes unexpectedly, the error is saved (with logins removed). Settings,
+  Updates and about shows it with a QR code that opens the full report on your phone to copy.
+
+**Changed**
+- Database version 5 (adds the staging table and clears leftovers of the old guide method).
+
 ## 0.4.0 (Stage 2: Live TV and guide)
 
 **New**

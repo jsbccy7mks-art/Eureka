@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class],
-    version = 4,
+    entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class, StagedProgramme::class],
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -68,9 +68,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** 0.4.0 -> 0.4.1: separate table for guide downloads; clears leftovers of the old method. */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `programmes_staging` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`playlistId` INTEGER NOT NULL, `channelEpgId` TEXT NOT NULL, `start` INTEGER NOT NULL, " +
+                        "`stop` INTEGER NOT NULL, `title` TEXT NOT NULL, `description` TEXT, `icon` TEXT)",
+                )
+                db.execSQL("DELETE FROM `programmes` WHERE `playlistId` < 0")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "zapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
     }
