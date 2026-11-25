@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 (Nuvio import)
+
+**New**
+- Import add-ons from Nuvio (Settings, Accounts and sync). Zapp reads the add-on list from Nuvio TV's own
+  "Manage from phone" page while it's open (on this TV, or another device by address) and installs them
+  with their settings. Watch history, progress and library come across through Simkl.
+
 ## 0.8.0 (debrid services)
 
 **New**

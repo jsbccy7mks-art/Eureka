@@ -39,6 +39,7 @@ data class StreamBatch(val addonName: String, val streams: List<StreamItem>, val
 class MediaRepository(private val db: AppDatabase, http: OkHttpClient) {
 
     val client = AddonClient(http)
+    val nuvio = NuvioImport(http)
     private val dao = db.mediaDao()
     private val catalogCache = ConcurrentHashMap<String, Pair<Long, List<MetaPreview>>>()
     private val metaCache = ConcurrentHashMap<String, MetaDetail>()

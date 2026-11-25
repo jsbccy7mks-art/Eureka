@@ -178,6 +178,59 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ------------------------------------------------------------ Nuvio import
+
+    var nuvioStatus by mutableStateOf<String?>(null)
+        private set
+    var nuvioWorking by mutableStateOf(false)
+        private set
+
+    /** Copies add-ons from Nuvio TV's "Manage from phone" page into Zapp, skipping ones already here. */
+    fun importFromNuvio(otherDevice: String?) {
+        if (nuvioWorking) return
+        nuvioWorking = true
+        nuvioStatus = "Looking for Nuvio…"
+        viewModelScope.launch {
+            try {
+                val found = repo.nuvio.find(otherDevice)
+                if (found == null) {
+                    nuvioStatus = "Couldn't find Nuvio's add-on page. In Nuvio, open Add-ons and choose Manage from phone, " +
+                        "then press Home (don't close it) and try again."
+                    return@launch
+                }
+                if (found.addons.isEmpty()) {
+                    nuvioStatus = "Found Nuvio, but it has no add-ons to bring over."
+                    return@launch
+                }
+                val added = ArrayList<String>()
+                val skipped = ArrayList<String>()
+                val failed = ArrayList<String>()
+                for ((url, name) in found.addons) {
+                    nuvioStatus = "Adding $name…"
+                    try {
+                        repo.addAddon(url)
+                        added.add(name)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        if (e.message?.contains("already installed") == true) skipped.add(name) else failed.add(name)
+                    }
+                }
+                nuvioStatus = buildString {
+                    append(if (added.isEmpty()) "Nothing new to add." else "Brought over ${added.size}: ${added.joinToString(", ")}.")
+                    if (skipped.isNotEmpty()) append(" Already here: ${skipped.size}.")
+                    if (failed.isNotEmpty()) append(" Couldn't add: ${failed.joinToString(", ")}.")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                nuvioStatus = e.message ?: "Something went wrong reading Nuvio's list."
+            } finally {
+                nuvioWorking = false
+            }
+        }
+    }
+
     // ------------------------------------------------------------ debrid services
 
     sealed interface DebridSignIn {

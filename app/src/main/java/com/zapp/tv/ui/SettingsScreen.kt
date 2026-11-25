@@ -653,8 +653,37 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
+        NuvioSection(mvm)
+        Spacer(Modifier.height(16.dp))
         DebridSection(vm, mvm)
     }
+}
+
+@Composable
+private fun NuvioSection(mvm: MediaViewModel) {
+    var otherDevice by remember { mutableStateOf("") }
+    Text("Bring over from Nuvio", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+    Text(
+        "Add-ons: in Nuvio TV open Add-ons, choose Manage from phone, then press Home (leave it open), " +
+            "come back here and press Import. Watch history, progress and library come across through Simkl above.",
+        color = ZappColors.Dim,
+        fontSize = 12.sp,
+        lineHeight = 17.sp,
+    )
+    SettingRow(
+        title = "Import add-ons from Nuvio",
+        body = mvm.nuvioStatus ?: "Copies your Nuvio add-ons, with their settings, into Zapp.",
+        value = SettingValue.Choice(if (mvm.nuvioWorking) "Working…" else "Import"),
+        onClick = { mvm.importFromNuvio(otherDevice.ifBlank { null }) },
+    )
+    TvTextField(
+        label = "Nuvio on another device? Its address (optional)",
+        value = otherDevice,
+        onValueChange = { otherDevice = it },
+        placeholder = "The address shown under Nuvio's QR code, like 192.168.1.20:8080",
+        keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+        last = true,
+    )
 }
 
 @Composable
