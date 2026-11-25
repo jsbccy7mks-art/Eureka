@@ -90,36 +90,41 @@ fun PosterCard(
             if (landscape && meta.posterShape != "landscape") {
                 Artwork(meta.background ?: meta.poster, meta.name)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
-                Box(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                // Ranked cards keep the title tiny in the bottom right, out of the number's way.
+                Box(Modifier.align(if (rank != null) Alignment.BottomEnd else Alignment.BottomStart).padding(if (rank != null) 8.dp else 10.dp)) {
                     if (meta.logo != null) {
                         AsyncImage(
                             model = meta.logo,
                             contentDescription = meta.name,
                             contentScale = ContentScale.Fit,
-                            alignment = Alignment.BottomStart,
-                            modifier = Modifier.heightIn(max = w * 0.18f).widthIn(max = w * 0.6f),
+                            alignment = if (rank != null) Alignment.BottomEnd else Alignment.BottomStart,
+                            modifier = if (rank != null) Modifier.heightIn(max = w * 0.09f).widthIn(max = w * 0.3f) else Modifier.heightIn(max = w * 0.18f).widthIn(max = w * 0.6f),
                         )
                     } else {
-                        Text(meta.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Color.White)
+                        Text(
+                            meta.name,
+                            fontSize = if (rank != null) 9.5.sp else 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = if (rank != null) 1 else 2,
+                            overflow = TextOverflow.Ellipsis,
+                            color = Color.White,
+                            modifier = if (rank != null) Modifier.widthIn(max = w * 0.4f) else Modifier,
+                        )
                     }
                 }
             } else {
                 Artwork(meta.poster, meta.name)
             }
             if (rank != null) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Brush.horizontalGradient(0f to Color(0xCC000000), 0.45f to Color(0x33000000), 0.7f to Color.Transparent)),
-                )
+                // Minimal: a small number on the left, with just a soft drop shadow.
                 Text(
                     rank.toString(),
                     style = androidx.compose.ui.text.TextStyle(
                         fontFamily = TitleFont,
-                        fontSize = (w.value * 0.36f).sp,
-                        lineHeight = (w.value * 0.36f).sp,
-                        brush = Brush.verticalGradient(listOf(Color.White, Color.White.copy(alpha = 0.35f))),
-                        shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 4f), 14f),
+                        fontSize = 26.sp,
+                        lineHeight = 26.sp,
+                        color = Color.White,
+                        shadow = androidx.compose.ui.graphics.Shadow(Color(0xB3000000), androidx.compose.ui.geometry.Offset(0f, 2f), 6f),
                     ),
                     maxLines = 1,
                     modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp),

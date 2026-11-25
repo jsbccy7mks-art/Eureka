@@ -165,10 +165,12 @@ fun ClockAndAvatar(mvm: MediaViewModel) {
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier) {
+fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false) {
     var playing by remember(youtubeId) { mutableStateOf(false) }
     val alpha by animateFloatAsState(if (playing) 1f else 0f, tween(900), label = "trailer")
-    val html = remember(youtubeId) {
+    val html = remember(youtubeId, sound) {
+        val muteFlag = if (sound) 0 else 1
+        val onReady = if (sound) "e.target.unMute();e.target.setVolume(70);" else "e.target.mute();"
         val id = youtubeId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }
         """
         <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -179,9 +181,9 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier) {
         <script>
         function onYouTubeIframeAPIReady(){
           new YT.Player('p',{videoId:'$id',width:'100%',height:'100%',
-            playerVars:{autoplay:1,mute:1,controls:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4},
+            playerVars:{autoplay:1,mute:$muteFlag,controls:0,loop:1,playlist:'$id',modestbranding:1,playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0,start:4},
             events:{
-              onReady:function(e){e.target.mute();e.target.playVideo();},
+              onReady:function(e){${onReady}e.target.playVideo();},
               onStateChange:function(e){ if(e.data==1){Zapp.playing();} if(e.data==0){Zapp.stopped();} },
               onError:function(){Zapp.stopped();}
             }});
@@ -226,13 +228,13 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier) {
 
 /** Shows [TrailerBackground] once the same title has been on screen for a moment. */
 @Composable
-fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier, waitMs: Long = 4_000) {
+fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier) {
     var show by remember(key) { mutableStateOf(false) }
-    LaunchedEffect(key, youtubeId, FocusStyle.trailers) {
+    LaunchedEffect(key, youtubeId, FocusStyle.trailers, FocusStyle.trailerDelay) {
         show = false
         if (youtubeId == null || !FocusStyle.trailers) return@LaunchedEffect
-        delay(waitMs)
+        delay(FocusStyle.trailerDelay * 1_000L)
         show = true
     }
-    if (show && youtubeId != null) TrailerBackground(youtubeId, modifier)
+    if (show && youtubeId != null) TrailerBackground(youtubeId, modifier, sound = FocusStyle.trailerSound)
 }

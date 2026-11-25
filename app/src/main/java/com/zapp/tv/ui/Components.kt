@@ -306,6 +306,10 @@ object FocusStyle {
     var trailers by mutableStateOf(true)
     /** Slow zoom and pan on artwork. */
     var drift by mutableStateOf(true)
+    /** Seconds on a title before its trailer starts. */
+    var trailerDelay by mutableStateOf(4)
+    /** Trailers with sound. */
+    var trailerSound by mutableStateOf(false)
 }
 
 /** One shared, slow pulse (0..1) for the focus glow, so cards don't each run an animation. */

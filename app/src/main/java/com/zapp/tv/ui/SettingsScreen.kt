@@ -2,6 +2,7 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.border
@@ -86,10 +87,19 @@ fun SettingsScreen(
     val sectionMemory = rememberFocusMemory()
     var handledTick by remember { mutableIntStateOf(focusTick) }
 
+    var hasFocusInside by remember { mutableStateOf(false) }
+    val firstItem = remember { FocusRequester() }
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
         handledTick = focusTick
-        firstFocus.tryRequest()
+        // The list may still be settling in; keep trying briefly so focus leaves the sidebar.
+        repeat(8) {
+            if (hasFocusInside) return@LaunchedEffect
+            firstFocus.tryRequest()
+            delay(60)
+            if (!hasFocusInside) firstItem.tryRequest()
+            delay(60)
+        }
     }
     LaunchedEffect(focusedSection) {
         val s = focusedSection ?: return@LaunchedEffect
@@ -101,6 +111,7 @@ fun SettingsScreen(
     Row(
         Modifier
             .fillMaxSize()
+            .onFocusChanged { hasFocusInside = it.hasFocus }
             .padding(start = 28.dp, end = 36.dp, top = 28.dp, bottom = 20.dp),
     ) {
         Column(Modifier.width(210.dp)) {
@@ -117,7 +128,7 @@ fun SettingsScreen(
                             .rememberFocus(sectionMemory, s.name)
                             .fillMaxWidth(),
                         selected = s == section,
-                        focusRequester = if (s == section) firstFocus else null,
+                        focusRequester = if (s == section) firstFocus else if (s == SettingsSection.entries.first()) firstItem else null,
                         onFocusChange = { if (it) focusedSection = s },
                         shape = RoundedCornerShape(10.dp),
                         focusScale = 1.03f,
@@ -943,6 +954,23 @@ private fun AppearancePane(vm: AppViewModel) {
             value = SettingValue.Toggle(s.trailers),
             onClick = { s.trailers = !s.trailers },
         )
+        if (s.trailers) {
+            SettingRow(
+                title = "Start after",
+                body = "How long you rest on a title before its trailer begins.",
+                value = SettingValue.Choice("${s.trailerDelay} seconds"),
+                onClick = {
+                    val options = listOf(2, 4, 8, 15)
+                    s.trailerDelay = options[(options.indexOf(s.trailerDelay) + 1).mod(options.size)]
+                },
+            )
+            SettingRow(
+                title = "Trailer sound",
+                body = "Off keeps trailers silent behind the page.",
+                value = SettingValue.Toggle(s.trailerSound),
+                onClick = { s.trailerSound = !s.trailerSound },
+            )
+        }
         }
     }
 }

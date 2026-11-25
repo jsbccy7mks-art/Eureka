@@ -230,6 +230,25 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.drift = value
         }
 
+    private val trailerDelayState = mutableIntStateOf(prefs.getInt("trailerDelay", 4))
+    /** Seconds before a trailer starts: 2, 4, 8 or 15. */
+    var trailerDelay: Int
+        get() = trailerDelayState.intValue
+        set(value) {
+            trailerDelayState.intValue = value
+            prefs.edit().putInt("trailerDelay", value).apply()
+            com.zapp.tv.ui.FocusStyle.trailerDelay = value
+        }
+
+    private val trailerSoundState = mutableStateOf(prefs.getBoolean("trailerSound", false))
+    var trailerSound: Boolean
+        get() = trailerSoundState.value
+        set(value) {
+            trailerSoundState.value = value
+            prefs.edit().putBoolean("trailerSound", value).apply()
+            com.zapp.tv.ui.FocusStyle.trailerSound = value
+        }
+
     private val trailersState = mutableStateOf(prefs.getBoolean("trailers", true))
     /** Muted trailers behind the header on Home and details. */
     var trailers: Boolean
@@ -248,6 +267,8 @@ class Settings(context: Context) {
         com.zapp.tv.ui.FocusStyle.artGlow = prefs.getBoolean("artGlow", true)
         com.zapp.tv.ui.FocusStyle.trailers = prefs.getBoolean("trailers", true)
         com.zapp.tv.ui.FocusStyle.drift = prefs.getBoolean("drift", true)
+        com.zapp.tv.ui.FocusStyle.trailerDelay = prefs.getInt("trailerDelay", 4)
+        com.zapp.tv.ui.FocusStyle.trailerSound = prefs.getBoolean("trailerSound", false)
     }
 
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))
