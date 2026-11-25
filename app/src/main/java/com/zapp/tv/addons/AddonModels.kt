@@ -113,6 +113,31 @@ data class StreamItem(
             return (n * if (unit.startsWith("g")) 1_073_741_824.0 else 1_048_576.0).toLong()
         }
 
+    /** Quality as a number for sorting and limits: 2160, 1080, 720, 480 or 0 when unknown. */
+    val qualityRank: Int
+        get() = when (quality) {
+            "4K" -> 2160
+            "1080p" -> 1080
+            "720p" -> 720
+            "480p" -> 480
+            else -> 0
+        }
+
+    /**
+     * Whether an add-on says this link is ready (already on the debrid service). Add-ons mark this in the
+     * name: "[RD+]" or a lightning bolt for ready, "download" or an hourglass for not yet.
+     */
+    val markedReady: Boolean?
+        get() {
+            val t = "$name $description"
+            val lower = t.lowercase()
+            return when {
+                "download]" in lower || "\u23F3" in t || "uncached" in lower || "not cached" in lower -> false
+                "+]" in t || "\u26A1" in t || "instant" in lower || "cached" in lower -> true
+                else -> null
+            }
+        }
+
     /** Tags such as HDR, Dolby Vision, HEVC or Atmos found in the description. */
     val tags: List<String>
         get() {

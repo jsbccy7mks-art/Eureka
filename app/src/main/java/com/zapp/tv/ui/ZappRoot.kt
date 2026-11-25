@@ -78,6 +78,7 @@ fun ZappRoot(vm: AppViewModel) {
     val coroutineScope = rememberCoroutineScope()
     val playback = remember { Playback(context.applicationContext, coroutineScope, vm.settings) { vm.resolveUrl(it) } }
     val playlists by vm.playlists.collectAsState()
+    val installedAddons by mvm.addons.collectAsState()
 
     var dest by rememberSaveable { mutableStateOf(Dest.Home) }
     var playerOpen by remember { mutableStateOf(false) }
@@ -193,7 +194,14 @@ fun ZappRoot(vm: AppViewModel) {
                 ZappLogo(34.dp)
             }
 
-            playlists.isEmpty() -> WelcomeScreen(vm, onForm = { form = it })
+            // Add-on-only setups skip the playlist welcome.
+            playlists.isEmpty() && installedAddons.isEmpty() && !mvm.settings.welcomeSkipped ->
+                WelcomeScreen(vm, onForm = { form = it }, onSkip = {
+                    mvm.settings.welcomeSkipped = true
+                    settingsSection = "Addons"
+                    dest = Dest.Settings
+                    requestContentFocus(300)
+                })
 
             else -> {
                 // Back from a screen goes to the sidebar; Back on the sidebar twice exits.
@@ -218,16 +226,14 @@ fun ZappRoot(vm: AppViewModel) {
                             vm = vm,
                             playback = playback,
                             focusTick = focusTick,
-                            onWatch = { row, categoryId ->
-                                vm.setScope(row.channel.playlistId, categoryId)
-                                watch(row)
-                            },
-                            onOpenLive = { open(Dest.Live) },
-                            onOpenGuide = { open(Dest.Guide) },
                             mvm = mvm,
                             onOpenTitle = { openTitle(it) },
                             onResume = { p ->
                                 detail = DetailRequest(p.type, p.metaId, null)
+                            },
+                            onOpenAddons = {
+                                settingsSection = "Addons"
+                                open(Dest.Settings)
                             },
                         )
                         Dest.Movies -> BrowseScreen(mvm, "movie", focusTick, { openTitle(it) }) {

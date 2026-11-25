@@ -25,6 +25,9 @@ interface DebridService {
     val connected: Boolean
     suspend fun resolve(t: TorrentRef): String
     fun signOut()
+
+    /** Which of these torrents the service already has, or null if it can't tell. */
+    suspend fun ready(hashes: List<String>): Set<String>? = null
 }
 
 private val VideoExt = Regex("\\.(mkv|mp4|avi|m4v|mov|ts|m2ts|webm|wmv|mpg|mpeg)$", RegexOption.IGNORE_CASE)
@@ -298,6 +301,19 @@ class Premiumize(private val http: OkHttpClient, private val settings: Settings)
     }
 
     override fun signOut() = settings.setSecret("pmKey", "")
+
+    override suspend fun ready(hashes: List<String>): Set<String>? = withContext(Dispatchers.IO) {
+        val key = settings.secret("pmKey").ifBlank { return@withContext null }
+        val form = FormBody.Builder().apply { hashes.forEach { add("items[]", it) } }.build()
+        val req = Request.Builder().url("https://www.premiumize.me/api/cache/check").header("Authorization", "Bearer $key").post(form).build()
+        try {
+            val o = JSONObject(http.text(req).second)
+            val arr = o.optJSONArray("response") ?: return@withContext null
+            hashes.filterIndexed { i, _ -> arr.optBoolean(i) }.toSet()
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------------- TorBox
@@ -354,6 +370,21 @@ class TorBox(private val http: OkHttpClient, private val settings: Settings) : D
     }
 
     override fun signOut() = settings.setSecret("tbKey", "")
+
+    override suspend fun ready(hashes: List<String>): Set<String>? = withContext(Dispatchers.IO) {
+        val key = settings.secret("tbKey").ifBlank { return@withContext null }
+        val url = "$base/torrents/checkcached".toHttpUrl().newBuilder()
+            .addQueryParameter("hash", hashes.joinToString(","))
+            .addQueryParameter("format", "list")
+            .build()
+        try {
+            val o = JSONObject(http.text(Request.Builder().url(url).header("Authorization", "Bearer $key").build()).second)
+            val data = o.optJSONArray("data") ?: return@withContext emptySet()
+            (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("hash")?.lowercase() }.toSet()
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
 
 /** All debrid services, tried in this order when a torrent source is chosen. */
@@ -365,6 +396,22 @@ class Debrid(http: OkHttpClient, settings: Settings) {
     val all: List<DebridService> = listOf(realDebrid, allDebrid, premiumize, torBox)
 
     val connected: List<DebridService> get() = all.filter { it.connected }
+
+    /**
+     * Torrents at least one connected service already has. Null when none of them can tell
+     * (Real-Debrid and AllDebrid no longer say in advance).
+     */
+    suspend fun ready(hashes: List<String>): Set<String>? {
+        if (hashes.isEmpty()) return emptySet()
+        var any = false
+        val out = HashSet<String>()
+        for (s in connected) {
+            val r = s.ready(hashes.map { it.lowercase() }.distinct().take(100)) ?: continue
+            any = true
+            out.addAll(r)
+        }
+        return if (any) out else null
+    }
 
     /** Tries each connected service in turn; the first that returns a link wins. */
     suspend fun resolve(t: TorrentRef): Pair<DebridService, String> {

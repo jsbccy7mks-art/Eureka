@@ -217,10 +217,28 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             onClick = { s.audioLanguage = next(s.audioLanguage) },
         )
         SettingRow(
-            title = "Play the first source automatically",
-            body = "For films and series: start the first suitable source (following your add-on order) instead of showing the list.",
+            title = "Autoplay",
+            body = "For films and series: start the best source straight away instead of showing the list. You can still choose with \"Let me choose\".",
             value = SettingValue.Toggle(s.autoPlayFirst),
             onClick = { s.autoPlayFirst = !s.autoPlayFirst },
+        )
+        SettingRow(
+            title = "Ready to play only",
+            body = "Only list sources that play straight away: direct links, and torrents your debrid service already has. Hides ones that would have to download first.",
+            value = SettingValue.Toggle(s.cachedOnly),
+            onClick = { s.cachedOnly = !s.cachedOnly },
+        )
+        SettingRow(
+            title = "Best quality first",
+            body = "Within each add-on, list ready sources first, then by quality (4K, 1080p, 720p). Off keeps the add-on's own order.",
+            value = SettingValue.Toggle(s.bestFirst),
+            onClick = { s.bestFirst = !s.bestFirst },
+        )
+        SettingRow(
+            title = "Highest quality",
+            body = "Skip sources above this quality, for slower connections or TVs that struggle with 4K.",
+            value = SettingValue.Choice(listOf("Any", "Up to 1080p", "Up to 720p")[s.maxQuality.coerceIn(0, 2)]),
+            onClick = { s.maxQuality = (s.maxQuality + 1) % 3 },
         )
         SettingRow(
             title = "Play the next episode automatically",
@@ -791,7 +809,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
     ) {
         item(key = "intro") {
             Text(
-                "Choose which rows appear on Home and in what order. Rows with nothing in them stay hidden.",
+                "Choose which catalogues appear on Home and in what order. Continue watching always comes first. On Home, hold OK on any card to change that row's size or shape.",
                 color = ZappColors.Dim,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 6.dp),
@@ -803,25 +821,13 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
                 Box(Modifier.weight(1f)) {
                     SettingRow(
                         title = r.title,
-                        body = if (r.on) "Shown on Home" else "Hidden",
+                        body = if (!r.on) "Hidden" else "Shown, " + listOf("small", "medium", "large")[r.size] + if (r.landscape) " landscape cards" else " posters",
                         value = SettingValue.Toggle(r.on),
                         onClick = { update(rows.map { if (it.id == r.id) it.copy(on = !it.on) else it }) },
                     )
                 }
-                if (i > 0) {
-                    ZButton("Up", {
-                        val m = rows.toMutableList()
-                        m.add(i - 1, m.removeAt(i))
-                        update(m)
-                    })
-                }
-                if (i < rows.size - 1) {
-                    ZButton("Down", {
-                        val m = rows.toMutableList()
-                        m.add(i + 1, m.removeAt(i))
-                        update(m)
-                    })
-                }
+                if (i > 1) ZButton("Up", { mvm.moveRow(rows, r.id, -1) })
+                if (i in 1 until rows.size - 1) ZButton("Down", { mvm.moveRow(rows, r.id, 1) })
             }
         }
     }

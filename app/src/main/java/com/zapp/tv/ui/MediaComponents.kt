@@ -47,7 +47,17 @@ import com.zapp.tv.data.WatchProgress
 
 val PosterWidth = 122.dp
 
-/** Film or series poster. Landscape-shaped add-on art gets a wider card. */
+/** Card width for a Home row: size 0 small, 1 medium, 2 large. */
+fun cardWidth(size: Int, landscape: Boolean): Dp = if (landscape) {
+    when (size) { 0 -> 176.dp; 2 -> 256.dp; else -> 210.dp }
+} else {
+    when (size) { 0 -> 94.dp; 2 -> 140.dp; else -> 114.dp }
+}
+
+/**
+ * Film or series card. Posters by default; [landscape] uses the wide background art with the
+ * title (or logo) over it. Landscape-shaped add-on posters always get a wide card.
+ */
 @Composable
 fun PosterCard(
     meta: MetaPreview,
@@ -55,31 +65,55 @@ fun PosterCard(
     onFocus: () -> Unit,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    width: Dp? = null,
+    landscape: Boolean = false,
+    showTitle: Boolean = true,
 ) {
-    val landscape = meta.posterShape == "landscape"
-    Column(Modifier.width(if (landscape) 216.dp else PosterWidth)) {
+    val wide = landscape || meta.posterShape == "landscape"
+    val w = width ?: if (wide) 216.dp else PosterWidth
+    Column(Modifier.width(w)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
                 .fillMaxWidth()
-                .aspectRatio(if (landscape) 16f / 9f else 2f / 3f),
+                .aspectRatio(if (wide) 16f / 9f else 2f / 3f),
             onFocusChange = { if (it) onFocus() },
-            shape = RoundedCornerShape(12.dp),
-            focusScale = 1.08f,
+            shape = RoundedCornerShape(10.dp),
+            focusScale = 1.07f,
             restColor = ZappColors.Glass,
         ) { focused ->
-            Artwork(meta.poster, meta.name)
+            if (landscape && meta.posterShape != "landscape") {
+                Artwork(meta.background ?: meta.poster, meta.name)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
+                Box(Modifier.align(Alignment.BottomStart).padding(10.dp)) {
+                    if (meta.logo != null) {
+                        AsyncImage(
+                            model = meta.logo,
+                            contentDescription = meta.name,
+                            contentScale = ContentScale.Fit,
+                            alignment = Alignment.BottomStart,
+                            modifier = Modifier.heightIn(max = w * 0.18f).widthIn(max = w * 0.6f),
+                        )
+                    } else {
+                        Text(meta.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, color = Color.White)
+                    }
+                }
+            } else {
+                Artwork(meta.poster, meta.name)
+            }
             if (focused) {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .border(3.dp, Color.White, RoundedCornerShape(12.dp)),
+                        .border(2.5.dp, Color.White, RoundedCornerShape(10.dp)),
                 )
             }
         }
-        Spacer(Modifier.height(7.dp))
-        Text(meta.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZappColors.Dim)
+        if (showTitle) {
+            Spacer(Modifier.height(7.dp))
+            Text(meta.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZappColors.Dim)
+        }
     }
 }
 
@@ -110,8 +144,9 @@ fun ContinueCard(
     onFocus: () -> Unit,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    width: Dp = 220.dp,
 ) {
-    Column(Modifier.width(220.dp)) {
+    Column(Modifier.width(width)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
@@ -258,6 +293,11 @@ fun CatalogRow(
     onOpen: (MetaPreview) -> Unit,
     pendingId: String? = null,
     onPendingDone: () -> Unit = {},
+    size: Int = 1,
+    landscape: Boolean = false,
+    showTitles: Boolean = true,
+    onLongPress: ((MetaPreview) -> Unit)? = null,
+    subtitle: String? = null,
 ) {
     val items = remember(ref.key) { mutableStateListOf<MetaPreview>() }
     var loading by remember(ref.key) { mutableStateOf(true) }
@@ -266,6 +306,7 @@ fun CatalogRow(
     var requestMore by remember(ref.key) { mutableStateOf(0) }
     val memory = rememberFocusMemory()
     val listState = rememberLazyListState()
+    val width = cardWidth(size, landscape)
 
     LaunchedEffect(ref.key, requestMore) {
         if (exhausted) return@LaunchedEffect
@@ -286,44 +327,68 @@ fun CatalogRow(
     if (failed || (!loading && items.isEmpty())) return
 
     Column {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 40.dp, bottom = 10.dp))
-        LazyRow(
-            state = listState,
-            modifier = Modifier.restoreFocus(memory),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(horizontal = 40.dp),
-        ) {
-            if (items.isEmpty()) {
-                items(7) {
-                    Box(
-                        Modifier
-                            .width(PosterWidth)
-                            .aspectRatio(2f / 3f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(ZappColors.Glass),
+        RowHeader(title, subtitle)
+        PivotScrolling(RowInset) {
+            LazyRow(
+                state = listState,
+                modifier = Modifier.restoreFocus(memory),
+                horizontalArrangement = Arrangement.spacedBy(if (size == 0) 10.dp else 12.dp),
+                contentPadding = PaddingValues(horizontal = RowInset),
+            ) {
+                if (items.isEmpty()) {
+                    items(8) {
+                        Box(
+                            Modifier
+                                .width(width)
+                                .aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(ZappColors.Glass),
+                        )
+                    }
+                }
+                itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
+                    val requester = remember { FocusRequester() }
+                    // An empty id means "the first card" (first start, nothing remembered yet).
+                    if (pendingId == meta.id || (pendingId == "" && index == 0)) {
+                        LaunchedEffect(Unit) {
+                            requester.tryRequest()
+                            onPendingDone()
+                        }
+                    }
+                    PosterCard(
+                        meta = meta,
+                        modifier = Modifier
+                            .rememberFocus(memory, meta.id)
+                            .focusRequesterSafe(requester),
+                        onFocus = {
+                            onFocusItem(meta)
+                            if (index >= items.size - 8 && !loading && !exhausted) requestMore++
+                        },
+                        onClick = { onOpen(meta) },
+                        onLongClick = onLongPress?.let { f -> { f(meta) } },
+                        width = width,
+                        landscape = landscape,
+                        showTitle = showTitles,
                     )
                 }
             }
-            itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
-                val requester = remember { FocusRequester() }
-                if (pendingId == meta.id) {
-                    LaunchedEffect(Unit) {
-                        requester.tryRequest()
-                        onPendingDone()
-                    }
-                }
-                PosterCard(
-                    meta = meta,
-                    modifier = Modifier
-                        .rememberFocus(memory, meta.id)
-                        .focusRequesterSafe(requester),
-                    onFocus = {
-                        onFocusItem(meta)
-                        if (index >= items.size - 6 && !loading && !exhausted) requestMore++
-                    },
-                    onClick = { onOpen(meta) },
-                )
-            }
+        }
+    }
+}
+
+/** Space between the screen edge and the first card of a row. */
+val RowInset = 48.dp
+
+@Composable
+fun RowHeader(title: String, subtitle: String? = null) {
+    Row(
+        Modifier.padding(start = RowInset, bottom = 9.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp)
+        subtitle?.let {
+            Spacer(Modifier.width(8.dp))
+            Text(it, fontSize = 11.sp, color = ZappColors.Faint)
         }
     }
 }

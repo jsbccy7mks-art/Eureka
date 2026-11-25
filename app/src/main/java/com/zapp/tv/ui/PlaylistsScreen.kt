@@ -102,7 +102,7 @@ fun PhoneSetupCard(
 // ---------------------------------------------------------------------------- welcome
 
 @Composable
-fun WelcomeScreen(vm: AppViewModel, onForm: (xtream: Boolean) -> Unit) {
+fun WelcomeScreen(vm: AppViewModel, onForm: (xtream: Boolean) -> Unit, onSkip: () -> Unit = {}) {
     val firstButton = remember { FocusRequester() }
     LaunchedEffect(Unit) { firstButton.tryRequest() }
 
@@ -130,6 +130,7 @@ fun WelcomeScreen(vm: AppViewModel, onForm: (xtream: Boolean) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZButton("Xtream login", { onForm(true) }, style = ButtonStyle.Secondary, focusRequester = firstButton)
                 ZButton("M3U link", { onForm(false) })
+                ZButton("Only films and series", onSkip, style = ButtonStyle.Quiet)
             }
         }
         Spacer(Modifier.width(40.dp))

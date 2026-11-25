@@ -34,7 +34,19 @@ import org.json.JSONObject
 const val CINEMETA_URL = "https://v3-cinemeta.strem.io/manifest.json"
 
 /** One Home screen row as the user arranged it. */
-data class HomeRowSetting(val id: String, val title: String, val on: Boolean)
+/**
+ * One Home row: whether it shows, its card size (0 small, 1 medium, 2 large) and whether its
+ * cards are posters or landscape artwork.
+ */
+const val CONTINUE_ROW = "continue"
+
+data class HomeRowSetting(
+    val id: String,
+    val title: String,
+    val on: Boolean,
+    val size: Int = 1,
+    val landscape: Boolean = false,
+)
 
 class MediaViewModel(app: Application) : AndroidViewModel(app) {
     private val zapp = app as ZappApp
@@ -445,42 +457,64 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
      * after the arranged ones (new add-on catalogues show up switched on).
      */
     fun homeLayout(catalogs: List<CatalogRef>): List<HomeRowSetting> {
-        val builtIn = listOf(
-            "continue" to "Continue watching (films and series)",
-            "live:recent" to "Continue watching (channels)",
-            "live:favorites" to "Favourite channels",
-        )
-        val tail = listOf("live:onnow" to "On now")
         val available = LinkedHashMap<String, String>()
-        builtIn.forEach { available[it.first] = it.second }
+        available[CONTINUE_ROW] = "Continue watching"
         catalogs.forEach { available[it.key] = it.title }
-        tail.forEach { available[it.first] = it.second }
 
         val saved = parseLayout(settings.homeRowsJson)
         val result = ArrayList<HomeRowSetting>()
-        for ((id, on) in saved) {
-            val title = available[id] ?: continue
-            result.add(HomeRowSetting(id, title, on))
+        for (r in saved) {
+            val title = available[r.id] ?: continue
+            result.add(r.copy(title = title))
         }
         for ((id, title) in available) {
-            if (result.none { it.id == id }) result.add(HomeRowSetting(id, title, true))
+            if (result.none { it.id == id }) result.add(HomeRowSetting(id, title, true, landscape = id == CONTINUE_ROW))
         }
+        // Continue watching is always the first row.
+        val cont = result.first { it.id == CONTINUE_ROW }
+        result.remove(cont)
+        result.add(0, cont)
         return result
     }
 
     fun saveLayout(rows: List<HomeRowSetting>) {
         val arr = JSONArray()
-        rows.forEach { arr.put(JSONObject().put("id", it.id).put("on", it.on)) }
+        rows.forEach {
+            arr.put(JSONObject().put("id", it.id).put("on", it.on).put("size", it.size).put("landscape", it.landscape))
+        }
         settings.homeRowsJson = arr.toString()
     }
 
-    private fun parseLayout(json: String): List<Pair<String, Boolean>> = try {
+    /** Change one row and save. */
+    fun updateRow(all: List<HomeRowSetting>, id: String, change: (HomeRowSetting) -> HomeRowSetting) =
+        saveLayout(all.map { if (it.id == id) change(it) else it })
+
+    /** Move a row up (-1) or down (+1) among the catalogue rows; Continue watching stays first. */
+    fun moveRow(all: List<HomeRowSetting>, id: String, by: Int) {
+        val i = all.indexOfFirst { it.id == id }
+        val j = i + by
+        if (i < 1 || j < 1 || j >= all.size) return
+        val m = all.toMutableList()
+        m.add(j, m.removeAt(i))
+        saveLayout(m)
+    }
+
+    private fun parseLayout(json: String): List<HomeRowSetting> = try {
         if (json.isBlank()) {
             emptyList()
         } else {
             val arr = JSONArray(json)
             (0 until arr.length()).mapNotNull { i ->
-                arr.optJSONObject(i)?.let { it.optString("id") to it.optBoolean("on", true) }
+                arr.optJSONObject(i)?.let {
+                    val id = it.optString("id")
+                    HomeRowSetting(
+                        id = id,
+                        title = "",
+                        on = it.optBoolean("on", true),
+                        size = it.optInt("size", 1).coerceIn(0, 2),
+                        landscape = it.optBoolean("landscape", id == CONTINUE_ROW),
+                    )
+                }
             }
         }
     } catch (e: Exception) {

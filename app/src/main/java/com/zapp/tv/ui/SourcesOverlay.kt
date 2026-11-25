@@ -75,10 +75,40 @@ fun SourcesOverlay(
         finished = true
     }
 
-    val sorted = batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
-    val all = sorted.flatMap { it.streams }
+    val settings = mvm.settings
     val viaDebrid = mvm.debridConnected
     val debridName = mvm.debridNames().firstOrNull()
+
+    // Ask the debrid services which torrents they already have, where they can tell.
+    var ready by remember(request.videoId) { mutableStateOf<Set<String>?>(null) }
+    val hashes = batches.flatMap { b -> b.streams.mapNotNull { it.infoHash?.lowercase() } }.distinct()
+    LaunchedEffect(finished, hashes.size) {
+        if (viaDebrid && hashes.isNotEmpty() && (finished || hashes.size % 25 == 0)) {
+            ready = runCatching { mvm.debrid.ready(hashes) }.getOrNull() ?: ready
+        }
+    }
+    fun isReady(s: StreamItem): Boolean? = when {
+        s.infoHash != null && ready != null -> s.infoHash.lowercase() in ready!! || s.markedReady == true
+        else -> s.markedReady
+    }
+    val cap = when (settings.maxQuality) { 1 -> 1080; 2 -> 720; else -> Int.MAX_VALUE }
+    fun keep(s: StreamItem): Boolean {
+        if (s.qualityRank > cap) return false
+        if (!settings.cachedOnly) return true
+        return when {
+            s.infoHash != null -> viaDebrid && isReady(s) == true
+            s.playable -> isReady(s) != false
+            else -> false
+        }
+    }
+    fun rank(s: StreamItem): Int = (if (isReady(s) == true) 10_000 else 0) + s.qualityRank
+
+    val sorted = batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
+    val all = sorted.flatMap { b ->
+        val kept = b.streams.filter(::keep)
+        if (settings.bestFirst) kept.sortedByDescending(::rank) else kept
+    }
+    val hiddenCount = sorted.sumOf { it.streams.size } - all.size
     fun canPlay(s: StreamItem) = s.playable || (viaDebrid && s.infoHash != null)
 
     // Autoplay: wait briefly for the add-ons to answer, then take the first playable source.
@@ -129,6 +159,14 @@ fun SourcesOverlay(
                     color = ZappColors.Faint,
                     fontSize = 12.sp,
                 )
+                if (hiddenCount > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "$hiddenCount hidden by your source settings" + if (settings.cachedOnly) " (ready-to-play only)" else "",
+                        color = ZappColors.Faint,
+                        fontSize = 11.sp,
+                    )
+                }
                 sorted.filter { it.error != null }.forEach {
                     Spacer(Modifier.height(4.dp))
                     Text(if (it.addonName.isBlank()) it.error.orEmpty() else "${it.addonName}: ${it.error}", color = ZappColors.Faint, fontSize = 11.sp, maxLines = 2)
@@ -155,7 +193,12 @@ fun SourcesOverlay(
                         if (!finished) {
                             CircularProgressIndicator(color = ZappColors.Brand2, strokeWidth = 3.dp, modifier = Modifier.size(30.dp))
                         } else {
-                            Text("None of your add-ons found a source for this.", color = ZappColors.Dim, fontSize = 14.sp)
+                            Text(
+                                if (hiddenCount > 0) "Nothing ready to play. Turn off \"Ready to play only\" in Settings to see all $hiddenCount sources."
+                                else "None of your add-ons found a source for this.",
+                                color = ZappColors.Dim,
+                                fontSize = 14.sp,
+                            )
                             Spacer(Modifier.height(14.dp))
                             val back = remember { FocusRequester() }
                             LaunchedEffect(Unit) { back.tryRequest() }
@@ -177,7 +220,7 @@ fun SourcesOverlay(
                                         modifier = Modifier.padding(start = 4.dp, top = if (i == 0) 0.dp else 10.dp, bottom = 6.dp),
                                     )
                                 }
-                                StreamRow(s, if (i == 0) firstFocus else null, if (s.playable) null else if (s.infoHash != null) debridName else null) {
+                                StreamRow(s, if (i == 0) firstFocus else null, if (s.playable) null else if (s.infoHash != null) debridName else null, isReady(s) == true) {
                                     if (canPlay(s)) onPick(s)
                                 }
                             }
@@ -190,10 +233,10 @@ fun SourcesOverlay(
 }
 
 @Composable
-private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?, onClick: () -> Unit) {
+private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?, readyNow: Boolean, onClick: () -> Unit) {
     val note = when {
         s.playable -> null
-        s.infoHash != null && debrid != null -> "Through $debrid"
+        s.infoHash != null && debrid != null -> if (readyNow) "Ready on $debrid" else "Through $debrid (may need downloading first)"
         s.infoHash != null -> "Torrent: connect a debrid service in Settings to play it"
         s.externalUrl != null -> "Opens a website, which Zapp can't show"
         s.ytId != null -> "YouTube video"
@@ -246,9 +289,10 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
                     )
                 }
                 val tags = s.tags
-                if (tags.isNotEmpty() || note != null) {
+                if (tags.isNotEmpty() || note != null || readyNow) {
                     Spacer(Modifier.height(5.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (readyNow) Tag("Ready")
                         tags.forEach { Tag(it) }
                         note?.let { Text(it, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = 11.sp) }
                     }

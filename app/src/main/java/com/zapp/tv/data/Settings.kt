@@ -108,13 +108,57 @@ class Settings(context: Context) {
 
     // ---------------------------------------------------------------- films and series
 
-    private val autoPlayFirstState = mutableStateOf(prefs.getBoolean("autoPlayFirst", false))
+    private val autoPlayFirstState = mutableStateOf(
+        // 0.9.0 turned autoplay on for everyone once; after that it's your choice.
+        if (!prefs.getBoolean("autoplayOn090", false)) {
+            prefs.edit().putBoolean("autoplayOn090", true).putBoolean("autoPlayFirst", true).apply()
+            true
+        } else {
+            prefs.getBoolean("autoPlayFirst", true)
+        },
+    )
     /** Start the first suitable source straight away instead of showing the list. */
     var autoPlayFirst: Boolean
         get() = autoPlayFirstState.value
         set(value) {
             autoPlayFirstState.value = value
             prefs.edit().putBoolean("autoPlayFirst", value).apply()
+        }
+
+    private val welcomeSkippedState = mutableStateOf(prefs.getBoolean("welcomeSkipped", false))
+    /** Chose "Only films and series" on the welcome screen (no playlist needed). */
+    var welcomeSkipped: Boolean
+        get() = welcomeSkippedState.value
+        set(value) {
+            welcomeSkippedState.value = value
+            prefs.edit().putBoolean("welcomeSkipped", value).apply()
+        }
+
+    private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))
+    /** Only list sources that can play straight away (ready on your debrid service or add-on). */
+    var cachedOnly: Boolean
+        get() = cachedOnlyState.value
+        set(value) {
+            cachedOnlyState.value = value
+            prefs.edit().putBoolean("cachedOnly", value).apply()
+        }
+
+    private val maxQualityState = intState("maxQuality", 0)
+    /** 0 any, 1 up to 1080p, 2 up to 720p. */
+    var maxQuality: Int
+        get() = maxQualityState.intValue
+        set(value) {
+            maxQualityState.intValue = value
+            prefs.edit().putInt("maxQuality", value).apply()
+        }
+
+    private val bestFirstState = mutableStateOf(prefs.getBoolean("bestFirst", true))
+    /** List the best quality first instead of keeping each add-on's own order. */
+    var bestFirst: Boolean
+        get() = bestFirstState.value
+        set(value) {
+            bestFirstState.value = value
+            prefs.edit().putBoolean("bestFirst", value).apply()
         }
 
     private val autoNextEpisodeState = mutableStateOf(prefs.getBoolean("autoNextEpisode", true))

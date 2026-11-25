@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.0 (new Home)
+
+**New**
+- Home is now just your films and series: live TV rows are gone from it (Live TV and the guide are in the
+  sidebar as before).
+- A big header shows whatever you're resting on: artwork across the top of the screen, logo or title,
+  year, rating, runtime, genres, description and cast. It changes after a short pause so fast scrolling
+  stays smooth.
+- Continue watching is always the first row, with landscape cards and how much is left.
+- Smaller cards, and smoother scrolling: the row you're on glides to the top and the card you're on stays
+  in the same place as you move along.
+- Hold OK on any card to change its row: Small, Medium or Large cards, posters or landscape, move the row
+  up or down, or hide it. In Continue watching you can also remove that title.
+- Sources: "Ready to play only" (Settings, Playback) hides sources that would have to download first.
+  Zapp asks Premiumize and TorBox which torrents they already have, and reads the ready markers add-ons
+  put in source names. Ready sources get a "Ready" tag.
+- "Best quality first" and "Highest quality" (Any, up to 1080p, up to 720p) for choosing sources.
+- Autoplay is on: films and episodes start the best source straight away. "Let me choose" still shows
+  the list, and you can turn it off in Settings.
+
+
 ## 0.8.1 (Nuvio import)
 
 **New**
