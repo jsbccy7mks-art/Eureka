@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.1
+
+**Fixed**
+- Right from the sidebar always returns to where you were on the page.
+
+**New**
+- Custom theme (Settings, Appearance): pick your own two colours.
+- Smoother motion: pages fade and settle in when you switch, details glide in and out, artwork fades
+  in as it loads, and the focus outline fades rather than snapping.
+
+**Changed**
+- Monochrome uses true black.
+
+
 ## 0.11.0 (profiles)
 
 **New**

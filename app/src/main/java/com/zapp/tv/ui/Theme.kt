@@ -34,9 +34,23 @@ object Palettes {
     val Ocean = ZappPalette("ocean", "Ocean", Color(0xFF0A0E1A), Color(0xFF121A2C), Color(0xFF7A5CFF), Color(0xFF2FD3F0), Color(0xFF39D0F0))
     val Sunset = ZappPalette("sunset", "Sunset", Color(0xFF120A0E), Color(0xFF22141B), Color(0xFFFF8A3D), Color(0xFFFF4F8B), Color(0xFFFF9A5C))
     val Emerald = ZappPalette("emerald", "Emerald", Color(0xFF07110E), Color(0xFF10201B), Color(0xFF22C58B), Color(0xFF2E9BF0), Color(0xFF3DDBA0))
-    val Mono = ZappPalette("mono", "Monochrome", Color(0xFF0A0A0A), Color(0xFF171717), Color(0xFF6B6B6B), Color(0xFFE6E6E6), Color(0xFFDADADA))
+    val Mono = ZappPalette("mono", "Monochrome", Color(0xFF000000), Color(0xFF0D0D0D), Color(0xFF5E5E5E), Color(0xFFE6E6E6), Color(0xFFDADADA))
     val all = listOf(Aurora, Ocean, Sunset, Emerald, Mono)
     fun byId(id: String?) = all.firstOrNull { it.id == id } ?: Aurora
+
+    /** Colours to build your own theme from. */
+    val Swatches = listOf(
+        Color(0xFF4D7CFF), Color(0xFF2FD3F0), Color(0xFF22C58B), Color(0xFFB7F04D), Color(0xFFFFC94A),
+        Color(0xFFFF8A3D), Color(0xFFFF4F6A), Color(0xFFFF5FA2), Color(0xFFB45CFF), Color(0xFF7A5CFF),
+        Color(0xFFFFFFFF), Color(0xFF8A8F9C),
+    )
+
+    /** A custom theme from two swatches, on a near-black page. */
+    fun custom(a: Int, b: Int): ZappPalette {
+        val c1 = Swatches[a.mod(Swatches.size)]
+        val c2 = Swatches[b.mod(Swatches.size)]
+        return ZappPalette("custom", "Custom", Color(0xFF07070A), Color(0xFF131318), c1, c2, lerp(c1, Color.White, 0.2f))
+    }
 }
 
 /**

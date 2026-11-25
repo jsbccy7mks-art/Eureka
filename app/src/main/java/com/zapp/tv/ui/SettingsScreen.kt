@@ -808,7 +808,7 @@ private fun AppearancePane(vm: AppViewModel) {
         Text("Colours for the glow, highlights and progress bars across the app.", color = ZappColors.Dim, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Palettes.all.forEach { p ->
+            (Palettes.all + Palettes.custom(s.customColors.first, s.customColors.second)).forEach { p ->
                 val chosen = s.theme == p.id
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     FocusSurface(
@@ -837,6 +837,32 @@ private fun AppearancePane(vm: AppViewModel) {
                     Spacer(Modifier.height(8.dp))
                     Text(p.name, fontSize = 12.sp, color = if (chosen) ZappColors.Text else ZappColors.Dim, fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
                 }
+            }
+        }
+        if (s.theme == "custom") {
+            Spacer(Modifier.height(16.dp))
+            listOf("First colour" to true, "Second colour" to false).forEach { (label, firstColour) ->
+                Text(label, color = ZappColors.Dim, fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Palettes.Swatches.forEachIndexed { i, c ->
+                        val chosen = if (firstColour) s.customColors.first == i else s.customColors.second == i
+                        FocusSurface(
+                            onClick = { s.customColors = if (firstColour) i to s.customColors.second else s.customColors.first to i },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .border(2.dp, if (chosen) Color.White else Color.Transparent, androidx.compose.foundation.shape.CircleShape),
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            focusScale = 1.15f,
+                            focusColor = Color.Transparent,
+                            ring = true,
+                            ringCorner = 16.dp,
+                        ) {
+                            Box(Modifier.fillMaxSize().padding(4.dp).clip(androidx.compose.foundation.shape.CircleShape).background(c))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
             }
         }
         Spacer(Modifier.height(22.dp))

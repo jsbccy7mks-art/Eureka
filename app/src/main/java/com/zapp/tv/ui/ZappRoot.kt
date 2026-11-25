@@ -2,6 +2,10 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -257,7 +261,15 @@ fun ZappRoot(vm: AppViewModel) {
                         .fillMaxSize()
                         .padding(start = RailWidth),
                 ) {
-                    when (dest) {
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = dest,
+                        transitionSpec = {
+                            (fadeIn(tween(280, delayMillis = 70)) + androidx.compose.animation.scaleIn(tween(320, delayMillis = 70), initialScale = 0.985f)) togetherWith
+                                fadeOut(tween(140))
+                        },
+                        label = "page",
+                    ) { shown ->
+                    when (shown) {
                         Dest.Home -> HomeScreen(
                             vm = vm,
                             playback = playback,
@@ -303,9 +315,11 @@ fun ZappRoot(vm: AppViewModel) {
                             },
                         )
                     }
+                    }
                 }
 
                 Sidebar(
+                    onRight = { requestContentFocus(0) },
                     dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
                     onProfiles = { choosingProfile = true },
@@ -370,18 +384,27 @@ fun ZappRoot(vm: AppViewModel) {
             )
         }
 
-        detail?.let { d ->
-            DetailScreen(
-                mvm = mvm,
-                request = d,
-                focusTick = focusTick,
-                onPlay = { playRequest = it },
-                onOpenTitle = { m -> detail = DetailRequest(m.type, m.id, m) },
-                onClose = {
-                    detail = null
-                    requestContentFocus()
-                },
-            )
+        // Details glide in over the page and fade away again.
+        var shownDetail by remember { mutableStateOf<DetailRequest?>(null) }
+        if (detail != null) shownDetail = detail
+        AnimatedVisibility(
+            visible = detail != null,
+            enter = fadeIn(tween(260)) + androidx.compose.animation.scaleIn(tween(320), initialScale = 0.97f),
+            exit = fadeOut(tween(180)) + androidx.compose.animation.scaleOut(tween(180), targetScale = 0.985f),
+        ) {
+            shownDetail?.let { d ->
+                DetailScreen(
+                    mvm = mvm,
+                    request = d,
+                    focusTick = focusTick,
+                    onPlay = { playRequest = it },
+                    onOpenTitle = { m -> detail = DetailRequest(m.type, m.id, m) },
+                    onClose = {
+                        detail = null
+                        requestContentFocus()
+                    },
+                )
+            }
         }
 
         val pr = playRequest
@@ -478,6 +501,7 @@ private fun ScreenHeader(title: String, guideStatus: String?) {
 /** Icon rail that opens into a labelled menu while the remote is on it. */
 @Composable
 private fun Sidebar(
+    onRight: () -> Unit,
     dests: List<Dest>,
     profile: com.zapp.tv.data.Profile?,
     onProfiles: () -> Unit,
@@ -529,6 +553,15 @@ private fun Sidebar(
                         onFocusChanged(it.hasFocus)
                     }
                     .focusProperties { enter = { railFocus } }
+                    .onPreviewKeyEvent { e ->
+                        // Right always goes back to where you were on the page.
+                        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionRight) {
+                            onRight()
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

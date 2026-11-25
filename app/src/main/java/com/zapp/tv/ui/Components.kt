@@ -205,6 +205,7 @@ fun FocusSurface(
 ) {
     val pulse = LocalFocusPulse.current
     val ownRequester = remember { FocusRequester() }
+    val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
     var focused by remember { mutableStateOf(false) }
     val press = remember { PressState() }
     val clickState by rememberUpdatedState(onClick)
@@ -266,7 +267,7 @@ fun FocusSurface(
             .focusable()
             .drawWithContent {
                 drawContent()
-                if (ring && focused) drawFocusRing(ringCorner.toPx(), pulse.value)
+                if (ring && ringAlpha > 0.01f) drawFocusRing(ringCorner.toPx(), pulse.value, ringAlpha)
             }
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -294,7 +295,7 @@ val LocalFocusPulse = androidx.compose.runtime.staticCompositionLocalOf<androidx
 }
 
 /** The theme-coloured ring around a focused card, with an optional soft pulsing glow outside it. */
-fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float) {
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float, alpha: Float = 1f) {
     val stroke = FocusStyle.ringWidth.dp.toPx()
     if (FocusStyle.glow) {
         val spread = 10.dp.toPx()
@@ -302,7 +303,7 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float
         for (i in 1..steps) {
             val grow = spread * i / steps
             drawRoundRect(
-                color = ZappColors.Brand1.copy(alpha = (0.10f + 0.16f * pulse) * (1f - i / (steps + 1f))),
+                color = ZappColors.Brand1.copy(alpha = alpha * (0.10f + 0.16f * pulse) * (1f - i / (steps + 1f))),
                 topLeft = Offset(-grow, -grow),
                 size = androidx.compose.ui.geometry.Size(size.width + grow * 2, size.height + grow * 2),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner + grow),
@@ -316,6 +317,7 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float
         size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
         cornerRadius = androidx.compose.ui.geometry.CornerRadius((corner - stroke / 2).coerceAtLeast(0f)),
         style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+        alpha = alpha,
     )
 }
 

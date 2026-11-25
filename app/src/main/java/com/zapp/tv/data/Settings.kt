@@ -151,11 +151,30 @@ class Settings(context: Context) {
         set(value) {
             themeState.value = value
             prefs.edit().putString("theme", value).apply()
-            com.zapp.tv.ui.ZappColors.palette = com.zapp.tv.ui.Palettes.byId(value)
+            applyTheme()
         }
 
+    /** Custom theme: two swatch numbers (see Palettes.Swatches). */
+    var customColors: Pair<Int, Int>
+        get() = customState.value
+        set(value) {
+            customState.value = value
+            prefs.edit().putInt("custom1", value.first).putInt("custom2", value.second).apply()
+            applyTheme()
+        }
+    private val customState = mutableStateOf(prefs.getInt("custom1", 0) to prefs.getInt("custom2", 7))
+
+    private fun applyTheme() {
+        val id = prefs.getString("theme", "aurora")
+        com.zapp.tv.ui.ZappColors.palette = if (id == "custom") {
+            com.zapp.tv.ui.Palettes.custom(prefs.getInt("custom1", 0), prefs.getInt("custom2", 7))
+        } else {
+            com.zapp.tv.ui.Palettes.byId(id)
+        }
+    }
+
     init {
-        com.zapp.tv.ui.ZappColors.palette = com.zapp.tv.ui.Palettes.byId(prefs.getString("theme", "aurora"))
+        applyTheme()
     }
 
     private val focusRingState = mutableIntStateOf(prefs.getInt("focusRing", 1))

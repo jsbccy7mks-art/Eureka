@@ -10,7 +10,10 @@ import com.zapp.tv.data.Updater
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
-class ZappApp : Application() {
+class ZappApp : Application(), coil.ImageLoaderFactory {
+    /** Artwork fades in softly instead of popping in. */
+    override fun newImageLoader(): coil.ImageLoader = coil.ImageLoader.Builder(this).crossfade(260).build()
+
     override fun onCreate() {
         super.onCreate()
         CrashReporter.install(this, "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
