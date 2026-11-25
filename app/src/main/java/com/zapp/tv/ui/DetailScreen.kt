@@ -115,8 +115,8 @@ fun DetailScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(*easedFade(start = 0f, end = 0.65f))))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(*easedFade(start = 1f, end = 0.3f))))
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(*easedFade(start = 0f, end = 0.55f))))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(*easedFade(start = 1f, end = 0.45f))))
         AmbientGlow(0.6f)
 
         if (!done && meta == null) {
@@ -160,29 +160,40 @@ fun DetailScreen(
                         Modifier
                             .align(Alignment.BottomStart)
                             .fillMaxWidth()
-                            .padding(start = 56.dp, bottom = if (isSeries) 26.dp else 52.dp),
+                            .padding(start = 56.dp, bottom = if (isSeries) 22.dp else 44.dp),
                     ) {
-                        Text(
-                            if (isSeries) "SERIES" else "FILM",
-                            color = ZappColors.Faint,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = 1.8.sp,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        MovieTitle(meta.name, if (isSeries) 44.sp else 58.sp, maxLines = 2, modifier = Modifier.widthIn(max = 680.dp))
-                        Spacer(Modifier.height(10.dp))
-                        FactsLine(meta.releaseInfo, meta.imdbRating, detail?.runtime, meta.genres)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier
+                                    .width(14.dp)
+                                    .height(2.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (isSeries) "SERIES" else "FILM",
+                                color = ZappColors.Dim,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 2.sp,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        MovieTitle(meta.name, if (isSeries) 32.sp else 38.sp, maxLines = 2, modifier = Modifier.widthIn(max = 460.dp))
+                        Spacer(Modifier.height(8.dp))
+                        FactsLine(meta.releaseInfo, meta.imdbRating, detail?.runtime, meta.genres, size = 11.5.sp)
                         meta.description?.let {
                             Spacer(Modifier.height(10.dp))
                             Text(
                                 it,
-                                color = ZappColors.Dim,
-                                fontSize = 13.sp,
-                                lineHeight = 19.sp,
+                                color = Color(0xFFC9CCD6),
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                letterSpacing = 0.1.sp,
                                 maxLines = if (isSeries) 2 else 3,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 560.dp),
+                                modifier = Modifier.widthIn(max = 430.dp),
                             )
                         }
                         val people = listOfNotNull(
@@ -194,15 +205,15 @@ fun DetailScreen(
                             Text(
                                 people.joinToString("   ·   "),
                                 color = ZappColors.Faint,
-                                fontSize = 11.5.sp,
+                                fontSize = 10.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 620.dp),
+                                modifier = Modifier.widthIn(max = 460.dp),
                             )
                         }
 
-                        Spacer(Modifier.height(20.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (isSeries) {
                                 val (video, resume) = nextUp
                                 if (video != null) {
@@ -238,7 +249,7 @@ fun DetailScreen(
                         }
 
                         if (isSeries) {
-                            Spacer(Modifier.height(22.dp))
+                            Spacer(Modifier.height(16.dp))
                             SeasonsAndEpisodes(videos, progress, nextUp.first) { v ->
                                 val p = progress.firstOrNull { it.videoId == v.id }
                                 val resume = if (p != null && !p.watched) p.position else 0L
@@ -358,8 +369,8 @@ private fun PlayButton(label: String, progress: WatchProgress?, requester: Focus
         restColor = Color(0x2EFFFFFF),
     ) { focused ->
         val fg = if (focused) ZappColors.OnFocus else Color.White
-        Row(Modifier.padding(start = 18.dp, end = 22.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            androidx.compose.foundation.Canvas(Modifier.size(11.dp)) {
+        Row(Modifier.padding(start = 16.dp, end = 18.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.Canvas(Modifier.size(9.dp)) {
                 val w = size.width
                 drawPath(
                     androidx.compose.ui.graphics.Path().apply {
@@ -372,7 +383,7 @@ private fun PlayButton(label: String, progress: WatchProgress?, requester: Focus
                 )
             }
             Spacer(Modifier.width(10.dp))
-            Text(label, color = fg, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label, color = fg, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             if (progress != null) {
                 Spacer(Modifier.width(12.dp))
                 ProgressLine(
@@ -472,7 +483,7 @@ private fun SeasonsAndEpisodes(
 
 @Composable
 private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, onClick: () -> Unit) {
-    Column(Modifier.width(196.dp)) {
+    Column(Modifier.width(160.dp)) {
         FocusSurface(
             onClick = onClick,
             modifier = modifier
@@ -509,7 +520,7 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, onClick
         Spacer(Modifier.height(7.dp))
         Text(
             (if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" },
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
             color = ZappColors.Dim,
             maxLines = 1,
