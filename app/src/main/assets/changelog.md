@@ -14,6 +14,11 @@
 **Fixed**
 - On Collections, Back from further along a shelf goes back to its first collection, instead of
   opening the sidebar.
+## 0.49.1
+
+**Fixed**
+- 0.49.0 wouldn't open: its new start-up buffer for films stopped the player being created. Taken
+  out for now.
 
 ## 0.49.0
 
