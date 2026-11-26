@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.43.0
+
+**Improved**
+- Frame rate matching, rebuilt: Zapp now finds the film's real frame rate before it plays (from
+  the start of the file, telling 23.976 from 24 by the timing of its frames), usually while you're
+  still on the details page and the source is got ready. When you press Play it switches the TV,
+  waits for it to settle ("Matching your TV to the film…"), and only then starts: no stutter at
+  the start and no judder from the wrong refresh rate. If the rate can only be found once playing,
+  the film is held while the TV switches.
+- Match frame rate has three choices: Off, At the start, or At the start and back when you stop.
+  If your box's own "Match content frame rate" setting would block it, Playback settings says where
+  to change it.
+- A small note shows what the TV switched to, and Stream info shows the film's frame rate (and
+  whether it was measured) and what the TV is showing.
+
 ## 0.42.2
 
 **Improved**

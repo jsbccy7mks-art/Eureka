@@ -73,6 +73,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import com.zapp.tv.addons.Video
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class VodPanel { None, Controls, Audio, Subtitles, SubStyle, Details, Scene }
 
@@ -149,6 +150,7 @@ fun VodPlayer(
     }
 
     val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+    val matchScope = androidx.compose.runtime.rememberCoroutineScope()
     DisposableEffect(Unit) {
         playback.fullscreen = true
         view.keepScreenOn = true
@@ -169,7 +171,13 @@ fun VodPlayer(
                 DisplayMatch.videoFps = com.zapp.tv.data.FrameRateProbe.snap(f.frameRate, 1_000_000f / f.frameRate)
                 DisplayMatch.videoFpsMeasured = false
             }
-            DisplayMatch.apply(a, DisplayMatch.videoFps ?: f.frameRate, f.height, mvm.settings.matchFrameRate, mvm.settings.matchResolution)
+            // Couldn't be matched before it started: hold it while the TV switches, then carry on.
+            val wasPlaying = player.playWhenReady
+            matchScope.launch {
+                player.playWhenReady = false
+                DisplayMatch.switchAndWait(a, DisplayMatch.videoFps ?: f.frameRate, f.height, mvm.settings.matchFrameRate, mvm.settings.matchResolution)
+                player.playWhenReady = wasPlaying
+            }
         }
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
