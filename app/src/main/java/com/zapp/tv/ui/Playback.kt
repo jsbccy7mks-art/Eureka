@@ -69,11 +69,12 @@ data class TrackChoice(
 
 @OptIn(UnstableApi::class)
 class Playback(
-    context: Context,
+    private val appContext: Context,
     private val scope: CoroutineScope,
     private val settings: Settings,
     private val resolve: (Channel) -> String,
 ) {
+    private val context: Context get() = appContext
 
     private val dataSourceFactory = DefaultHttpDataSource.Factory()
         .setUserAgent(USER_AGENT)
@@ -534,13 +535,20 @@ class Playback(
         val rows = ArrayList<Pair<String, String>>()
         player.videoFormat?.let { v ->
             if (v.width > 0 && v.height > 0) rows.add("Resolution" to "${v.width} × ${v.height}")
-            if (v.frameRate > 0) rows.add("Frame rate" to String.format(Locale.UK, "%.2f fps", v.frameRate).replace(".00", ""))
+            val fps = DisplayMatch.videoFps ?: v.frameRate.takeIf { it > 0 }
+            if (fps != null) rows.add("Frame rate" to String.format(Locale.UK, "%.3f", fps).trimEnd('0').trimEnd('.') + " fps" + if (DisplayMatch.videoFpsMeasured) " (measured)" else "")
             rows.add("Video" to codecName(v.sampleMimeType, v.codecs))
             if (v.bitrate > 0) rows.add("Video bitrate" to "${v.bitrate / 1000} kbps")
         }
         player.audioFormat?.let { a ->
             rows.add("Audio" to audioDetail(a))
             if (a.sampleRate > 0) rows.add("Sample rate" to "${a.sampleRate / 1000.0} kHz".replace(".0 ", " "))
+        }
+        // What the TV itself is showing (to check frame rate matching).
+        runCatching {
+            (appContext.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager).getDisplay(android.view.Display.DEFAULT_DISPLAY)?.mode
+        }.getOrNull()?.let { m ->
+            rows.add("TV" to "${m.physicalWidth} × ${m.physicalHeight} at " + String.format(Locale.UK, "%.3f", m.refreshRate).trimEnd('0').trimEnd('.') + " Hz")
         }
         val buffered = player.totalBufferedDuration
         if (buffered > 0) rows.add("Buffered" to String.format(Locale.UK, "%.1f s", buffered / 1000.0))

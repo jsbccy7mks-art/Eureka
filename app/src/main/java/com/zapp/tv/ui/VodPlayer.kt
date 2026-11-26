@@ -158,9 +158,18 @@ fun VodPlayer(
             val a = activity ?: return
             val f = player.videoFormat ?: return
             if (matchedFor == currentInfo.videoId) return
+            // Already matched before it started (the usual way now): leave the TV alone.
+            if (DisplayMatch.matchedVideo == currentInfo.videoId) {
+                matchedFor = currentInfo.videoId
+                return
+            }
             if (f.frameRate <= 0f && f.height <= 0) return
             matchedFor = currentInfo.videoId
-            DisplayMatch.apply(a, f.frameRate, f.height, mvm.settings.matchFrameRate, mvm.settings.matchResolution)
+            if (f.frameRate > 0f) {
+                DisplayMatch.videoFps = com.zapp.tv.data.FrameRateProbe.snap(f.frameRate, 1_000_000f / f.frameRate)
+                DisplayMatch.videoFpsMeasured = false
+            }
+            DisplayMatch.apply(a, DisplayMatch.videoFps ?: f.frameRate, f.height, mvm.settings.matchFrameRate, mvm.settings.matchResolution)
         }
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
@@ -193,7 +202,9 @@ fun VodPlayer(
         matchDisplay()
         onDispose {
             save()
-            activity?.let { DisplayMatch.reset(it) }
+            // "At the start" leaves the TV as it is; "back when you stop" (and resolution matching) restores it.
+            activity?.let { if (mvm.settings.frameRateMode == 2 || mvm.settings.matchResolution) DisplayMatch.reset(it) else DisplayMatch.matchedVideo = null }
+            DisplayMatch.videoFps = null
             player.removeListener(listener)
             playback.fullscreen = false
             view.keepScreenOn = false
@@ -605,6 +616,32 @@ fun VodPlayer(
             exit = fadeOut(androidx.compose.animation.core.tween(450)),
         ) {
             StartingScreen(request.meta.background ?: info.background ?: info.poster, info.title, info.episodeLabel)
+        }
+
+        // A brief note in the corner when the TV was switched for this film.
+        val note = DisplayMatch.note
+        var noteShown by remember { mutableStateOf(false) }
+        LaunchedEffect(note, started) {
+            if (note != null && started) {
+                noteShown = true
+                delay(3_500)
+                noteShown = false
+                DisplayMatch.note = null
+            }
+        }
+        AnimatedVisibility(
+            visible = noteShown && note != null,
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 40.dp),
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            Text(
+                "TV  ·  " + (note ?: ""),
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 5.dp),
+            )
         }
 
         // "Skip intro" / "Skip recap": already selected, so one press of OK skips.

@@ -8,6 +8,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import android.app.Activity
+import kotlinx.coroutines.async
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
@@ -246,11 +247,30 @@ fun ZappRoot(vm: AppViewModel) {
         if (starting) return
         starting = true
         coroutineScope.launch {
-            val subs = try {
-                mvm.subtitlesFor(req.meta.type, req.videoId)
-            } catch (e: Exception) {
-                emptyList()
+            val subsJob = async {
+                try {
+                    mvm.subtitlesFor(req.meta.type, req.videoId)
+                } catch (e: Exception) {
+                    emptyList()
+                }
             }
+            // Frame rate matching first: the rate (usually found already on the details page), the
+            // TV switched and settled, and only then the film.
+            val activity = context as? Activity
+            if (activity != null && mvm.settings.frameRateMode != 0 && info.url.startsWith("http")) {
+                val known = com.zapp.tv.data.FrameRateProbe.cached(info.url)
+                if (known == null) mvm.showStarting("Matching your TV to the film…")
+                val shape = known ?: com.zapp.tv.data.FrameRateProbe.probe(info.url, info.headers, timeoutMs = 8_000)
+                if (shape != null) {
+                    DisplayMatch.videoFps = shape.fps
+                    DisplayMatch.videoFpsMeasured = shape.measured
+                    mvm.showStarting("Matching your TV to the film…")
+                    DisplayMatch.switchAndWait(activity, shape.fps, shape.height, true, mvm.settings.matchResolution)
+                    DisplayMatch.matchedVideo = info.videoId
+                }
+                mvm.showStarting(null)
+            }
+            val subs = subsJob.await()
             playback.playMedia(info.copy(subtitles = subs), req.resumeMs, req.resumePercent)
             playRequest = req.copy(preferBingeGroup = stream.bingeGroup, autoPlay = false)
             vodOpen = true

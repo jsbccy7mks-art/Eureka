@@ -259,11 +259,18 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SettingsGroup("Display matching", "Frame rate and resolution switching") {
+            val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
+            val system = activity?.let { DisplayMatch.systemPreference(it) }
             SettingRow(
                 title = "Match frame rate",
-                body = "Switches your TV to the film's frame rate (24, 25, 50, 60) while it plays, so motion is smooth. The screen may go dark for a moment as it switches.",
-                value = SettingValue.Toggle(s.matchFrameRate),
-                onClick = { s.matchFrameRate = !s.matchFrameRate },
+                body = "Finds the film's real frame rate (23.976, 24, 25, 50, 60) before it starts, switches your TV and waits for it to settle, then plays: smooth motion and no stutter at the start." +
+                    when (system) {
+                        0 -> " Your box's own setting blocks this: Settings, Display & Sound, Advanced display settings, Match content frame rate: choose Always."
+                        1 -> " Your box only allows seamless switches: for this to work, set Settings, Display & Sound, Advanced display settings, Match content frame rate to Always."
+                        else -> ""
+                    },
+                value = SettingValue.Choice(listOf("Off", "At the start", "At the start, back when you stop")[s.frameRateMode.coerceIn(0, 2)]),
+                onClick = { s.frameRateMode = (s.frameRateMode + 1) % 3 },
             )
             SettingRow(
                 title = "Match resolution",

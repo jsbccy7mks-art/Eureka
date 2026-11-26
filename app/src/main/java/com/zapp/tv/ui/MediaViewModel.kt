@@ -615,6 +615,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     var resolving by mutableStateOf<String?>(null)
         private set
 
+    /** A short message on the starting screen while something is got ready (e.g. matching the TV). */
+    fun showStarting(text: String?) {
+        resolving = text
+    }
+
     // ------------------------------------------------------------ getting ready before Play
 
     /** Sources for one film or episode, fetched ahead (from its details page) and shared with the sources screen. */
@@ -692,7 +697,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             val k = linkKey(choice)
             if (readyLinks[k]?.let { System.currentTimeMillis() - it.second < 10 * 60_000L } == true) return@launch
             runCatching { debrid.resolve(com.zapp.tv.data.TorrentRef(choice.infoHash!!.lowercase(), choice.fileIdx, choice.filename, title)) }
-                .getOrNull()?.let { (_, url) -> readyLinks[k] = url to System.currentTimeMillis() }
+                .getOrNull()?.let { (_, url) ->
+                    readyLinks[k] = url to System.currentTimeMillis()
+                    // While you read the page: the film's frame rate, so the TV can switch before it starts.
+                    if (settings.frameRateMode != 0) com.zapp.tv.data.FrameRateProbe.probe(url, emptyMap(), timeoutMs = 25_000)
+                }
         }
     }
 

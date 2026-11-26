@@ -449,14 +449,18 @@ class Settings(context: Context) {
         get() = liveRewindState.value
         set(value) { liveRewindState.value = value; prefs.edit().putBoolean("liveRewind", value).apply() }
 
-    private val matchFrameRateState = mutableStateOf(prefs.getBoolean("matchFrameRate", true))
-    /** Switch the TV to the video's frame rate while playing (no judder). */
-    var matchFrameRate: Boolean
-        get() = matchFrameRateState.value
+    private val frameRateModeState = mutableIntStateOf(prefs.getInt("frameRateMode", if (prefs.getBoolean("matchFrameRate", true)) 2 else 0))
+    /** Frame rate matching: 0 off, 1 at the start, 2 at the start and back when you stop. */
+    var frameRateMode: Int
+        get() = frameRateModeState.intValue
         set(value) {
-            matchFrameRateState.value = value
-            prefs.edit().putBoolean("matchFrameRate", value).apply()
+            frameRateModeState.intValue = value
+            prefs.edit().putInt("frameRateMode", value).putBoolean("matchFrameRate", value != 0).apply()
         }
+    /** Switch the TV to the video's frame rate (no judder). */
+    var matchFrameRate: Boolean
+        get() = frameRateMode != 0
+        set(value) { frameRateMode = if (value) 2 else 0 }
 
     private val matchResolutionState = mutableStateOf(prefs.getBoolean("matchResolution", false))
     /** Switch the TV to the video's resolution while playing. */
