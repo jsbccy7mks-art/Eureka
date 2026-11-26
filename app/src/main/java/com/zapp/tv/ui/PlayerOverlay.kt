@@ -589,10 +589,15 @@ internal fun TrackPanel(
     offOption: Boolean?,
     onPick: (TrackChoice) -> Unit,
     onOff: () -> Unit = {},
+    onStyle: (() -> Unit)? = null,
 ) {
     val firstFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) { firstFocus.tryRequest() }
     SidePanel(title) {
+        onStyle?.let {
+            TrackRow("Timing and look", "Sync, font, bold, style, size", false, null, it)
+            Spacer(Modifier.height(8.dp))
+        }
         if (choices.isEmpty()) {
             Text(
                 if (offOption != null) "This channel has no subtitles." else "This channel has one audio track.",
@@ -983,6 +988,158 @@ private fun ChannelListPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             KeyHint("OK", "Watch")
             KeyHint("Back", "Close")
+        }
+    }
+}
+
+/** Font for film and series subtitles (Settings: 0 Default, 1 Sans, 2 Serif, 3 Condensed, 4 Typewriter). */
+fun subtitleFont(i: Int): androidx.compose.ui.text.font.FontFamily = when (i) {
+    1 -> androidx.compose.ui.text.font.FontFamily.SansSerif
+    2 -> androidx.compose.ui.text.font.FontFamily.Serif
+    3 -> androidx.compose.ui.text.font.FontFamily(
+        androidx.compose.ui.text.font.Typeface(android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL)),
+    )
+    4 -> androidx.compose.ui.text.font.FontFamily.Monospace
+    else -> Inter
+}
+
+val SubtitleFontNames = listOf("Default", "Sans", "Serif", "Condensed", "Typewriter")
+val SubtitleStyleNames = listOf("Drop shadow", "Outline", "Outline and shadow", "Dark box", "Plain")
+val SubtitleSizeNames = listOf("Small", "Medium", "Large", "Extra large")
+
+fun vodSubtitleSize(i: Int) = when (i) {
+    0 -> 18.sp
+    2 -> 28.sp
+    3 -> 34.sp
+    else -> 23.sp
+}
+
+/** Film and series subtitles, in your chosen font, weight and style. */
+@Composable
+fun VodSubtitleText(text: String, size: androidx.compose.ui.unit.TextUnit, font: Int, bold: Boolean, style: Int) {
+    val base = TextStyle(
+        fontFamily = subtitleFont(font),
+        fontSize = size,
+        lineHeight = size * 1.25f,
+        fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium,
+        textAlign = TextAlign.Center,
+    )
+    val shadow = Shadow(Color.Black.copy(alpha = 0.85f), Offset(0f, 2f), 8f)
+    val box = style == 3
+    Box(
+        if (box) Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xCC000000)).padding(horizontal = 10.dp, vertical = 3.dp) else Modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        if (style == 1 || style == 2) {
+            // Outline: the same text drawn as a black stroke underneath.
+            Text(
+                text,
+                style = base.copy(
+                    color = Color.Black,
+                    drawStyle = androidx.compose.ui.graphics.drawscope.Stroke(width = size.value * 0.22f, join = androidx.compose.ui.graphics.StrokeJoin.Round),
+                    shadow = if (style == 2) shadow else null,
+                ),
+            )
+        }
+        Text(text, style = base.copy(color = Color.White, shadow = if (style == 0) shadow else null))
+    }
+}
+
+/**
+ * Subtitles for films and series: your own look, and moved by the timing offset when there is one.
+ */
+@Composable
+internal fun VodSubtitleLayer(playback: Playback, settings: com.zapp.tv.data.Settings, raisedForPanel: Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val http = remember { (context.applicationContext as com.zapp.tv.ZappApp).sharedHttp }
+    // With an offset, the text is worked out from the playback position several times a second.
+    val shifted by produceState<List<String>?>(null, playback.subtitleOffsetMs, playback.media?.videoId) {
+        while (playback.subtitleOffsetMs != 0L) {
+            value = playback.subtitleTextNow(http, scope)
+            delay(100)
+        }
+        value = null
+    }
+    val texts = shifted ?: playback.cues.mapNotNull { it.text?.toString()?.takeIf { t -> t.isNotBlank() } }
+    val bitmaps = if (shifted == null) playback.cues.mapNotNull { c -> c.bitmap?.let { it to c.size } } else emptyList()
+    if (texts.isEmpty() && bitmaps.isEmpty()) return
+    val bottom = when {
+        raisedForPanel -> 200.dp
+        settings.vodSubRaised -> 96.dp
+        else -> 40.dp
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .padding(start = 72.dp, end = 72.dp, bottom = bottom),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            bitmaps.forEach { (b, w) ->
+                Image(bitmap = b.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth(if (w > 0f && w <= 1f) w else 0.7f))
+            }
+            texts.forEach { VodSubtitleText(it, vodSubtitleSize(settings.vodSubSize), settings.vodSubFont, settings.vodSubBold, settings.vodSubStyle) }
+        }
+    }
+}
+
+
+/** Films and series: subtitle timing and look, changed live over the picture. Left/Right adjust. */
+@Composable
+internal fun SubtitleStylePanel(playback: Playback, settings: com.zapp.tv.data.Settings) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { first.tryRequest() }
+    SidePanel("Subtitles: timing and look") {
+        @Composable
+        fun row(label: String, value: String, requester: FocusRequester? = null, change: (Int) -> Unit) {
+            FocusSurface(
+                onClick = { change(1) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onPreviewKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when (e.key) {
+                            Key.DirectionLeft -> { change(-1); true }
+                            Key.DirectionRight -> { change(1); true }
+                            else -> false
+                        }
+                    },
+                focusRequester = requester,
+                shape = RoundedCornerShape(10.dp),
+            ) { focused ->
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(if (focused) "‹  $value  ›" else value, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 13.sp)
+                }
+            }
+        }
+        val o = playback.subtitleOffsetMs
+        row(
+            "Sync",
+            when {
+                o == 0L -> "In time"
+                o > 0 -> "+%.1f s later".format(java.util.Locale.UK, o / 1000f)
+                else -> "%.1f s earlier".format(java.util.Locale.UK, -o / 1000f)
+            },
+            first,
+        ) { d -> playback.setSubtitleOffset(o + d * 100L) }
+        row("Font", SubtitleFontNames[settings.vodSubFont.coerceIn(0, 4)]) { d -> settings.vodSubFont = (settings.vodSubFont + d).mod(SubtitleFontNames.size) }
+        row("Bold", if (settings.vodSubBold) "On" else "Off") { settings.vodSubBold = !settings.vodSubBold }
+        row("Style", SubtitleStyleNames[settings.vodSubStyle.coerceIn(0, 4)]) { d -> settings.vodSubStyle = (settings.vodSubStyle + d).mod(SubtitleStyleNames.size) }
+        row("Size", SubtitleSizeNames[settings.vodSubSize.coerceIn(0, 3)]) { d -> settings.vodSubSize = (settings.vodSubSize + d).mod(SubtitleSizeNames.size) }
+        row("Position", if (settings.vodSubRaised) "Raised" else "Bottom") { settings.vodSubRaised = !settings.vodSubRaised }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Sync is kept for this title; the look is for all films and series (live TV keeps its own). " +
+                "Subtitles inside the video can only move later; add-on subtitles can move either way.",
+            color = ZappColors.Faint,
+            fontSize = 11.5.sp,
+            lineHeight = 16.sp,
+        )
+        Spacer(Modifier.height(14.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            VodSubtitleText("This is how they look.", vodSubtitleSize(settings.vodSubSize) * 0.75f, settings.vodSubFont, settings.vodSubBold, settings.vodSubStyle)
         }
     }
 }

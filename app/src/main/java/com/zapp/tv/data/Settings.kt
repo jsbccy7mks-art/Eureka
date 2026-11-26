@@ -116,6 +116,50 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("subtitleRaised", value).apply()
         }
 
+    // ---- subtitles for films and series (their own, separate from live TV)
+    private val vodSubtitlesOnState = mutableStateOf(prefs.getBoolean("vodSubtitlesOn", true))
+    /** Films and series: subtitles on when there are some in your language. */
+    var vodSubtitlesOn: Boolean
+        get() = vodSubtitlesOnState.value
+        set(value) {
+            vodSubtitlesOnState.value = value
+            prefs.edit().putBoolean("vodSubtitlesOn", value).apply()
+        }
+    private val vodSubFontState = intState("vodSubFont", 0)
+    /** 0 Default, 1 Sans, 2 Serif, 3 Condensed, 4 Typewriter. */
+    var vodSubFont: Int
+        get() = vodSubFontState.intValue
+        set(value) { vodSubFontState.intValue = value; prefs.edit().putInt("vodSubFont", value).apply() }
+    private val vodSubBoldState = mutableStateOf(prefs.getBoolean("vodSubBold", false))
+    var vodSubBold: Boolean
+        get() = vodSubBoldState.value
+        set(value) { vodSubBoldState.value = value; prefs.edit().putBoolean("vodSubBold", value).apply() }
+    private val vodSubStyleState = intState("vodSubStyle", 0)
+    /** 0 drop shadow, 1 outline, 2 outline and shadow, 3 dark box, 4 plain. */
+    var vodSubStyle: Int
+        get() = vodSubStyleState.intValue
+        set(value) { vodSubStyleState.intValue = value; prefs.edit().putInt("vodSubStyle", value).apply() }
+    private val vodSubSizeState = intState("vodSubSize", prefs.getInt("subtitleSize", 1))
+    /** 0 small, 1 medium, 2 large, 3 extra large. */
+    var vodSubSize: Int
+        get() = vodSubSizeState.intValue
+        set(value) { vodSubSizeState.intValue = value; prefs.edit().putInt("vodSubSize", value).apply() }
+    private val vodSubRaisedState = mutableStateOf(prefs.getBoolean("vodSubRaised", false))
+    var vodSubRaised: Boolean
+        get() = vodSubRaisedState.value
+        set(value) { vodSubRaisedState.value = value; prefs.edit().putBoolean("vodSubRaised", value).apply() }
+
+    /** Subtitle timing per film or episode, in ms (positive: later). */
+    fun subtitleOffset(videoId: String): Long =
+        runCatching { org.json.JSONObject(prefs.getString("subOffsets", "{}") ?: "{}").optLong(videoId, 0) }.getOrDefault(0)
+    fun setSubtitleOffset(videoId: String, ms: Long) {
+        val o = runCatching { org.json.JSONObject(prefs.getString("subOffsets", "{}") ?: "{}") }.getOrDefault(org.json.JSONObject())
+        if (ms == 0L) o.remove(videoId) else o.put(videoId, ms)
+        // Keep the last 200 titles.
+        while (o.length() > 200) o.remove(o.keys().next())
+        prefs.edit().putString("subOffsets", o.toString()).apply()
+    }
+
     // ---------------------------------------------------------------- films and series
 
     private val autoPlayFirstState = mutableStateOf(

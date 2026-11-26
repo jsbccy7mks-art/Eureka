@@ -74,7 +74,7 @@ import androidx.media3.common.Player
 import com.zapp.tv.addons.Video
 import kotlinx.coroutines.delay
 
-private enum class VodPanel { None, Controls, Audio, Subtitles, Details }
+private enum class VodPanel { None, Controls, Audio, Subtitles, SubStyle, Details }
 
 /**
  * Player for films and episodes.
@@ -206,6 +206,7 @@ fun VodPlayer(
 
     BackHandler {
         panel = when (panel) {
+            VodPanel.SubStyle -> VodPanel.Subtitles
             VodPanel.Audio, VodPanel.Subtitles, VodPanel.Details -> VodPanel.Controls
             VodPanel.Controls -> VodPanel.None
             VodPanel.None -> {
@@ -358,7 +359,7 @@ fun VodPlayer(
                 else -> Modifier.aspectRatio(playback.aspect, matchHeightConstraintsFirst = playback.aspect < 16f / 9f + 0.01f)
             },
         )
-        SubtitleLayer(playback.cues, vm.settings, raisedForPanel = panel == VodPanel.Controls)
+        VodSubtitleLayer(playback, mvm.settings, raisedForPanel = panel == VodPanel.Controls)
 
         if (started && playback.buffering && playback.error == null) {
             ZappLoader(36.dp)
@@ -438,7 +439,7 @@ fun VodPlayer(
         }
 
         AnimatedVisibility(
-            visible = panel == VodPanel.Audio || panel == VodPanel.Subtitles || panel == VodPanel.Details,
+            visible = panel == VodPanel.Audio || panel == VodPanel.Subtitles || panel == VodPanel.SubStyle || panel == VodPanel.Details,
             modifier = Modifier.align(Alignment.CenterEnd),
             enter = fadeIn() + slideInHorizontally { it / 3 },
             exit = fadeOut() + slideOutHorizontally { it / 3 },
@@ -465,7 +466,9 @@ fun VodPlayer(
                         playback.select(it)
                         panel = VodPanel.Controls
                     },
+                    onStyle = { panel = VodPanel.SubStyle },
                 )
+                VodPanel.SubStyle -> SubtitleStylePanel(playback, mvm.settings)
                 else -> DetailsPanel(playback)
             }
         }

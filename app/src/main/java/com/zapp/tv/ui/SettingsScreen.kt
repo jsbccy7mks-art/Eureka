@@ -375,8 +375,14 @@ private fun SubtitleSettingsPane(vm: AppViewModel) {
             }
         }
         SettingRow(
-            title = "Subtitles",
-            body = "Turn subtitles on automatically when a channel has them. You can always switch in the player.",
+            title = "Films and series: subtitles",
+            body = "Turn subtitles on automatically for films and series. Their font, bold, style, size and timing are in the player's Subtitles menu.",
+            value = SettingValue.Choice(if (s.vodSubtitlesOn) "On when available" else "Off"),
+            onClick = { s.vodSubtitlesOn = !s.vodSubtitlesOn },
+        )
+        SettingRow(
+            title = "Live TV: subtitles",
+            body = "Turn subtitles on automatically when a channel has them. You can always switch in the player. The settings below are for live TV.",
             value = SettingValue.Choice(if (s.subtitlesOn) "On when available" else "Off"),
             onClick = { s.subtitlesOn = !s.subtitlesOn },
         )

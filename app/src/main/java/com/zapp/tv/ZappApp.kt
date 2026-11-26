@@ -19,6 +19,9 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
         CrashReporter.install(this, "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
     }
 
+    /** The app's shared web client (for small extra fetches, like subtitle files). */
+    val sharedHttp: OkHttpClient get() = httpClient
+
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

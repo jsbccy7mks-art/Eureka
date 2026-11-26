@@ -90,6 +90,84 @@ class Playback(
     var tracks by mutableStateOf(Tracks.EMPTY)
         private set
     var cues by mutableStateOf<List<Cue>>(emptyList())
+
+    // ---- subtitle timing (films and series)
+    /** Positive: subtitles later; negative: earlier. */
+    var subtitleOffsetMs by mutableStateOf(0L)
+    /** What the subtitles showed, and when (for showing them later). */
+    private val cueHistory = ArrayList<Pair<Long, List<Cue>>>()
+    /** Add-on subtitles by their track label, so they can be read directly (for showing them earlier). */
+    private var externalLabels: Map<String, String> = emptyMap()
+    private val parsedSubs = java.util.concurrent.ConcurrentHashMap<String, List<SubCue>>()
+    private var parsing: String? = null
+
+    data class SubCue(val start: Long, val end: Long, val text: String)
+
+    fun setSubtitleOffset(ms: Long) {
+        subtitleOffsetMs = ms.coerceIn(-10_000, 10_000)
+        media?.let { settings.setSubtitleOffset(it.videoId, subtitleOffsetMs) }
+    }
+
+    /** The add-on subtitle file in use, if one is selected. */
+    private fun selectedExternalUrl(): String? {
+        for (g in tracks.groups) {
+            if (g.type != C.TRACK_TYPE_TEXT) continue
+            for (i in 0 until g.length) if (g.isTrackSelected(i)) g.getTrackFormat(i).label?.let { l -> externalLabels[l]?.let { return it } }
+        }
+        return null
+    }
+
+    /**
+     * The subtitle text to show now, allowing for the timing offset (null: show the player's own).
+     * Add-on subtitles are read directly, so they can move either way; subtitles inside the video
+     * can be moved later.
+     */
+    fun subtitleTextNow(http: okhttp3.OkHttpClient, scope: CoroutineScope): List<String>? {
+        val offset = subtitleOffsetMs
+        if (offset == 0L) return null
+        val pos = player.currentPosition - offset
+        selectedExternalUrl()?.let { url ->
+            val parsed = parsedSubs[url]
+            if (parsed == null) {
+                if (parsing != url) {
+                    parsing = url
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        val text = runCatching {
+                            http.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { it.body?.string().orEmpty() }
+                        }.getOrNull()
+                        if (text != null) parsedSubs[url] = parseSubs(text)
+                    }
+                }
+            } else {
+                return parsed.filter { pos >= it.start && pos < it.end }.map { it.text }
+            }
+        }
+        if (offset > 0) {
+            val entry = cueHistory.lastOrNull { it.first <= pos } ?: return emptyList()
+            return entry.second.mapNotNull { c -> c.text?.toString()?.takeIf { it.isNotBlank() } }
+        }
+        return null
+    }
+
+    private fun parseSubs(text: String): List<SubCue> {
+        val out = ArrayList<SubCue>()
+        val time = Regex("""(\d{1,2}):(\d{2}):(\d{2})[.,](\d{3})|(\d{2}):(\d{2})[.,](\d{3})""")
+        fun ms(m: MatchResult): Long {
+            val g = m.groupValues
+            return if (g[1].isNotEmpty()) g[1].toLong() * 3_600_000 + g[2].toLong() * 60_000 + g[3].toLong() * 1000 + g[4].toLong()
+            else g[5].toLong() * 60_000 + g[6].toLong() * 1000 + g[7].toLong()
+        }
+        for (b in text.replace("\r", "").split(Regex("\n\\s*\n"))) {
+            val lines = b.trim().lines()
+            val i = lines.indexOfFirst { "-->" in it }
+            if (i < 0) continue
+            val times = time.findAll(lines[i]).toList()
+            if (times.size < 2) continue
+            val body = lines.drop(i + 1).joinToString("\n").replace(Regex("<[^>]+>"), "").replace(Regex("\\{[^}]*\\}"), "").trim()
+            if (body.isNotEmpty()) out.add(SubCue(ms(times[0]), ms(times[1]), body))
+        }
+        return out
+    }
         private set
 
     var channel by mutableStateOf<Channel?>(null)
@@ -171,6 +249,10 @@ class Playback(
 
         override fun onCues(cueGroup: CueGroup) {
             cues = cueGroup.cues
+            if (media != null) {
+                cueHistory.add(player.currentPosition to cueGroup.cues)
+                while (cueHistory.size > 400) cueHistory.removeAt(0)
+            }
         }
 
         override fun onPlayerError(e: PlaybackException) {
@@ -271,7 +353,13 @@ class Playback(
         channel = null
         media = info
         cues = emptyList()
-        applyPreferences()
+        cueHistory.clear()
+        subtitleOffsetMs = settings.subtitleOffset(info.videoId)
+        externalLabels = info.subtitles.associate { s ->
+            val lang = com.zapp.tv.addons.normalizeLang(s.lang)
+            ((languageName(lang) ?: s.lang) + " · " + s.addonName) to s.url
+        }
+        applyPreferences(vod = true)
         dataSourceFactory.setDefaultRequestProperties(info.headers)
         val item = MediaItem.Builder()
             .setUri(info.url)
@@ -307,12 +395,13 @@ class Playback(
     }
 
     /** Audio language and subtitle defaults from Settings; clears any per-stream choices. */
-    fun applyPreferences() {
+    fun applyPreferences(vod: Boolean = false) {
         val b = player.trackSelectionParameters.buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
             .setPreferredAudioLanguage(settings.audioLanguage.ifEmpty { null })
-        if (settings.subtitlesOn) {
+        // Films and series have their own on/off, separate from live TV.
+        if (if (vod) settings.vodSubtitlesOn else settings.subtitlesOn) {
             b.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 .setPreferredTextLanguage(settings.subtitleLanguage.ifEmpty { Locale.getDefault().language })
                 .setSelectUndeterminedTextLanguage(true)
