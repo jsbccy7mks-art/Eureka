@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -75,10 +76,12 @@ fun CollectionCard(
     width: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
     onFocus: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     FocusSurface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier.width(width).aspectRatio(WideAspect),
         onFocusChange = { if (it) onFocus() },
         shape = RoundedCornerShape(12.dp),
@@ -119,8 +122,26 @@ fun CollectionScreen(
     BackHandler(onBack = onClose)
     val collection by produceState<com.zapp.tv.data.TmdbCollection?>(null, collectionId) { value = mvm.collection(collectionId) }
     val imdb by produceState(emptyMap<Long, String>(), collection) { collection?.let { value = mvm.collectionImdbIds(it) } }
-    val theme by produceState<String?>(null, collectionId) { value = mvm.collectionTheme(collectionId) }
     val c = collection
+    // The theme tune: the one you chose, else the best 30-second preview from Apple Music or Deezer,
+    // else the full tune from YouTube. A small line under the title says which, or why there's none.
+    val musicOn = mvm.settings.themeMusic && collectionId > 0
+    var tune by remember(collectionId) { mutableStateOf(mvm.chosenTheme(collectionId)) }
+    var candidates by remember(collectionId) { mutableStateOf<List<com.zapp.tv.data.ThemeTrack>>(emptyList()) }
+    var youtubeTheme by remember(collectionId) { mutableStateOf<String?>(null) }
+    var tuneStatus by remember(collectionId) { mutableStateOf(if (musicOn) "Looking for the theme…" else null) }
+    var picking by remember(collectionId) { mutableStateOf(false) }
+    var tried by remember(collectionId) { mutableStateOf(setOf<String>()) }
+    LaunchedEffect(collectionId, c?.name) {
+        val name = c?.name ?: return@LaunchedEffect
+        if (!musicOn) return@LaunchedEffect
+        candidates = mvm.themeCandidates(collectionId, name)
+        if (tune == null) tune = candidates.firstOrNull()
+        if (tune == null) {
+            youtubeTheme = mvm.collectionTheme(collectionId)
+            tuneStatus = if (youtubeTheme != null) "Theme from YouTube" else "No theme found for this collection"
+        }
+    }
     var index by remember(collectionId) { mutableIntStateOf(0) }
     val first = remember { FocusRequester() }
 
@@ -137,7 +158,24 @@ fun CollectionScreen(
     ) {
         // The theme tune's player sits underneath everything (a player that's hidden or tiny
         // isn't allowed to play, so it's full size and simply covered).
-        if (musicAllowed) theme?.let { ThemeMusic(it, mvm.settings.themeVolume) }
+        if (musicAllowed && musicOn) {
+            val t = tune
+            when {
+                t != null -> PreviewMusic(
+                    t.url,
+                    mvm.settings.themeVolume,
+                    onPlaying = { tuneStatus = "♪  " + t.title + (if (t.artist.isNotBlank()) "  ·  " + t.artist else "") },
+                    onFailed = {
+                        // That one wouldn't play: the next candidate, then YouTube.
+                        tried = tried + t.url
+                        val next = candidates.firstOrNull { it.url !in tried && it.url != t.url }
+                        tune = next
+                        if (next == null) tuneStatus = "Couldn't play the theme (${t.source})"
+                    },
+                )
+                youtubeTheme != null -> ThemeMusic(youtubeTheme!!, mvm.settings.themeVolume)
+            }
+        }
         // A blurred wash of the collection's colours, then the focused film's backdrop drifting over it.
         val part = c?.parts?.getOrNull(index)
         BlurredBackdrop(c?.backdrop ?: c?.poster, dim = 0.5f)
@@ -184,6 +222,17 @@ fun CollectionScreen(
                 c.overview?.let {
                     Spacer(Modifier.height(8.dp))
                     Text(it, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
+                }
+                // What's playing, and a way to choose another tune (Up from the posters).
+                tuneStatus?.let { st ->
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(st, color = ZappColors.Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 420.dp))
+                        if (candidates.isNotEmpty()) {
+                            Spacer(Modifier.width(10.dp))
+                            ZButton("Change tune", { picking = true }, style = ButtonStyle.Quiet)
+                        }
+                    }
                 }
             }
 
@@ -271,6 +320,25 @@ fun CollectionScreen(
                         }
                     }
                 }
+            }
+
+            if (picking) {
+                TunePicker(
+                    candidates = candidates,
+                    current = tune,
+                    onPreview = { tune = it },
+                    onChoose = { t ->
+                        mvm.chooseTheme(collectionId, t)
+                        tune = t ?: candidates.firstOrNull()
+                        picking = false
+                        first.tryRequest()
+                    },
+                    onClose = {
+                        tune = mvm.chosenTheme(collectionId) ?: candidates.firstOrNull()
+                        picking = false
+                        first.tryRequest()
+                    },
+                )
             }
 
             // ---- the timeline and the film you're on
@@ -403,6 +471,9 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
         shown = focused
     }
     val first = remember { FocusRequester() }
+    // Hold OK on a collection: pin it, take it out of Your collections, or arrange its shelf.
+    var menu by remember { mutableStateOf<Pair<MediaViewModel.CollectionSummary, String>?>(null) }
+    menu?.let { (c, shelfId) -> CollectionMenu(mvm, c, shelfId, shelves.map { it.id }) { menu = null } }
     var handled by remember { mutableIntStateOf(focusTick) }
     LaunchedEffect(focusTick, shelves.isNotEmpty()) {
         if (focusTick == handled && focused != null) return@LaunchedEffect
@@ -512,7 +583,8 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                                             c,
                                             w,
                                             modifier = if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier,
-                                            onFocus = { focused = c; mvm.prefetchTheme(c.id) },
+                                            onFocus = { focused = c; mvm.prefetchTheme(c.id, c.name) },
+                                            onLongClick = { menu = c to shelf.id },
                                         ) { onOpen(c.id) }
                                     }
                                 }
@@ -520,6 +592,92 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+
+/** Choose a collection's tune: moving onto one plays it; OK keeps it. */
+@Composable
+private fun TunePicker(
+    candidates: List<com.zapp.tv.data.ThemeTrack>,
+    current: com.zapp.tv.data.ThemeTrack?,
+    onPreview: (com.zapp.tv.data.ThemeTrack) -> Unit,
+    onChoose: (com.zapp.tv.data.ThemeTrack?) -> Unit,
+    onClose: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(60)
+        first.tryRequest()
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier
+                .width(480.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(ZappColors.Panel)
+                .padding(horizontal = 14.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text("Theme tune", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp))
+            Text("Move onto one to hear it; OK keeps it for this collection.", color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp))
+            candidates.forEachIndexed { i, t ->
+                Box(Modifier.onFocusChanged { if (it.hasFocus) onPreview(t) }) {
+                    MenuItem(if (t.url == current?.url) "♪" else "", t.title + if (t.artist.isNotBlank()) "  ·  " + t.artist else "", if (i == 0) first else null, trailing = t.source) { onChoose(t) }
+                }
+            }
+            MenuItem("↺", "Automatic (Zapp's pick)", null) { onChoose(null) }
+        }
+    }
+}
+
+
+/** Hold OK on a collection (Collections page): keep it, drop it, or arrange its shelf. */
+@Composable
+private fun CollectionMenu(mvm: MediaViewModel, c: MediaViewModel.CollectionSummary, shelfId: String, shownShelves: List<String>, onClose: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(60)
+        first.tryRequest()
+    }
+    val pinned = mvm.isPinned(c.id)
+    val inYours = mvm.isInYours(c.id)
+    val title = COLLECTION_SHELVES.toMap()[shelfId] ?: "this shelf"
+    val pos = shownShelves.indexOf(shelfId)
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier
+                .width(440.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(ZappColors.Panel)
+                .padding(horizontal = 14.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(c.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
+            Spacer(Modifier.height(8.dp))
+            MenuItem(if (pinned) "★" else "☆", if (pinned) "Unpin from Your collections" else "Pin to the front of Your collections", first) {
+                mvm.pinCollection(c, !pinned)
+                onClose()
+            }
+            if (inYours) {
+                MenuItem("−", "Remove from Your collections", null) {
+                    mvm.removeFromYours(c.id)
+                    onClose()
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(title.uppercase(), color = ZappColors.Faint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 2.dp))
+            if (pos > 0) MenuItem("↑", "Move this shelf up", null) { mvm.moveCollectionShelf(shelfId, -1); onClose() }
+            if (pos in 0 until shownShelves.size - 1) MenuItem("↓", "Move this shelf down", null) { mvm.moveCollectionShelf(shelfId, 1); onClose() }
+            MenuItem("⌂", "Add this shelf to Home", null) {
+                mvm.addShelfToHome(shelfId)
+                onClose()
+            }
+            MenuItem("✕", "Hide this shelf", null, trailing = "Settings, Home screen to bring it back") {
+                mvm.setCollectionShelfShown(shelfId, false)
+                onClose()
             }
         }
     }

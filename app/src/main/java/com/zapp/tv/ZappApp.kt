@@ -44,6 +44,7 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
     val ratings: com.zapp.tv.data.Ratings by lazy { com.zapp.tv.data.Ratings(settings) }
     val sports: com.zapp.tv.data.Sports by lazy { com.zapp.tv.data.Sports(httpClient, settings) }
     val themes: com.zapp.tv.data.Themes by lazy { com.zapp.tv.data.Themes(httpClient) }
+    val themePreviews: com.zapp.tv.data.ThemePreviews by lazy { com.zapp.tv.data.ThemePreviews(httpClient) }
     val sourceStats: com.zapp.tv.data.SourceStats by lazy { com.zapp.tv.data.SourceStats(this) }
     val tmdb: com.zapp.tv.data.Tmdb by lazy { com.zapp.tv.data.Tmdb(httpClient, settings) }
     val youtube: com.zapp.tv.data.YouTube by lazy { com.zapp.tv.data.YouTube(httpClient) }

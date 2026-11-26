@@ -1304,6 +1304,22 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
                 onClick = { if (mvm.tmdb.enabled) mvm.settings.libraryCollections = !mvm.settings.libraryCollections },
             )
         }
+        if (mvm.tmdb.enabled && mvm.settings.libraryCollections) {
+            item(key = "colShelves") {
+                val shelves = mvm.collectionShelfLayout()
+                SettingsGroup("Collections layout", "Order the shelves on the Collections page and hide the ones you don't want") {
+                    shelves.forEachIndexed { i, (id, title, on) ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(Modifier.weight(1f)) {
+                                SettingRow(title = title, body = if (on) "Shown" else "Hidden", value = SettingValue.Toggle(on), onClick = { mvm.setCollectionShelfShown(id, !on) })
+                            }
+                            if (i > 0) ZButton("Up", { mvm.moveCollectionShelf(id, -1) })
+                            if (i < shelves.size - 1) ZButton("Down", { mvm.moveCollectionShelf(id, 1) })
+                        }
+                    }
+                }
+            }
+        }
         items(rows.size, key = { rows[it].id }) { i ->
             val r = rows[i]
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

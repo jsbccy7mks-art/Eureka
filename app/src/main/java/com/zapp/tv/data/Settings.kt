@@ -399,6 +399,21 @@ class Settings(context: Context) {
         get() = prefs.getString("lastVersionSeen", "") ?: ""
         set(value) { prefs.edit().putString("lastVersionSeen", value).apply() }
 
+    /** Theme tunes you chose for collections (JSON: id → title, artist, url, source). */
+    var themeChoices: String
+        get() = prefs.getString("themeChoices", "") ?: ""
+        set(value) { prefs.edit().putString("themeChoices", value).apply() }
+    /** Collections page: shelf order and which are hidden (JSON), pinned and removed collections. */
+    var collectionLayout: String
+        get() = prefs.getString(acct("collectionLayout"), "") ?: ""
+        set(value) { prefs.edit().putString(acct("collectionLayout"), value).apply() }
+    var pinnedCollections: String
+        get() = prefs.getString(acct("pinnedCollections"), "") ?: ""
+        set(value) { prefs.edit().putString(acct("pinnedCollections"), value).apply() }
+    var removedCollections: String
+        get() = prefs.getString(acct("removedCollections"), "") ?: ""
+        set(value) { prefs.edit().putString(acct("removedCollections"), value).apply() }
+
     /** New settings you've already looked at (titles, one per line). */
     var seenSettings: String
         get() = prefs.getString("seenSettings", "") ?: ""

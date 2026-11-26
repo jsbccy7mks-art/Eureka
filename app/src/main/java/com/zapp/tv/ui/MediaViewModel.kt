@@ -1060,14 +1060,101 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     private var collectionsJob: kotlinx.coroutines.Job? = null
     private var catalogueJob: kotlinx.coroutines.Job? = null
 
-    /** The shelves in order, the empty ones left out. */
+    /** Changes when the Collections layout, pins or removals change (so the page redraws). */
+    private var collectionLayoutTick by mutableStateOf(0)
+
+    /** Shelves in your order: id, title, shown. New shelves join at the end, shown. */
+    fun collectionShelfLayout(): List<Triple<String, String, Boolean>> {
+        collectionLayoutTick
+        val saved = try {
+            val a = JSONArray(settings.collectionLayout.ifBlank { "[]" })
+            (0 until a.length()).mapNotNull { a.optJSONObject(it) }.map { it.optString("id") to it.optBoolean("on", true) }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val titles = COLLECTION_SHELVES.toMap()
+        val out = saved.filter { it.first in titles }.map { Triple(it.first, titles[it.first]!!, it.second) }.toMutableList()
+        COLLECTION_SHELVES.forEach { (id, t) -> if (out.none { it.first == id }) out.add(Triple(id, t, true)) }
+        return out
+    }
+
+    fun saveCollectionShelfLayout(list: List<Triple<String, String, Boolean>>) {
+        val a = JSONArray()
+        list.forEach { a.put(JSONObject().put("id", it.first).put("on", it.third)) }
+        settings.collectionLayout = a.toString()
+        collectionLayoutTick++
+    }
+
+    fun moveCollectionShelf(id: String, by: Int) {
+        val l = collectionShelfLayout().toMutableList()
+        val i = l.indexOfFirst { it.first == id }
+        val j = (i + by).coerceIn(0, l.size - 1)
+        if (i < 0 || i == j) return
+        val x = l.removeAt(i)
+        l.add(j, x)
+        saveCollectionShelfLayout(l)
+    }
+
+    fun setCollectionShelfShown(id: String, on: Boolean) =
+        saveCollectionShelfLayout(collectionShelfLayout().map { if (it.first == id) it.copy(third = on) else it })
+
+    private fun summariesFrom(json: String): List<CollectionSummary> = try {
+        val a = JSONArray(json.ifBlank { "[]" })
+        (0 until a.length()).mapNotNull { a.optJSONObject(it) }.map {
+            CollectionSummary(it.getLong("id"), it.optString("name"), it.optString("poster").ifBlank { null }, it.optString("backdrop").ifBlank { null }, kind = it.optString("kind", "franchise"))
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    private val pinned: List<CollectionSummary> get() { collectionLayoutTick; return summariesFrom(settings.pinnedCollections) }
+    private val removedFromYours: Set<Long> get() {
+        collectionLayoutTick
+        return settings.removedCollections.split(',').mapNotNull { it.trim().toLongOrNull() }.toSet()
+    }
+
+    fun isPinned(id: Long) = pinned.any { it.id == id }
+    fun isInYours(id: Long) = isPinned(id) || (collections.any { it.id == id } && id !in removedFromYours)
+
+    /** Keep a collection at the front of Your collections (even before you've watched any of it). */
+    fun pinCollection(c: CollectionSummary, pin: Boolean) {
+        val list = pinned.filter { it.id != c.id }.toMutableList()
+        if (pin) list.add(0, c)
+        val a = JSONArray()
+        list.forEach { a.put(JSONObject().put("id", it.id).put("name", it.name).put("poster", it.poster ?: "").put("backdrop", it.backdrop ?: "").put("kind", it.kind)) }
+        settings.pinnedCollections = a.toString()
+        if (pin) settings.removedCollections = (removedFromYours - c.id).joinToString(",")
+        collectionLayoutTick++
+    }
+
+    fun removeFromYours(id: Long) {
+        pinCollection(CollectionSummary(id, "", null, null), pin = false)
+        settings.removedCollections = (removedFromYours + id).joinToString(",")
+        collectionLayoutTick++
+    }
+
+    /** Puts a collection shelf on Home (switched on, at the end if it wasn't there). */
+    fun addShelfToHome(shelfId: String) {
+        val rowId = if (shelfId == "yours") COLLECTIONS_ROW else "collections:$shelfId"
+        val a = try { JSONArray(settings.homeRowsJson.ifBlank { "[]" }) } catch (e: Exception) { JSONArray() }
+        var found = false
+        for (i in 0 until a.length()) {
+            val o = a.optJSONObject(i) ?: continue
+            if (o.optString("id") == rowId) { o.put("on", true); found = true }
+        }
+        if (!found) a.put(JSONObject().put("id", rowId).put("on", true).put("size", 1).put("landscape", true))
+        settings.homeRowsJson = a.toString()
+    }
+
+    /** The shelves in your order, the hidden and empty ones left out. */
     val collectionShelves: List<CollectionShelf>
         get() {
-            val out = ArrayList<CollectionShelf>()
-            out.add(CollectionShelf("yours", "Your collections", collections))
-            out.add(CollectionShelf("finish", "Finish what you started", unfinished))
-            COLLECTION_SHELVES.drop(2).forEach { (id, title) -> out.add(CollectionShelf(id, title, catalogue.filter { it.shelf == id })) }
-            return out.filter { it.items.isNotEmpty() }
+            val yours = pinned + collections.filter { c -> c.id !in removedFromYours && pinned.none { it.id == c.id } }
+            val built = HashMap<String, CollectionShelf>()
+            built["yours"] = CollectionShelf("yours", "Your collections", yours)
+            built["finish"] = CollectionShelf("finish", "Finish what you started", unfinished)
+            COLLECTION_SHELVES.drop(2).forEach { (id, title) -> built[id] = CollectionShelf(id, title, catalogue.filter { it.shelf == id }) }
+            return collectionShelfLayout().filter { it.third }.mapNotNull { built[it.first] }.filter { it.items.isNotEmpty() }
         }
 
     fun collectionShelf(id: String): CollectionShelf? = collectionShelves.firstOrNull { it.id == id }
@@ -1198,12 +1285,35 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** While a collection's card is focused: find its theme tune now, so it plays the moment it opens. */
-    fun prefetchTheme(id: Long) {
+    fun prefetchTheme(id: Long, name: String = "") {
         if (!settings.themeMusic || id <= 0) return
         viewModelScope.launch {
+            if (name.isNotBlank() && themeCandidates(id, name).isNotEmpty()) return@launch
             val yt = collectionTheme(id) ?: return@launch
             zapp.youtube.prefetch(yt, 0, audioOnly = true)
         }
+    }
+
+    // ---- theme tunes: 30-second previews from Apple Music or Deezer, or the one you chose
+
+    suspend fun themeCandidates(id: Long, name: String): List<com.zapp.tv.data.ThemeTrack> =
+        if (id > 0) runCatching { zapp.themePreviews.search(id, name) }.getOrDefault(emptyList()) else emptyList()
+
+    /** The tune you picked for a collection, if you picked one. */
+    fun chosenTheme(id: Long): com.zapp.tv.data.ThemeTrack? = try {
+        JSONObject(settings.themeChoices.ifBlank { "{}" }).optJSONObject(id.toString())?.let {
+            com.zapp.tv.data.ThemeTrack(it.optString("t"), it.optString("a"), it.optString("u"), it.optString("s"))
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Remember [track] for this collection (null: back to automatic). */
+    fun chooseTheme(id: Long, track: com.zapp.tv.data.ThemeTrack?) {
+        val o = try { JSONObject(settings.themeChoices.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
+        if (track == null) o.remove(id.toString())
+        else o.put(id.toString(), JSONObject().put("t", track.title).put("a", track.artist).put("u", track.url).put("s", track.source))
+        settings.themeChoices = o.toString()
     }
 
     /** Only franchises have theme tunes. */

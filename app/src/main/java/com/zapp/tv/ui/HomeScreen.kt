@@ -266,7 +266,7 @@ fun HomeScreen(
                         ) {
                             items(shelfItems, key = { it.id }) { c ->
                                 CollectionCard(c, w, onFocus = {
-                                    mvm.prefetchTheme(c.id)
+                                    mvm.prefetchTheme(c.id, c.name)
                                     val line = c.note ?: if (c.yours > 0) "${c.yours} of yours in this collection" else null
                                     focused = HeroItem(MetaPreview("collection:${c.id}", "collection", c.name, c.poster, "poster", c.backdrop, null, line, null, null, emptyList()), shelfTitle)
                                     lastFocus = HomeFocus(row.id, c.id.toString())

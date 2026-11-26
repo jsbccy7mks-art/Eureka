@@ -342,3 +342,10 @@ fun ThemeMusic(youtubeId: String, volume: Int) {
         s != null -> NativeVideo(s, sound = true, volume = volume.coerceIn(5, 80) / 100f, loop = true, onFailed = { web = true }, audioOnly = true)
     }
 }
+
+/** A plain audio link (a theme preview), quietly, on a loop. */
+@Composable
+fun PreviewMusic(url: String, volume: Int, onPlaying: () -> Unit = {}, onFailed: () -> Unit = {}) {
+    val source = remember(url) { YtSource(null, url, false, 0, Long.MAX_VALUE) }
+    NativeVideo(source, sound = true, volume = volume.coerceIn(5, 80) / 100f, loop = true, audioOnly = true, onPlaying = onPlaying, onFailed = onFailed)
+}

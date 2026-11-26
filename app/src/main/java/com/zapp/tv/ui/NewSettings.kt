@@ -41,6 +41,7 @@ object NewSettings {
         Entry("Startup sound", "Appearance", "Trailers and motion"),
         Entry("Rate films and series", "HomeLayout"),
         Entry("Collections in the sidebar", "HomeLayout"),
+        Entry("group:Collections layout", "HomeLayout", "Collections layout"),
         Entry("Test trailers", "About"),
         Entry("group:Nuvio", "Accounts", "Nuvio"),
         Entry("group:MDBList", "Accounts", "MDBList"),
