@@ -90,6 +90,7 @@ class Playback(
     var tracks by mutableStateOf(Tracks.EMPTY)
         private set
     var cues by mutableStateOf<List<Cue>>(emptyList())
+        private set
 
     // ---- subtitle timing (films and series)
     /** Positive: subtitles later; negative: earlier. */
@@ -168,7 +169,6 @@ class Playback(
         }
         return out
     }
-        private set
 
     var channel by mutableStateOf<Channel?>(null)
         private set
