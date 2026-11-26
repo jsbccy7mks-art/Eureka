@@ -850,7 +850,6 @@ private fun VodControls(
                     if (next != null) opt(PlayerIcon.Next, "Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, accent = true, onClick = onNext)
                 }
             }
-            }
         }
     }
 }
