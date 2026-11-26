@@ -142,7 +142,7 @@ fun WhatsNewScreen(notes: List<ReleaseNotes>, onDone: () -> Unit) {
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text("WHAT'S NEW", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
-                    MovieTitle("Zapp ${notes.firstOrNull()?.version.orEmpty()}", 34.sp, maxLines = 1)
+                    MovieTitle("Axon ${notes.firstOrNull()?.version.orEmpty()}", 34.sp, maxLines = 1)
                 }
                 Spacer(Modifier.weight(1f))
                 Text("OK to close   ·   ↑ ↓ to scroll", color = ZappColors.Faint, fontSize = 12.sp)

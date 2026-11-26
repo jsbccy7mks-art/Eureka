@@ -208,7 +208,7 @@ class SetupServer(private val context: Context, private val handler: Handler) {
     private fun error(message: String) = JSONObject().put("ok", false).put("error", message)
 
     private fun crashPage(report: String?): String {
-        val body = (report ?: "No crash report saved. Zapp hasn't closed unexpectedly since the report was last cleared.")
+        val body = (report ?: "No crash report saved. Axon hasn't closed unexpectedly since the report was last cleared.")
             .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         return """<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Zapp crash report</title>

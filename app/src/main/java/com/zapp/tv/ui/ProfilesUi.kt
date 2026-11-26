@@ -324,7 +324,7 @@ fun ProfilesPane(mvm: MediaViewModel) {
             Spacer(Modifier.height(8.dp))
             SettingRow(
                 title = "Ask who's watching",
-                body = "Show the profiles when Zapp opens (when there's more than one).",
+                body = "Show the profiles when Axon opens (when there's more than one).",
                 value = SettingValue.Toggle(s.askProfileOnStart),
                 onClick = { s.askProfileOnStart = !s.askProfileOnStart },
             )

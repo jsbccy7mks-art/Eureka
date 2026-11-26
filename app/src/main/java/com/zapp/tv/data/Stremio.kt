@@ -39,7 +39,7 @@ class StremioSync(private val db: AppDatabase, private val http: OkHttpClient, p
                 throw StremioException(
                     when {
                         msg.contains("password", true) || msg.contains("user not found", true) -> "Stremio didn't accept that email and password."
-                        msg.contains("session", true) || msg.contains("auth", true) -> "Stremio signed Zapp out. Sign in again from your phone."
+                        msg.contains("session", true) || msg.contains("auth", true) -> "Stremio signed Axon out. Sign in again from your phone."
                         msg.isNotBlank() -> "Stremio: $msg"
                         else -> "Stremio couldn't do that."
                     },

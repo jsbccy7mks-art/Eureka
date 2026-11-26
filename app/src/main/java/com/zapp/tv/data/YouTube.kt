@@ -122,7 +122,7 @@ class YouTube(private val http: OkHttpClient) {
             for ((i, j) in jobs.withIndex()) {
                 val s = runCatching { j.get(9, TimeUnit.SECONDS) }.getOrNull() ?: continue
                 val secs = "%.1f".format(java.util.Locale.UK, (System.currentTimeMillis() - started) / 1000.0)
-                lastReport = "Zapp's player: " + (if (s.hls) "HLS stream" else if (audioOnly) "audio" else "${s.height}p video and audio") + " from ${callers[i].name} in $secs s." +
+                lastReport = "Axon's player: " + (if (s.hls) "HLS stream" else if (audioOnly) "audio" else "${s.height}p video and audio") + " from ${callers[i].name} in $secs s." +
                     (if (notes.isNotEmpty()) " (" + notes.joinToString("; ") + ")" else "")
                 return s
             }

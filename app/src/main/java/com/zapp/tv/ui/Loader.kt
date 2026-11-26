@@ -120,7 +120,7 @@ fun RotatingLine(modifier: Modifier = Modifier, everyMs: Long = 3_600) {
 
 /**
  * Full-screen "starting" page for films and episodes: the title's artwork dimmed behind the
- * animated Zapp mark, the title, and a rotating fun line. Shown from choosing play until the first
+ * animated Axon mark, the title, and a rotating fun line. Shown from choosing play until the first
  * picture appears, so it reads as one smooth start rather than a list of loading steps.
  */
 /** The largest version of a known artwork link (Cinemeta/metahub and TMDB), for full-screen use. */
@@ -180,7 +180,7 @@ fun StartingScreen(background: String?, title: String, subtitle: String? = null,
 }
 
 /**
- * Shown when Zapp opens: the logo builds itself (see [LaunchLogo]) and, if switched on, a short
+ * Shown when Axon opens: the logo builds itself (see [LaunchLogo]) and, if switched on, a short
  * chime plays. [onSettled] comes once the logo has finished its main movement (Home starts
  * loading behind then, so the two don't compete for the same frames); [ready] lets it finish
  * early once the minimum has passed.

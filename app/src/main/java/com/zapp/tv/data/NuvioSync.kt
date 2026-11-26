@@ -114,7 +114,7 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
         if (code !in 200..299) {
             if (grant == "refresh_token" && code in 400..499) {
                 clearSession(pid)
-                throw NuvioException("Nuvio signed Zapp out. Connect Nuvio again.")
+                throw NuvioException("Nuvio signed Axon out. Connect Nuvio again.")
             }
             throw NuvioException(
                 when {
@@ -173,10 +173,10 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
                 when {
                     code == 401 || sqlCode == "28000" -> {
                         clearSession(pid)
-                        "Nuvio signed Zapp out. Connect Nuvio again."
+                        "Nuvio signed Axon out. Connect Nuvio again."
                     }
-                    code == 429 -> "Nuvio is busy. Zapp will try again shortly."
-                    code >= 500 -> "Nuvio's server had a problem ($code). Zapp will try again."
+                    code == 429 -> "Nuvio is busy. Axon will try again shortly."
+                    code >= 500 -> "Nuvio's server had a problem ($code). Axon will try again."
                     else -> "Nuvio refused a sync request ($code)."
                 },
             )

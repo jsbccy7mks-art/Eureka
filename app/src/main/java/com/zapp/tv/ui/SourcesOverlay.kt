@@ -270,7 +270,7 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
         s.playable -> null
         s.infoHash != null && debrid != null -> if (readyNow) "Ready on $debrid" else "Through $debrid (may need downloading first)"
         s.infoHash != null -> "Torrent: connect a debrid service in Settings to play it"
-        s.externalUrl != null -> "Opens a website, which Zapp can't show"
+        s.externalUrl != null -> "Opens a website, which Axon can't show"
         s.ytId != null -> "YouTube video"
         else -> "Not playable"
     }

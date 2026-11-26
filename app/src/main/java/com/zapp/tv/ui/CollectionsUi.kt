@@ -624,7 +624,7 @@ private fun TunePicker(
                     MenuItem(if (t.url == current?.url) "♪" else "", t.title + if (t.artist.isNotBlank()) "  ·  " + t.artist else "", if (i == 0) first else null, trailing = t.source) { onChoose(t) }
                 }
             }
-            MenuItem("↺", "Automatic (Zapp's pick)", null) { onChoose(null) }
+            MenuItem("↺", "Automatic (Axon's pick)", null) { onChoose(null) }
         }
     }
 }

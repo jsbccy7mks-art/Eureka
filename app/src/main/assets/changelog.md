@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.47.0
+
+**New**
+- Zapp is now Axon. A new logo: the play button sliced into four by an X, with "axon" beside it
+  and its x in the theme's colours. On the TV's apps row (new banner and icon), the opening, the
+  sidebar, loading screens, What's new, About, the phone setup page and everywhere the app
+  mentions its name. It updates over Zapp, so your profiles, add-ons and sign-ins all stay.
+- A new opening: the four pieces fly in and snap together with a flash, the name slides out and a
+  gleam passes over the logo.
+
 ## 0.46.0
 
 **New**

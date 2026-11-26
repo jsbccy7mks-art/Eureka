@@ -289,7 +289,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } catch (e: com.zapp.tv.data.SimklClient.NotSignedIn) {
                 simklState = currentSimklState()
-                simklMessage = "Simkl signed Zapp out. Connect it again."
+                simklMessage = "Simkl signed Axon out. Connect it again."
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

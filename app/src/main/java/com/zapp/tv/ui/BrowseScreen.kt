@@ -69,7 +69,7 @@ fun BrowseScreen(
             Spacer(Modifier.height(10.dp))
             Text(
                 if (addons.isEmpty()) {
-                    "Add a Stremio add-on to browse ${label.lowercase()}. Zapp doesn't include any; you choose your own."
+                    "Add a Stremio add-on to browse ${label.lowercase()}. Axon doesn't include any; you choose your own."
                 } else {
                     "None of your add-ons have ${label.lowercase()} catalogues. Add one that does, or switch one on."
                 },

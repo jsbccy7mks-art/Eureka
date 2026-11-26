@@ -38,7 +38,7 @@ class Updater(private val context: Context, private val http: OkHttpClient) {
         }
         val json = JSONObject(body)
         val build = json.optString("tag_name").removePrefix("build-").toIntOrNull()
-            ?: error("The latest release isn't a Zapp build.")
+            ?: error("The latest release isn't a Axon build.")
         val assets = json.optJSONArray("assets")
         var url: String? = null
         var size = 0L

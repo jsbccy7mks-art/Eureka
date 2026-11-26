@@ -487,8 +487,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 update = when (zapp.updater.install(file)) {
                     Updater.InstallResult.Started -> UpdateState.Available(release)
                     Updater.InstallResult.NeedsPermission -> UpdateState.Failed(
-                        "Zapp needs permission to install updates. Allow it on the screen that opened, then press Install again. " +
-                            "On Fire TV: Settings, My Fire TV, Developer options, Install unknown apps, Zapp.",
+                        "Axon needs permission to install updates. Allow it on the screen that opened, then press Install again. " +
+                            "On Fire TV: Settings, My Fire TV, Developer options, Install unknown apps, Axon.",
                         release,
                     )
                     Updater.InstallResult.NoInstaller -> UpdateState.Failed(
@@ -539,7 +539,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         if (lastCrash != null) {
             viewModelScope.launch {
                 delay(2_500)
-                showToast("Zapp closed unexpectedly last time. The report is in Settings, Updates and about.")
+                showToast("Axon closed unexpectedly last time. The report is in Settings, Updates and about.")
             }
         }
     }

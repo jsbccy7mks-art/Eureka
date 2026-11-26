@@ -23,7 +23,7 @@ object CrashReporter {
             try {
                 val trace = StringWriter().also { error.printStackTrace(PrintWriter(it)) }.toString()
                 val report = buildString {
-                    appendLine("Zapp TV $version")
+                    appendLine("Axon $version")
                     appendLine("Time: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", Locale.UK).format(Date())}")
                     appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}, Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
                     appendLine("Thread: ${thread.name}")

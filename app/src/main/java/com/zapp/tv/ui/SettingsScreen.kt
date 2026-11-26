@@ -319,7 +319,7 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
         var learnReset by remember { mutableStateOf(false) }
         SettingRow(
             title = "Sources that learn",
-            body = "Zapp notes how each add-on and release has played on this box (how fast it started, if it failed, if you switched away) and lists reliable ones higher. Kept only on this TV." +
+            body = "Axon notes how each add-on and release has played on this box (how fast it started, if it failed, if you switched away) and lists reliable ones higher. Kept only on this TV." +
                 if (learnReset) " Cleared." else "",
             value = SettingValue.Choice("Start over"),
             onClick = {
@@ -362,7 +362,7 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
         SettingRow(
             title = "Bigger buffer",
             body = "Holds more video in reserve for unsteady connections, at the cost of slower channel changes. " +
-                "Takes effect next time Zapp starts.",
+                "Takes effect next time Axon starts.",
             value = SettingValue.Toggle(s.largeBuffer),
             onClick = { s.largeBuffer = !s.largeBuffer },
         )
@@ -478,7 +478,7 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             LogoMark(44.dp)
             Spacer(Modifier.width(14.dp))
             Column {
-                Text("Zapp TV", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Axon", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("Version ${version ?: "unknown"}, build ${vm.currentBuild}", color = ZappColors.Dim, fontSize = 12.sp)
             }
         }
@@ -489,7 +489,7 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             val testScope = androidx.compose.runtime.rememberCoroutineScope()
             SettingRow(
                 title = "Test trailers",
-                body = trailerTest ?: "Checks that trailers and theme tunes can play in Zapp's own player, and says what went wrong if not.",
+                body = trailerTest ?: "Checks that trailers and theme tunes can play in Axon's own player, and says what went wrong if not.",
                 value = SettingValue.Action,
                 onClick = {
                     trailerTest = "Testing…"
@@ -511,7 +511,7 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             SettingRow(
                 title = "Check for updates",
                 body = when (u) {
-                    UpdateState.Idle -> "Looks for a newer version of Zapp."
+                    UpdateState.Idle -> "Looks for a newer version of Axon."
                     UpdateState.Checking -> "Checking…"
                     UpdateState.UpToDate -> "You have the latest version."
                     is UpdateState.Available -> "Build ${u.release.build} is ready to install."
@@ -545,7 +545,7 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             Panel(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Zapp closed unexpectedly", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Axon closed unexpectedly", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             crash.lineSequence().drop(5).firstOrNull { it.isNotBlank() }?.take(160) ?: "",
@@ -580,7 +580,7 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
         Text(
-            "Zapp TV doesn't include any channels, playlists or accounts. Add your own from Sources. " +
+            "Axon doesn't include any channels, playlists or accounts. Add your own from Sources. " +
                 "Intro, recap and credits timings come from IntroDB (introdb.app), a community project.",
             color = ZappColors.Faint,
             fontSize = 12.sp,
@@ -604,7 +604,7 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Uni
         item(key = "add") {
             Column {
                 Text(
-                    "Paste an add-on's install link (it ends in manifest.json). Zapp doesn't include any add-ons; you choose your own.",
+                    "Paste an add-on's install link (it ends in manifest.json). Axon doesn't include any add-ons; you choose your own.",
                     color = ZappColors.Dim,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
@@ -751,7 +751,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 if (state is MediaViewModel.SimklState.Failed) ErrorBanner(state.message)
                 SettingRow(
                     title = "Connect Simkl",
-                    body = "Shows a code here; approve it on your phone. Zapp never sees your password.",
+                    body = "Shows a code here; approve it on your phone. Axon never sees your password.",
                     value = SettingValue.Action,
                     onClick = { mvm.connectSimkl() },
                     focusRequester = focus,
@@ -763,7 +763,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                     QrCode(state.link, 140.dp)
                     Spacer(Modifier.width(24.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Scan with your phone and approve Zapp", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Scan with your phone and approve Axon", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(6.dp))
                         Text("Or go to ${state.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = 12.sp)
                         Spacer(Modifier.height(6.dp))
@@ -791,7 +791,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 mvm.simklMessage?.let { Text(it, color = ZappColors.Dim, fontSize = 12.sp) }
                 SettingRow(
                     title = "Disconnect Simkl",
-                    body = "Zapp stops syncing and forgets the sign-in. What's already here stays.",
+                    body = "Axon stops syncing and forgets the sign-in. What's already here stays.",
                     value = SettingValue.Action,
                     onClick = { mvm.disconnectSimkl() },
                 )
@@ -849,7 +849,7 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () ->
     if (mvm.stremio.signedIn) {
         SettingRow(
             title = "Signed in as ${s.stremioUser.ifBlank { "your Stremio account" }}",
-            body = mvm.stremioStatus ?: "Your Stremio library and Continue watching come into this profile when Zapp opens and every 30 minutes, and what you watch here goes back to Stremio.",
+            body = mvm.stremioStatus ?: "Your Stremio library and Continue watching come into this profile when Axon opens and every 30 minutes, and what you watch here goes back to Stremio.",
             value = SettingValue.Choice(if (mvm.stremioWorking) "Syncing…" else "Sync now"),
             onClick = { mvm.syncStremio() },
         )
@@ -864,7 +864,7 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () ->
             Column(Modifier.weight(1f)) {
                 Text(
                     "Bring over your Stremio library and Continue watching. Scan the code and sign in to Stremio on your phone; " +
-                        "Zapp keeps only Stremio's sign-in key, never your password.",
+                        "Axon keeps only Stremio's sign-in key, never your password.",
                     color = ZappColors.Dim,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
@@ -900,7 +900,7 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(
                     "Two-way sync with your Nuvio account: where you got to, what you've watched and your library. " +
-                        "Sign in on your phone; Zapp keeps only the Nuvio session, encrypted, never your password.",
+                        "Sign in on your phone; Axon keeps only the Nuvio session, encrypted, never your password.",
                     color = ZappColors.Dim,
                     fontSize = 12.sp,
                     lineHeight = 17.sp,
@@ -937,7 +937,7 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
         )
     } else {
         Text(
-            "Connected as ${nuvio.user(pid).ifBlank { "your Nuvio account" }}. Choose which Nuvio profile this Zapp profile syncs with.",
+            "Connected as ${nuvio.user(pid).ifBlank { "your Nuvio account" }}. Choose which Nuvio profile this Axon profile syncs with.",
             color = ZappColors.Dim,
             fontSize = 12.sp,
             lineHeight = 17.sp,
@@ -949,7 +949,7 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
         mvm.nuvioProfiles.forEach { p ->
             SettingRow(
                 title = p.name,
-                body = if (p.index == linked) "Linked to this Zapp profile" else "Sync this Zapp profile with ${p.name}",
+                body = if (p.index == linked) "Linked to this Axon profile" else "Sync this Axon profile with ${p.name}",
                 value = SettingValue.Choice(if (p.index == linked) "Linked" else "Link"),
                 onClick = { if (p.index != linked) mvm.linkNuvioProfile(p) },
             )
@@ -958,7 +958,7 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
     if (linked != 0) {
         SettingRow(
             title = "Nuvio is the source for Continue watching",
-            body = "On: Continue watching shows exactly what Nuvio's does, in the same order. Titles only in Zapp are hidden from the row, not deleted.",
+            body = "On: Continue watching shows exactly what Nuvio's does, in the same order. Titles only in Axon are hidden from the row, not deleted.",
             value = SettingValue.Toggle(nuvio.mirror(pid)),
             onClick = {
                 nuvio.setMirror(pid, !nuvio.mirror(pid))
@@ -968,12 +968,12 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
     }
     SettingRow(
         title = "Disconnect Nuvio",
-        body = "Stops syncing and signs Zapp out of Nuvio. What's already here stays.",
+        body = "Stops syncing and signs Axon out of Nuvio. What's already here stays.",
         value = SettingValue.Action,
         onClick = { mvm.disconnectNuvio() },
     )
     Text(
-        "Syncs when Zapp opens, when you switch profile, when you come back to Zapp and every 30 minutes; " +
+        "Syncs when Axon opens, when you switch profile, when you come back to Axon and every 30 minutes; " +
             "what you watch is sent while you watch and when you pause or stop. Films and episodes only, never live TV.",
         color = ZappColors.Faint,
         fontSize = 12.sp,
@@ -993,7 +993,7 @@ private fun NuvioSection(mvm: MediaViewModel) {
     )
     SettingRow(
         title = "Import add-ons from Nuvio",
-        body = mvm.nuvioStatus ?: "Copies your Nuvio add-ons, with their settings, into Zapp.",
+        body = mvm.nuvioStatus ?: "Copies your Nuvio add-ons, with their settings, into Axon.",
         value = SettingValue.Choice(if (mvm.nuvioWorking) "Working…" else "Import"),
         onClick = { mvm.importFromNuvio(otherDevice.ifBlank { null }) },
     )
@@ -1011,7 +1011,7 @@ private fun NuvioSection(mvm: MediaViewModel) {
 private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
     val version = mvm.settings.debridVersion
     Text(
-        "Lets torrent sources from your add-ons play: Zapp asks your own debrid account for a normal link. " +
+        "Lets torrent sources from your add-ons play: Axon asks your own debrid account for a normal link. " +
             "If you connect more than one, they're tried in this order.",
         color = ZappColors.Dim,
         fontSize = 12.sp,
@@ -1025,7 +1025,7 @@ private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
                 QrCode(s.link, 140.dp)
                 Spacer(Modifier.width(24.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Scan with your phone and approve Zapp on ${s.service}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Scan with your phone and approve Axon on ${s.service}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))
                     Text("Or go to ${s.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = 12.sp)
                     Spacer(Modifier.height(6.dp))
@@ -1280,7 +1280,7 @@ private fun AppearancePane(vm: AppViewModel) {
             }
             SettingRow(
                 title = "Startup sound",
-                body = "A short chime as Zapp opens.",
+                body = "A short chime as Axon opens.",
                 value = SettingValue.Toggle(s.startupSound),
                 onClick = { s.startupSound = !s.startupSound },
             )
