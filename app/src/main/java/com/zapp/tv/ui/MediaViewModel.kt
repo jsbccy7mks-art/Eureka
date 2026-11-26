@@ -635,14 +635,21 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                     val kept = b.streams.filter { it.qualityRank <= cap }
                     if (settings.bestFirst) kept.sortedByDescending { (if (it.markedReady == true) 10_000 else 0) + it.qualityRank } else kept
                 }
-            fun ok(s: com.zapp.tv.addons.StreamItem) = s.playable || s.infoHash != null
+            // Only sources the debrid service already has (cached): they cost nothing to add and use no
+            // download slot. If none are cached, nothing is prepared and Play works as usual.
+            val hashes = all.mapNotNull { it.infoHash?.lowercase() }.distinct()
+            if (hashes.isEmpty()) return@launch
+            val cached = runCatching { debrid.ready(hashes) }.getOrNull()
+            fun ok(s: com.zapp.tv.addons.StreamItem): Boolean {
+                val h = s.infoHash?.lowercase() ?: return false
+                return if (cached != null) h in cached else s.markedReady == true
+            }
             val last = if (settings.sameSource) lastSource(metaId) else null
             val choice = last?.takeIf { it.videoId == videoId && it.key != null }?.let { l -> all.firstOrNull { ok(it) && (it.url ?: it.infoHash) == l.key } }
                 ?: last?.binge?.let { g -> all.firstOrNull { ok(it) && it.bingeGroup == g } }
                 ?: last?.let { l -> all.firstOrNull { ok(it) && it.addonName == l.addon && it.qualityRank == l.quality } }
                 ?: all.firstOrNull { ok(it) }
                 ?: return@launch
-            if (choice.playable || choice.infoHash == null) return@launch // a direct link needs nothing
             val k = linkKey(choice)
             if (readyLinks[k]?.let { System.currentTimeMillis() - it.second < 10 * 60_000L } == true) return@launch
             runCatching { debrid.resolve(com.zapp.tv.data.TorrentRef(choice.infoHash!!.lowercase(), choice.fileIdx, choice.filename, title)) }

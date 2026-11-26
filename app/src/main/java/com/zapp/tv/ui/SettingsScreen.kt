@@ -264,7 +264,7 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
         )
         SettingRow(
             title = "Get ready while I browse",
-            body = "With autoplay on, a details page fetches the sources and gets the debrid link for the one it would play, so Play starts almost at once. With Real-Debrid this adds that title to your torrents list.",
+            body = "With autoplay on, a details page fetches the sources and, if your debrid service already has one cached, gets its link ready so Play starts almost at once. Cached sources use no download slot; they do appear in your debrid list.",
             value = SettingValue.Toggle(s.prepareLinks),
             onClick = { s.prepareLinks = !s.prepareLinks },
         )
