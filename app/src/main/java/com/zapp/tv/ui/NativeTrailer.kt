@@ -80,6 +80,8 @@ fun NativeVideo(
     onFailed: () -> Unit = {},
     onEnded: () -> Unit = {},
     onPlayer: (ExoPlayer?) -> Unit = {},
+    /** The picture (or, for audio, the sound) has actually started. */
+    onPlaying: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val failed by rememberUpdatedState(onFailed)
@@ -139,7 +141,13 @@ fun NativeVideo(
 
     // Fade in on the first frame; sound rises with it.
     val alpha = remember(player) { Animatable(0f) }
-    LaunchedEffect(shown) { if (shown) alpha.animateTo(1f, tween(450)) }
+    val playingNow by rememberUpdatedState(onPlaying)
+    LaunchedEffect(shown) {
+        if (shown) {
+            playingNow()
+            alpha.animateTo(1f, tween(450))
+        }
+    }
     LaunchedEffect(shown, sound, volume) {
         if (!shown) return@LaunchedEffect
         val target = if (sound) volume.coerceIn(0f, 1f) else 0f
@@ -217,7 +225,7 @@ private fun letterbox(tv: TextureView): Float {
 
 /** The YouTube trailer, from Zapp's player when it can be found, else from the YouTube web player. */
 @Composable
-fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false, startMs: Long = 4_000L) {
+fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false, startMs: Long = 4_000L, onPlaying: () -> Unit = {}) {
     val yt = (LocalContext.current.applicationContext as ZappApp).youtube
     val cap = trailerHeightCap()
     var source by remember(youtubeId, cap) { mutableStateOf(yt.cached(youtubeId, cap)) }
@@ -228,8 +236,8 @@ fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: B
     }
     val s = source
     when {
-        web -> WebTrailer(youtubeId, modifier, sound)
-        s != null -> NativeVideo(s, modifier, sound = sound, startMs = startMs, onFailed = { web = true })
+        web -> WebTrailer(youtubeId, modifier, sound, onPlaying = onPlaying)
+        s != null -> NativeVideo(s, modifier, sound = sound, startMs = startMs, onFailed = { web = true }, onPlaying = onPlaying)
     }
 }
 

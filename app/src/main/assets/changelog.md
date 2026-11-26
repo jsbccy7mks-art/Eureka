@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.41.2
+
+**Fixed**
+- The tops of Library and Collections cards are no longer cut off.
+- Smoother, quicker scrolling: focused cards no longer jump up and grow (they keep a soft
+  shadow), and rows and pages scroll a little faster.
+- Home: the title and text only step back once the trailer is actually playing, not as soon as
+  it's asked for.
+
 ## 0.41.1
 
 **Fixed**

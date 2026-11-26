@@ -225,8 +225,8 @@ fun FocusSurface(
         label = "scale",
     )
     val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
-    // Cards lift a little, with a soft shadow beneath, rather than only growing.
-    val lift by animateFloatAsState(if (ring && focused) 1f else 0f, tween(220), label = "lift")
+    // A soft shadow beneath the focused card (no movement, so scrolling stays calm).
+    val lift by animateFloatAsState(if (ring && focused) 1f else 0f, tween(160), label = "lift")
     // Card style (Appearance): square corners, or a thin border at rest.
     val isCard = ring && ringCorner <= 14.dp // cards, not round swatches
     val corner = if (isCard && FocusStyle.cardStyle == 1) 3.dp else ringCorner
@@ -287,13 +287,6 @@ fun FocusSurface(
                 }
             }
             .focusable()
-            // The lift is drawn inside the focus area (after it in the chain), so the card's place for
-            // the remote's Up/Down/Left/Right stays where it is laid out.
-            .graphicsLayer {
-                scaleX = 1f + 0.035f * lift
-                scaleY = 1f + 0.035f * lift
-                translationY = -5.dp.toPx() * lift
-            }
             .drawWithContent {
                 // The glow sits behind the card; the ring on top of it.
                 if (ring) drawLiftShadow(corner.toPx(), lift)

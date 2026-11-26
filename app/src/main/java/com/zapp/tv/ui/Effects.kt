@@ -236,8 +236,10 @@ fun ClockAndAvatar(mvm: MediaViewModel) {
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun WebTrailer(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false) {
+fun WebTrailer(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false, onPlaying: () -> Unit = {}) {
     var playing by remember(youtubeId) { mutableStateOf(false) }
+    val playingNow by androidx.compose.runtime.rememberUpdatedState(onPlaying)
+    LaunchedEffect(playing) { if (playing) playingNow() }
     val alpha by animateFloatAsState(if (playing) 1f else 0f, tween(900), label = "trailer")
     val best = FocusStyle.trailerBest
     val html = remember(youtubeId, sound, best) {
@@ -360,8 +362,11 @@ fun DelayedTrailer(
         delay(FocusStyle.trailerDelay * 1_000L)
         show = true
     }
-    LaunchedEffect(show) { onShowing(show) }
-    if (show && youtubeId != null) TrailerBackground(youtubeId, modifier, sound = sound)
+    // "Showing" means the trailer is actually on screen (its first frame), not just asked for.
+    var playing by remember(key) { mutableStateOf(false) }
+    LaunchedEffect(show) { if (!show) playing = false }
+    LaunchedEffect(show, playing) { onShowing(show && playing) }
+    if (show && youtubeId != null) TrailerBackground(youtubeId, modifier, sound = sound, onPlaying = { playing = true })
 }
 
 /**

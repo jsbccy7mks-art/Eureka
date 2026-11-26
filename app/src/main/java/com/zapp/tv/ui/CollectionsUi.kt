@@ -488,10 +488,10 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                 return@Column
             }
             val firstCard = shelves.first().items.firstOrNull()
-            PivotScrolling(0.dp) {
+            PivotScrolling(14.dp) {
                 androidx.compose.foundation.lazy.LazyColumn(
-                    modifier = Modifier.fillMaxSize().fadeAbove(0.dp),
-                    contentPadding = PaddingValues(bottom = 60.dp, top = 4.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 60.dp, top = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
                     items(shelves.size, key = { shelves[it].id }) { i ->

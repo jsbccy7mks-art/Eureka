@@ -114,14 +114,14 @@ fun ImmersiveLayout(
         val screenHeight = maxHeight
         val heroHeight = screenHeight * 0.47f
         val backdropUrl = hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster }
-        // The hero breathes: a few seconds into a trailer, the text steps back and the picture grows;
-        // the moment you move, it all comes back.
+        // The hero breathes: once the trailer is actually playing, the text steps back and the picture
+        // grows; the moment you move, it all comes back.
         var trailerOn by remember { mutableStateOf(false) }
         var breathe by remember { mutableStateOf(false) }
         LaunchedEffect(trailerOn, hero?.meta?.id) {
             breathe = false
             if (trailerOn) {
-                delay(3_500)
+                delay(1_200)
                 breathe = true
             }
         }
