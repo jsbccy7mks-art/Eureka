@@ -87,6 +87,13 @@ fun ImmersiveLayout(
     topRight: (@Composable () -> Unit)? = null,
     rows: LazyListScope.() -> Unit,
 ) {
+    // Scores for the title you're resting on (MDBList, when connected).
+    val heroRatings by produceState<Pair<String, List<com.zapp.tv.data.RatingBadge>>?>(null, focused?.meta?.id) {
+        val m = focused?.meta ?: return@produceState
+        if (!mvm.mdblist.enabled) return@produceState
+        delay(400)
+        value = m.id to mvm.ratings(m.id, m.type)
+    }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(scrollToTop) { if (scrollToTop != null) listState.scrollToItem(0) }
     LaunchedEffect(topTick) { if (topTick > 0) listState.animateScrollToItem(0) }
@@ -141,7 +148,7 @@ fun ImmersiveLayout(
             when {
                 header != null -> header()
                 hero == null && placeholder != null -> placeholder()
-                else -> HeroInfo(hero, detail)
+                else -> HeroInfo(hero, detail, heroRatings)
             }
         }
         if (topRight != null) {
@@ -214,7 +221,7 @@ fun easedMask(start: Float, end: Float): Array<Pair<Float, Color>> =
     easedFade(start, end).map { (pos, c) -> pos to Color.Black.copy(alpha = 1f - c.alpha) }.toTypedArray()
 
 @Composable
-private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
+private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ratings: Pair<String, List<com.zapp.tv.data.RatingBadge>>? = null) {
     // Fixed slots (label, title, facts, two lines of text, one line of cast), so moving between
     // titles only changes what's shown, never where it sits.
     // A fixed-size block sitting low in the header, just above the rows: same place for every title.
@@ -284,14 +291,20 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?) {
                         Text(listOfNotNull(p.episodeLabel, minutesLeft(p)).joinToString("  ·  "), color = ZappColors.Dim, fontSize = 11.5.sp, maxLines = 1)
                     }
                 } else {
-                    Box(Modifier.height(16.dp), contentAlignment = Alignment.CenterStart) {
+                    Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         FactsLine(
                             m.releaseInfo ?: d?.preview?.releaseInfo,
                             m.imdbRating ?: d?.preview?.imdbRating,
                             d?.runtime,
                             m.genres.ifEmpty { d?.preview?.genres ?: emptyList() },
                             size = 11.5.sp,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
+                        // Rotten Tomatoes beside it, when MDBList is connected.
+                        ratings?.takeIf { it.first == m.id }?.second?.filter { it.source == "RT" }?.takeIf { it.isNotEmpty() }?.let {
+                            Spacer(Modifier.width(12.dp))
+                            RatingBadges(it)
+                        }
                     }
                 }
                 Spacer(Modifier.height(9.dp))

@@ -546,6 +546,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     showToast("TMDB connected from your phone")
                     return@withContext "TMDB is connected. Details pages now show cast photos, reviews and more."
                 }
+                "mdblist" -> {
+                    val key = body.optString("mdblistKey").trim()
+                    if (key.length < 10) fail("Paste your MDBList API key.")
+                    settings.setSecret("mdblistKey", key)
+                    if (!zapp.mdblist.check()) {
+                        settings.setSecret("mdblistKey", "")
+                        fail("MDBList didn't accept that key. Copy it again from mdblist.com/preferences.")
+                    }
+                    showToast("MDBList connected from your phone")
+                    return@withContext "MDBList is connected. Details pages now show IMDb, Rotten Tomatoes, Metacritic and Letterboxd scores."
+                }
                 "stremio" -> {
                     val email = body.optString("stremioEmail").trim()
                     val pass = body.optString("stremioPassword")

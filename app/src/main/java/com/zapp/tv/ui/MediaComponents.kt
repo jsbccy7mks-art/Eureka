@@ -379,6 +379,30 @@ fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<Str
     Text(text, color = ZappColors.Dim, fontSize = size, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
+/** Scores from MDBList, quietly: a tiny label and the number (green or red where it means something). */
+@Composable
+fun RatingBadges(list: List<com.zapp.tv.data.RatingBadge>, modifier: Modifier = Modifier) {
+    if (list.isEmpty()) return
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        list.forEach { r ->
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(r.source.uppercase(), color = ZappColors.Faint, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    r.value,
+                    color = when (r.good) {
+                        true -> Color(0xFF7EE2A8)
+                        false -> Color(0xFFFF8A8A)
+                        null -> ZappColors.Text
+                    },
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
 /** Year, rating, runtime and genres as small tags. */
 @Composable
 fun MetaFacts(year: String?, rating: String?, runtime: String?, genres: List<String>) {

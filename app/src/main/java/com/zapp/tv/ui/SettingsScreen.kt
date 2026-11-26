@@ -771,6 +771,18 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 if (mvm.tmdb.enabled) ZButton("Remove key", { mvm.settings.setSecret("tmdbKey", "") }, style = ButtonStyle.Quiet)
             }
         }
+        SettingsGroup("MDBList", if (mvm.mdblist.enabled) "Connected: IMDb, Rotten Tomatoes, Metacritic and Letterboxd scores" else "Optional: more ratings on details pages") {
+            Text(
+                "With your own free MDBList key (and TMDB above), details pages show IMDb, Rotten Tomatoes critics and audience, Metacritic and Letterboxd scores, and Home shows Rotten Tomatoes beside the year.",
+                color = ZappColors.Dim,
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton(if (mvm.mdblist.enabled) "Change key on my phone" else "Add key on my phone", { onPhone("mdblist") }, style = ButtonStyle.Primary)
+                if (mvm.mdblist.enabled) ZButton("Remove key", { mvm.settings.setSecret("mdblistKey", "") }, style = ButtonStyle.Quiet)
+            }
+        }
         SettingsGroup("Debrid services", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ")?.let { "Connected: $it" } ?: "Real-Debrid, AllDebrid, Premiumize, TorBox") {
             DebridSection(vm, mvm)
         }
@@ -1352,7 +1364,7 @@ private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
             listOf(
                 "Playlist" to "Xtream logins and M3U links, with a TV guide link",
                 "Add-on" to "Stremio add-ons by their install link",
-                "Accounts" to "Stremio and Nuvio sign-in, the Simkl app ID, TMDB, Premiumize and TorBox keys",
+                "Accounts" to "Stremio and Nuvio sign-in, the Simkl app ID, TMDB, MDBList, Premiumize and TorBox keys",
                 "Help" to "The crash report, to copy into your chat about the app",
             ).forEach { (t, b) ->
                 Row {

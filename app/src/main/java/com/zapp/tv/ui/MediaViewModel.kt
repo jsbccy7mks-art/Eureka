@@ -931,6 +931,10 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         null
     }
 
+    // ---- MDBList ratings (optional, with your own key)
+    val mdblist get() = zapp.mdblist
+    suspend fun ratings(id: String, type: String): List<com.zapp.tv.data.RatingBadge> = runCatching { mdblist.ratings(id, type) }.getOrDefault(emptyList())
+
     // ---- TMDB (optional, with your own key)
     val tmdb get() = zapp.tmdb
     suspend fun tmdbDetails(id: String, type: String): com.zapp.tv.data.TmdbDetails? = if (tmdb.enabled) tmdb.details(id, type) else null
