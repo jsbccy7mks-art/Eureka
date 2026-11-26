@@ -7,6 +7,9 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.animation.core.tween
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -146,6 +149,11 @@ fun DetailScreen(
     val now = rememberNow(30_000)
     val timeFormat = rememberTimeFormat()
     var trailerOpen by remember(request.id) { mutableStateOf(false) }
+    // The trailer starts while you rest on Play, and stops at any press (resting again restarts it).
+    var playFocused by remember(request.id) { mutableStateOf(false) }
+    var keyTick by remember(request.id) { mutableIntStateOf(0) }
+    var trailerShowing by remember(request.id) { mutableStateOf(false) }
+    var trailerSound by remember(request.id) { mutableStateOf(FocusStyle.trailerSound) }
 
     LaunchedEffect(done, focusTick) { if (done) playFocus.tryRequest() }
 
@@ -181,6 +189,16 @@ fun DetailScreen(
         Modifier
             .fillMaxSize()
             .trapFocus()
+            .onPreviewKeyEvent { e ->
+                if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // Up on Play while the trailer plays: sound on or off, without stopping it.
+                if (trailerShowing && playFocused && e.key == androidx.compose.ui.input.key.Key.DirectionUp) {
+                    trailerSound = !trailerSound
+                    return@onPreviewKeyEvent true
+                }
+                keyTick++
+                false
+            }
             .background(ZappColors.Bg),
     ) {
         // ---- a blurred wash of the title's colours across the whole page
@@ -208,7 +226,17 @@ fun DetailScreen(
                     AsyncImage(model = u, contentDescription = null, contentScale = ContentScale.Crop, alignment = Alignment.TopCenter, modifier = Modifier.fillMaxSize().drift())
                 }
             }
-            if (section == 0) DelayedTrailer(detail?.trailerYoutube, request.id, Modifier.fillMaxSize(), onDetail = true)
+            if (section == 0) {
+                DelayedTrailer(
+                    detail?.trailerYoutube,
+                    "${request.id}|$keyTick",
+                    Modifier.fillMaxSize(),
+                    onDetail = true,
+                    enabled = playFocused && !trailerOpen,
+                    sound = trailerSound,
+                    onShowing = { trailerShowing = it },
+                )
+            }
         }
         AmbientGlow(0.6f, tint = rememberArtColor(meta?.poster ?: meta?.background))
 
@@ -360,7 +388,8 @@ fun DetailScreen(
                             }
                             Spacer(Modifier.height(26.dp))
                             Text(
-                                "↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "STORY, CAST AND MORE",
+                                ("↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "STORY, CAST AND MORE") +
+                                    if (trailerShowing && playFocused) "      ↑   " + (if (trailerSound) "SOUND OFF" else "SOUND ON") else "",
                                 color = ZappColors.Faint,
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -368,7 +397,9 @@ fun DetailScreen(
                             )
                             Spacer(Modifier.height(10.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                PlayButton(playLabel, if (isSeries) progress.firstOrNull { it.videoId == nextUp.first?.id && !it.watched && it.position > 30_000 } else movieProgress, playFocus) { playMain() }
+                                Box(Modifier.onFocusChanged { playFocused = it.hasFocus }) {
+                                    PlayButton(playLabel, if (isSeries) progress.firstOrNull { it.videoId == nextUp.first?.id && !it.watched && it.position > 30_000 } else movieProgress, playFocus) { playMain() }
+                                }
                                 Spacer(Modifier.width(8.dp))
                                 if (detail?.trailerYoutube != null) {
                                     ZButton("Trailer", { trailerOpen = true })
@@ -602,11 +633,9 @@ fun DetailScreen(
 
         // Trailer with sound, full screen.
         if (trailerOpen && detail?.trailerYoutube != null) {
-            BackHandler { trailerOpen = false }
-            Box(Modifier.fillMaxSize().background(Color.Black)) {
-                ZappLoader(40.dp, Modifier.align(Alignment.Center))
-                TrailerBackground(detail.trailerYoutube, Modifier.fillMaxSize(), sound = true)
-                Text("Back to close", color = Color(0x99FFFFFF), fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp))
+            FullTrailer(detail.trailerYoutube) {
+                trailerOpen = false
+                playFocus.tryRequest()
             }
         }
     }

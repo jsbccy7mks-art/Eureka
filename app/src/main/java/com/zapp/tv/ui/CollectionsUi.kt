@@ -337,7 +337,7 @@ private fun Timeline(count: Int, focused: Int, watched: List<Boolean>, next: Int
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun ThemeMusic(youtubeId: String, volume: Int) {
+fun WebThemeMusic(youtubeId: String, volume: Int) {
     val id = youtubeId.filter { it.isLetterOrDigit() || it == '-' || it == '_' }
     val vol = volume.coerceIn(5, 80)
     val html = remember(id, vol) {

@@ -236,7 +236,7 @@ fun ClockAndAvatar(mvm: MediaViewModel) {
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun TrailerBackground(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false) {
+fun WebTrailer(youtubeId: String, modifier: Modifier = Modifier, sound: Boolean = false) {
     var playing by remember(youtubeId) { mutableStateOf(false) }
     val alpha by animateFloatAsState(if (playing) 1f else 0f, tween(900), label = "trailer")
     val best = FocusStyle.trailerBest
@@ -338,16 +338,30 @@ object TrailerGate {
 
 /** Shows [TrailerBackground] once the same title has been on screen for a moment. [onDetail]: the details page's own trailer. */
 @Composable
-fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier, onDetail: Boolean = false) {
+fun DelayedTrailer(
+    youtubeId: String?,
+    key: Any?,
+    modifier: Modifier = Modifier,
+    onDetail: Boolean = false,
+    enabled: Boolean = true,
+    sound: Boolean = FocusStyle.trailerSound,
+    onShowing: (Boolean) -> Unit = {},
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var show by remember(key) { mutableStateOf(false) }
-    val allowed = TrailerGate.appVisible && !TrailerGate.playing && (onDetail || !TrailerGate.detailOpen)
+    val allowed = enabled && TrailerGate.appVisible && !TrailerGate.playing && (onDetail || !TrailerGate.detailOpen)
+    // Find the trailer's streams straight away, so it starts the moment the wait is over.
+    LaunchedEffect(youtubeId) {
+        if (youtubeId != null && FocusStyle.trailers) (context.applicationContext as com.zapp.tv.ZappApp).youtube.prefetch(youtubeId, trailerHeightCap())
+    }
     LaunchedEffect(key, youtubeId, FocusStyle.trailers, FocusStyle.trailerDelay, allowed) {
         show = false
         if (youtubeId == null || !FocusStyle.trailers || !allowed) return@LaunchedEffect
         delay(FocusStyle.trailerDelay * 1_000L)
         show = true
     }
-    if (show && youtubeId != null) TrailerBackground(youtubeId, modifier, sound = FocusStyle.trailerSound)
+    LaunchedEffect(show) { onShowing(show) }
+    if (show && youtubeId != null) TrailerBackground(youtubeId, modifier, sound = sound)
 }
 
 /**
