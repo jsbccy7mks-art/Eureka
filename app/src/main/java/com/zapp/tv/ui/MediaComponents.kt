@@ -403,9 +403,16 @@ fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<Str
     Text(text, color = ZappColors.Dim, fontSize = size, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
+private const val ICONS = "https://cdn.jsdelivr.net/gh/selfhst/icons@df07d93a4b9e1c3930007971a1dfa6203ea02aea/png/"
+/** The rating sites' logos (selfh.st/icons, CC BY 4.0; the logos belong to their sites). */
+private val SCORE_LOGOS = mapOf(
+    "IMDb" to ICONS + "imdb.png",
+    "RT" to ICONS + "rotten-tomatoes.png",
+    "Letterboxd" to ICONS + "letterboxd.png",
+)
+
 /**
- * Every score as a small card: a little mark for where it's from (Zapp's own simple badges, not the
- * sites' logos) and the number. IMDb comes from the add-on when MDBList isn't connected.
+ * Every score as a small card: the site's logo (or a small lettered badge) and the number. IMDb comes from the add-on when MDBList isn't connected.
  */
 @Composable
 fun ScoreCards(list: List<com.zapp.tv.data.RatingBadge>, imdb: String?, modifier: Modifier = Modifier) {
@@ -425,8 +432,22 @@ fun ScoreCards(list: List<com.zapp.tv.data.RatingBadge>, imdb: String?, modifier
                 Modifier.clip(RoundedCornerShape(8.dp)).background(ZappColors.Glass).padding(start = 5.dp, end = 10.dp, top = 5.dp, bottom = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.clip(RoundedCornerShape(4.dp)).background(bg).padding(horizontal = 5.dp, vertical = 1.dp)) {
-                    Text(mark, color = fg, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.3.sp)
+                // The site's own logo (from the open selfh.st icon set, loaded when shown); a small
+                // lettered badge for the ones it doesn't have, or while it loads.
+                val logo = SCORE_LOGOS[r.source]
+                var logoFailed by remember(logo) { mutableStateOf(logo == null) }
+                if (!logoFailed) {
+                    coil.compose.AsyncImage(
+                        model = logo,
+                        contentDescription = r.source,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        onError = { logoFailed = true },
+                        modifier = Modifier.height(18.dp).widthIn(max = 44.dp),
+                    )
+                } else {
+                    Box(Modifier.clip(RoundedCornerShape(4.dp)).background(bg).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                        Text(mark, color = fg, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.3.sp)
+                    }
                 }
                 Spacer(Modifier.width(7.dp))
                 Text(

@@ -296,17 +296,13 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ra
                     Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         FactsLine(
                             m.releaseInfo ?: d?.preview?.releaseInfo,
-                            m.imdbRating ?: d?.preview?.imdbRating,
+                            m.imdbRating ?: d?.preview?.imdbRating ?: ratings?.takeIf { it.first == m.id }?.second?.firstOrNull { it.source == "IMDb" }?.value,
                             d?.runtime,
                             m.genres.ifEmpty { d?.preview?.genres ?: emptyList() },
                             size = 11.5.sp,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        // Rotten Tomatoes beside it, when MDBList is connected.
-                        ratings?.takeIf { it.first == m.id }?.second?.filter { it.source == "RT" }?.takeIf { it.isNotEmpty() }?.let {
-                            Spacer(Modifier.width(12.dp))
-                            RatingBadges(it)
-                        }
+                        // Home shows IMDb only; every other score is on the details page.
                     }
                 }
                 Spacer(Modifier.height(9.dp))
