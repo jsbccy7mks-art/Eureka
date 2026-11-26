@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.31.0
+
+**New**
+- Subtitles for films and series have their own settings, separate from live TV (Settings,
+  Subtitles: on/off for each). In the player, Subtitles, "Timing and look":
+  - Sync: earlier or later in 0.1 s steps, kept for that title. Add-on subtitles move either way;
+    subtitles inside the video can be moved later.
+  - Font (Default, Sans, Serif, Condensed, Typewriter), Bold, Style (drop shadow, outline,
+    outline and shadow, dark box, plain), Size and Position, with a live preview.
+- Sources that learn: Zapp notes how each add-on and release group plays on this box (how fast
+  it starts, failures, switching away soon after) and lists reliable ones higher within the same
+  quality; very unreliable ones sink. "Reliable" and "Often fails" show in the sources list.
+  Kept only on this TV; Settings, Playback, "Sources that learn" to start over.
+
 ## 0.30.0
 
 **New**
