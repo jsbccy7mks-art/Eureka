@@ -74,7 +74,7 @@ import androidx.media3.common.Player
 import com.zapp.tv.addons.Video
 import kotlinx.coroutines.delay
 
-private enum class VodPanel { None, Controls, Audio, Subtitles, SubStyle, Details }
+private enum class VodPanel { None, Controls, Audio, Subtitles, SubStyle, Details, Scene }
 
 /**
  * Player for films and episodes.
@@ -224,7 +224,7 @@ fun VodPlayer(
         panel = when (panel) {
             VodPanel.SubStyle -> VodPanel.Subtitles
             VodPanel.Audio, VodPanel.Subtitles, VodPanel.Details -> VodPanel.Controls
-            VodPanel.Controls -> VodPanel.None
+            VodPanel.Controls, VodPanel.Scene -> VodPanel.None
             VodPanel.None -> {
                 close()
                 VodPanel.None
@@ -263,6 +263,16 @@ fun VodPlayer(
         while (true) {
             value = player.currentPosition
             delay(400)
+        }
+    }
+    // Pictures for the seek bar, and the names of the parts it passes through.
+    val thumbs = rememberSeekThumbs(playback)
+    val chapterAt: (Long) -> String? = { p ->
+        when {
+            segments?.recap?.let { p in it } == true -> "Recap"
+            segments?.intro?.let { p in it } == true -> "Intro"
+            segments?.outro?.let { p in it } == true -> "Credits"
+            else -> null
         }
     }
     val inIntro = segments?.intro?.let { positionNow in it } == true
@@ -370,7 +380,12 @@ fun VodPlayer(
                         seekBy(if (fast) 60_000 else 10_000)
                         true
                     }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.DirectionUp, Key.DirectionDown, Key.Menu -> {
+                    // Paused, Down opens what's in it: the cast, its parts, sound and subtitles.
+                    Key.DirectionDown -> {
+                        panel = if (paused) VodPanel.Scene else VodPanel.Controls
+                        true
+                    }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.DirectionUp, Key.Menu -> {
                         panel = VodPanel.Controls
                         true
                     }
@@ -464,13 +479,13 @@ fun VodPlayer(
             BottomScrim {
                 Column {
                     PlayerInfoBlock(playback, request, info, synopsis = false, compact = true)
-                    SeekBar(playback, active = false, markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro))
+                    SeekBar(playback, active = false, markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro), chapterAt = chapterAt, thumbs = thumbs)
                 }
             }
         }
 
         AnimatedVisibility(
-            visible = panel != VodPanel.None,
+            visible = panel != VodPanel.None && panel != VodPanel.Scene,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = fadeIn(),
             exit = fadeOut(),
@@ -479,7 +494,7 @@ fun VodPlayer(
         }
 
         AnimatedVisibility(
-            visible = panel != VodPanel.None,
+            visible = panel != VodPanel.None && panel != VodPanel.Scene,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
@@ -502,6 +517,8 @@ fun VodPlayer(
                     },
                     markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro),
                     onNext = { next?.let { playNext(it) } },
+                    chapterAt = chapterAt,
+                    thumbs = thumbs,
                 )
                 }
             }
@@ -525,6 +542,26 @@ fun VodPlayer(
                     }
                 }
             }
+        }
+
+        AnimatedVisibility(
+            visible = panel == VodPanel.Scene,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn() + slideInVertically { it / 3 },
+            exit = fadeOut(),
+        ) {
+            ScenePanel(
+                mvm = mvm,
+                request = request,
+                playback = playback,
+                segments = segments,
+                onSeek = { ms ->
+                    player.seekTo(ms)
+                    panel = VodPanel.None
+                },
+                onAudio = { panel = VodPanel.Audio },
+                onSubtitles = { panel = VodPanel.Subtitles },
+            )
         }
 
         AnimatedVisibility(
@@ -576,7 +613,7 @@ fun VodPlayer(
         AnimatedVisibility(
             visible = showSkip,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 48.dp, bottom = 48.dp),
-            enter = fadeIn() + slideInHorizontally { it / 4 },
+            enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut(),
         ) {
             val skipFocus = remember { FocusRequester() }
@@ -585,15 +622,16 @@ fun VodPlayer(
                 skipFocus.tryRequest()
             }
             DisposableEffect(Unit) { onDispose { if (panel == VodPanel.None) focus.tryRequest() } }
-            ZButton(
-                if (skipTarget == segments?.recap && !inIntro) "Skip recap" else "Skip intro",
-                {
-                    skipTarget?.let { player.seekTo(it.endMs) }
-                    focus.tryRequest()
-                },
-                style = ButtonStyle.Primary,
-                focusRequester = skipFocus,
-            )
+            val seg = skipTarget
+            SkipPill(
+                if (seg == segments?.recap && !inIntro) "Skip recap" else "Skip intro",
+                // The ring empties as the intro runs out.
+                remaining = seg?.let { ((it.endMs - positionNow).toFloat() / (it.endMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f,
+                requester = skipFocus,
+            ) {
+                skipTarget?.let { player.seekTo(it.endMs) }
+                focus.tryRequest()
+            }
         }
 
         if ((countdown > 0 || nextCard) && next != null && panel == VodPanel.None) {
@@ -1010,6 +1048,8 @@ private fun VodControls(
     onSources: () -> Unit,
     onNext: () -> Unit,
     markers: List<com.zapp.tv.data.Segment> = emptyList(),
+    chapterAt: (Long) -> String? = { null },
+    thumbs: SeekThumbs? = null,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
@@ -1038,7 +1078,7 @@ private fun VodControls(
         playback.error?.let {
             ErrorBanner("This source isn't playing. Try again, or choose another source.")
         }
-        SeekBar(playback, active = focusable, markers = markers)
+        SeekBar(playback, active = focusable, markers = markers, chapterAt = chapterAt, thumbs = thumbs)
         Spacer(Modifier.height(10.dp))
         Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
             if (playback.error != null) {
@@ -1076,6 +1116,122 @@ private fun VodControls(
                     if (next != null) opt(PlayerIcon.Next, "Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, accent = true, onClick = onNext)
                 }
             }
+        }
+    }
+}
+
+
+/** "Skip intro": a slim pill that slides up, with a ring that empties as the intro runs out. */
+@Composable
+private fun SkipPill(label: String, remaining: Float, requester: FocusRequester, onClick: () -> Unit) {
+    val ring by androidx.compose.animation.core.animateFloatAsState(remaining, androidx.compose.animation.core.tween(450), label = "skipRing")
+    FocusSurface(
+        onClick = onClick,
+        focusRequester = requester,
+        shape = RoundedCornerShape(50),
+        focusScale = 1.04f,
+        restColor = Color.Black.copy(alpha = 0.55f),
+        focusColor = Color.White,
+    ) { focused ->
+        Row(Modifier.padding(start = 8.dp, end = 18.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            val fg = if (focused) Color.Black else Color.White
+            Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val stroke = 2.5.dp.toPx()
+                    drawCircle(fg.copy(alpha = 0.2f), radius = size.minDimension / 2 - stroke / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                    drawArc(
+                        fg,
+                        startAngle = -90f,
+                        sweepAngle = 360f * ring,
+                        useCenter = false,
+                        topLeft = androidx.compose.ui.geometry.Offset(stroke / 2, stroke / 2),
+                        size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                    )
+                }
+                PlayerGlyph(PlayerIcon.Next, fg, 12.dp)
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+
+/**
+ * Down while paused: who's in it (round photos), the parts of it to jump to (start, recap, intro,
+ * credits), and the sound and subtitles in use, in one panel over the paused picture.
+ */
+@Composable
+private fun ScenePanel(
+    mvm: MediaViewModel,
+    request: PlayRequest,
+    playback: Playback,
+    segments: com.zapp.tv.data.Segments?,
+    onSeek: (Long) -> Unit,
+    onAudio: () -> Unit,
+    onSubtitles: () -> Unit,
+) {
+    val tmdb by produceState<com.zapp.tv.data.TmdbDetails?>(null, request.meta.id) { value = runCatching { mvm.tmdbDetails(request.meta.id, request.meta.type) }.getOrNull() }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(120)
+        first.tryRequest()
+    }
+    val audio = playback.choices(C.TRACK_TYPE_AUDIO).firstOrNull { it.selected }?.label ?: "Default"
+    val subs = playback.choices(C.TRACK_TYPE_TEXT).firstOrNull { it.selected }?.label ?: "Off"
+    val parts = buildList {
+        add("Start" to 0L)
+        segments?.recap?.let { add("Recap" to it.startMs) }
+        segments?.intro?.let { add("Intro" to it.startMs); add("After the intro" to it.endMs) }
+        segments?.outro?.let { add("Credits" to it.startMs) }
+    }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f), Color.Black.copy(alpha = 0.92f))))
+            .padding(start = 56.dp, end = 56.dp, top = 80.dp, bottom = 30.dp),
+    ) {
+        Column(Modifier.focusGroup()) {
+            Text("PARTS", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                parts.forEachIndexed { i, (label, at) ->
+                    ZButton("$label  ${formatClock(at)}", { onSeek(at) }, style = ButtonStyle.Quiet, focusRequester = if (i == 0) first else null)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Text("SOUND AND SUBTITLES", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton("Audio: $audio", onAudio, style = ButtonStyle.Quiet)
+                ZButton("Subtitles: $subs", onSubtitles, style = ButtonStyle.Quiet)
+            }
+            val cast = tmdb?.cast.orEmpty().take(10)
+            if (cast.isNotEmpty()) {
+                Spacer(Modifier.height(18.dp))
+                Text("IN IT", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    cast.forEach { p ->
+                        Column(Modifier.width(76.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                Modifier.size(60.dp).clip(androidx.compose.foundation.shape.CircleShape).background(ZappColors.Glass),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (p.photo != null) {
+                                    coil.compose.AsyncImage(model = p.photo, contentDescription = p.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                }
+                            }
+                            Spacer(Modifier.height(5.dp))
+                            Text(p.name, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            p.role?.let { Text(it, fontSize = 9.5.sp, color = ZappColors.Dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("Back to close", color = ZappColors.Faint, fontSize = 11.sp)
         }
     }
 }

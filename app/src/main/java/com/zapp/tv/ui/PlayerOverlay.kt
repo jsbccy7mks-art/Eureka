@@ -33,6 +33,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.foundation.border
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -492,39 +494,74 @@ private fun ControlsPanel(
 
 /** Progress and seeking, shown only when the stream can actually be moved through. */
 @Composable
-internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp.tv.data.Segment> = emptyList()) {
+internal fun SeekBar(
+    playback: Playback,
+    active: Boolean,
+    markers: List<com.zapp.tv.data.Segment> = emptyList(),
+    /** The name of the part at a moment ("Intro", "Credits"), shown with the preview. */
+    chapterAt: (Long) -> String? = { null },
+    thumbs: SeekThumbs? = null,
+) {
     val player = playback.player
+    var barFocused by remember { mutableStateOf(false) }
+    // While you seek: quicker updates, and a moment's memory that you're seeking.
+    var seekingUntil by remember { mutableLongStateOf(0L) }
     val state by produceState(Triple(0L, 0L, false), active) {
+        var last = player.currentPosition
         while (true) {
-            value = Triple(player.currentPosition, player.duration, player.isCurrentMediaItemSeekable)
-            delay(500)
+            val p = player.currentPosition
+            if (kotlin.math.abs(p - last) > 3_000) seekingUntil = System.currentTimeMillis() + 1_600
+            last = p
+            value = Triple(p, player.duration, player.isCurrentMediaItemSeekable)
+            delay(if (barFocused || System.currentTimeMillis() < seekingUntil) 150 else 500)
         }
     }
     val (position, duration, seekable) = state
     if (!seekable || duration <= 0 || duration == C.TIME_UNSET) return
 
+    val seeking = barFocused || System.currentTimeMillis() < seekingUntil
+    LaunchedEffect(position / 10_000, seeking) { if (seeking) thumbs?.request(position) }
+    val picture = thumbs?.shown?.takeIf { seeking && kotlin.math.abs(it.first - position) < 40_000 }
+
     Spacer(Modifier.height(14.dp))
-    var barFocused by remember { mutableStateOf(false) }
     val thick by androidx.compose.animation.core.animateDpAsState(if (barFocused) 6.dp else 3.dp, androidx.compose.animation.core.tween(160), label = "bar")
     val fraction = (position.toFloat() / duration).coerceIn(0f, 1f)
     Column {
-        // Time bubble that follows the playhead while the bar has focus.
-        BoxWithConstraints(Modifier.fillMaxWidth().height(24.dp)) {
-            if (barFocused) {
-                val x = (maxWidth - 60.dp) * fraction
-                Text(
-                    formatClock(position),
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    modifier = Modifier
-                        .offset(x = x)
-                        .width(60.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(vertical = 3.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                )
+        // While seeking: a picture from that moment, with the time and part, above the playhead.
+        BoxWithConstraints(Modifier.fillMaxWidth().height(if (thumbs != null && seeking) 128.dp else 24.dp)) {
+            if (seeking) {
+                val boxW = if (picture != null) 176.dp else 70.dp
+                val x = (maxWidth - boxW) * fraction
+                Column(
+                    Modifier.align(Alignment.BottomStart).offset(x = x).width(boxW),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (picture != null) {
+                        androidx.compose.foundation.Image(
+                            picture.second,
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier
+                                .width(176.dp)
+                                .height(99.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.5.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(8.dp)),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    Text(
+                        listOfNotNull(formatClock(position), chapterAt(position)).joinToString("  ·  "),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
             }
         }
         FocusSurface(
