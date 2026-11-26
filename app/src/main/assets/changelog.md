@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.41.0
+
+**New**
+- Seek previews: while you seek a film or episode, a picture from that moment appears above the
+  playhead, with the time and the part you're in (Intro, Recap, Credits).
+- Paused, press Down: the parts of it to jump to, the sound and subtitles in use, and who's in it.
+- "Skip intro" is now a slim pill that slides up, with a ring that empties as the intro runs out.
+- Live TV: press Right while watching for now and next on the channels around this one; Up and
+  Down move, OK switches, Left closes.
+- Appearance, Look: True black (for OLED), Title lettering (Cinematic, Clean modern, Bold
+  condensed), Card style (Rounded, Square, Rounded with border), Names under posters, and Glow
+  strength (Subtle, Normal, Vivid).
+
+**Improved**
+- Home: a few seconds into a trailer the text steps back and the picture grows; move and it all
+  comes back.
+- Title logos almost everywhere (Cinemeta's logos fill in where the add-on and TMDB have none).
+- Cards lift slightly with a soft shadow when focused.
+- Details: seasons as tiles with a still and how much you've watched; episode stills slowly pan
+  when you rest on them; 4K, Dolby Vision or HDR and Atmos badges from the sources found; round
+  cast photos with who they play.
+- TV guide: the "now" line glows in the theme's colours, programmes on now are tinted, and sport
+  is tinted green.
+- Sidebar: your profile sits at the top, and Library gets a dot when there are new episodes.
+- Pages change with a soft slide and fade; details and Collections show their shape while loading.
+
 ## 0.40.1
 
 **Fixed**
