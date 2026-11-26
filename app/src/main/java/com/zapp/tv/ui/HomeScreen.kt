@@ -112,6 +112,10 @@ fun HomeScreen(
     val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
+    // Your teams: what's on now or in the next 24 hours.
+    LaunchedEffect(Unit) { vm.refreshSports() }
+    val sportsSoon = vm.fixtures.filter { val n = System.currentTimeMillis(); it.liveAt(n) || (it.start > n && it.start < n + 24 * 3_600_000L) }.take(10)
+    val sportsScope = rememberCoroutineScope()
     val rows = layout.filter { r ->
         r.on && when (r.id) {
             CONTINUE_ROW -> continueItems.isNotEmpty()
@@ -125,10 +129,6 @@ fun HomeScreen(
     }
 
     var focused by remember { mutableStateOf<HeroItem?>(null) }
-    // Your teams: what's on now or in the next 24 hours.
-    LaunchedEffect(Unit) { vm.refreshSports() }
-    val sportsSoon = vm.fixtures.filter { val n = System.currentTimeMillis(); it.liveAt(n) || (it.start > n && it.start < n + 24 * 3_600_000L) }.take(10)
-    val sportsScope = rememberCoroutineScope()
     // Opening animation waits for this: something on Home has focus (its rows have loaded).
     LaunchedEffect(focused != null) { if (focused != null) { delay(700); HomeReady.ready = true } }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
