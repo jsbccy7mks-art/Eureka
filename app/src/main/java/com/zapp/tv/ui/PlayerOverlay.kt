@@ -87,7 +87,7 @@ private val ZapUp = setOf(Key.DirectionUp, Key.ChannelDown)
 private val ZapDown = setOf(Key.DirectionDown, Key.ChannelUp)
 private val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
 
-private enum class PlayerPanel { None, Controls, Channels, Audio, Subtitles, Details }
+private enum class PlayerPanel { None, Controls, Channels, Audio, Subtitles, Details, MiniGuide }
 
 /**
  * Fullscreen player.
@@ -136,7 +136,7 @@ fun PlayerOverlay(
     BackHandler {
         panel = when (panel) {
             PlayerPanel.Audio, PlayerPanel.Subtitles, PlayerPanel.Details -> PlayerPanel.Controls
-            PlayerPanel.Controls, PlayerPanel.Channels -> PlayerPanel.None
+            PlayerPanel.Controls, PlayerPanel.Channels, PlayerPanel.MiniGuide -> PlayerPanel.None
             PlayerPanel.None -> {
                 onClose()
                 PlayerPanel.None
@@ -237,8 +237,9 @@ fun PlayerOverlay(
                             panel = PlayerPanel.Channels
                             true
                         }
+                        // Right: now and next on the channels around this one, without leaving it.
                         key == Key.DirectionRight -> {
-                            if (infoVisible) infoVisible = false else infoTick++
+                            panel = PlayerPanel.MiniGuide
                             true
                         }
                         key == Key.Menu -> {
@@ -334,6 +335,22 @@ fun PlayerOverlay(
                             ?.let { p -> { restart(channel, p) } }
                     },
                 )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = panel == PlayerPanel.MiniGuide,
+            modifier = Modifier.align(Alignment.CenterEnd),
+            enter = fadeIn() + slideInHorizontally { it / 3 },
+            exit = fadeOut() + slideOutHorizontally { it / 3 },
+        ) {
+            MiniGuide(vm, channel, now, timeFormat) { c ->
+                if (c.streamUrl != channel.streamUrl) {
+                    vm.lastChannelUrl = c.streamUrl
+                    playback.play(c)
+                    infoTick++
+                }
+                panel = PlayerPanel.None
             }
         }
 
@@ -1273,6 +1290,88 @@ internal fun LiveTimeshiftBar(playback: Playback, active: Boolean) {
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
             )
+        }
+    }
+}
+
+
+/**
+ * Now and next on the channels either side of this one, over the picture. Up and Down move,
+ * OK switches, Back (or Left) closes. It tidies itself away after a while.
+ */
+@Composable
+private fun MiniGuide(vm: AppViewModel, channel: Channel, now: Long, timeFormat: java.text.DateFormat, onPick: (Channel) -> Unit) {
+    val rows by produceState<List<Pair<Channel, List<Programme>>>?>(null, channel.streamUrl) {
+        val before = ArrayList<Channel>()
+        var c: Channel? = channel
+        repeat(3) { c = c?.let { vm.neighbor(it, false) }; c?.takeIf { x -> x.streamUrl != channel.streamUrl && before.none { it.streamUrl == x.streamUrl } }?.let { before.add(0, it) } }
+        val after = ArrayList<Channel>()
+        c = channel
+        repeat(3) { c = c?.let { vm.neighbor(it, true) }; c?.takeIf { x -> x.streamUrl != channel.streamUrl && after.none { it.streamUrl == x.streamUrl } && before.none { it.streamUrl == x.streamUrl } }?.let { after.add(it) } }
+        value = (before + channel + after).map { it to runCatching { vm.nowNext(it) }.getOrDefault(emptyList()) }
+    }
+    val currentFocus = remember { FocusRequester() }
+    var poke by remember { mutableIntStateOf(0) }
+    LaunchedEffect(rows) {
+        if (rows != null) {
+            delay(80)
+            currentFocus.tryRequest()
+        }
+    }
+    LaunchedEffect(poke) {
+        delay(10_000)
+        onPick(channel) // nothing chosen: close
+    }
+    Column(
+        Modifier
+            .padding(end = 40.dp)
+            .width(460.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(ZappColors.Panel.copy(alpha = 0.92f))
+            .padding(10.dp)
+            .onPreviewKeyEvent { e ->
+                if (e.type == KeyEventType.KeyDown) poke++
+                if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft) { onPick(channel); true } else false
+            },
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text("NOW AND NEXT", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp))
+        val list = rows
+        if (list == null) {
+            ZappLoader(24.dp, Modifier.align(Alignment.CenterHorizontally).padding(20.dp))
+            return@Column
+        }
+        list.forEach { (c, progs) ->
+            val cur = progs.firstOrNull { it.start <= now && it.stop > now }
+            val nxt = progs.firstOrNull { it.start > now }
+            val here = c.streamUrl == channel.streamUrl
+            FocusSurface(
+                onClick = { onPick(c) },
+                modifier = Modifier.fillMaxWidth(),
+                focusRequester = if (here) currentFocus else null,
+                shape = RoundedCornerShape(12.dp),
+                focusScale = 1f,
+                restColor = if (here) ZappColors.Glass else Color.Transparent,
+            ) { focused ->
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    LogoTile(c.logo, c.name, 40.dp, onLight = focused)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(cur?.title ?: c.name, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(c.name.takeIf { cur != null }, nxt?.let { "Next " + timeFormat.format(it.start) + "  " + it.title }).joinToString("  ·  "),
+                            color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                        if (cur != null) {
+                            Spacer(Modifier.height(5.dp))
+                            ProgressLine(((now - cur.start).toFloat() / (cur.stop - cur.start).coerceAtLeast(1)).coerceIn(0f, 1f), Modifier.fillMaxWidth(), track = if (focused) Color(0x33000000) else ZappColors.Line)
+                        }
+                    }
+                }
+            }
         }
     }
 }

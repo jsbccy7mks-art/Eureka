@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -218,12 +220,28 @@ fun GuideScreen(
 
                 // "Now" line across the grid.
                 if (now in windowStart until windowStart + WINDOW) {
+                    val x = ChannelColumn + GridGap + ((now - windowStart) * dpPerMs).dp
+                    // A soft glow in the theme's colours, with a sharp line through it.
                     Box(
                         Modifier
-                            .offset(x = ChannelColumn + GridGap + ((now - windowStart) * dpPerMs).dp - 1.dp)
+                            .offset(x = x - 14.dp)
+                            .width(28.dp)
+                            .fillMaxHeight()
+                            .background(Brush.horizontalGradient(listOf(Color.Transparent, ZappColors.Brand1.copy(alpha = 0.22f), Color.Transparent))),
+                    )
+                    Box(
+                        Modifier
+                            .offset(x = x - 1.dp)
                             .width(2.dp)
                             .fillMaxHeight()
-                            .background(ZappColors.Signal.copy(alpha = 0.85f)),
+                            .background(Brush.verticalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
+                    )
+                    Box(
+                        Modifier
+                            .offset(x = x - 4.dp)
+                            .size(8.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(ZappColors.Brand2),
                     )
                 }
             }
@@ -538,6 +556,7 @@ private fun ProgrammeCell(
 ) {
     val airing = programme.start <= now && programme.stop > now
     val past = programme.stop <= now
+    val sport = remember(programme.title) { looksLikeSport(programme.title) }
     FocusSurface(
         onClick = onClick,
         modifier = modifier,
@@ -545,7 +564,12 @@ private fun ProgrammeCell(
         onFocusChange = { if (it) onFocus() },
         shape = RoundedCornerShape(9.dp),
         focusScale = 1f,
-        restColor = if (airing) Color(0x24FFFFFF) else Color(0x10FFFFFF),
+        // On now: a touch of the theme's colour; sport: a touch of green.
+        restColor = when {
+            sport -> if (airing) Color(0x3334D399) else Color(0x1A34D399)
+            airing -> androidx.compose.ui.graphics.lerp(Color(0x24FFFFFF), ZappColors.Brand1.copy(alpha = 0.28f), 0.5f)
+            else -> Color(0x10FFFFFF)
+        },
     ) { focused ->
         Column(
             Modifier
@@ -579,8 +603,15 @@ private fun ProgrammeCell(
                     .fillMaxWidth(progressOf(programme.start, programme.stop, now))
                     .height(2.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(ZappColors.Signal),
+                    .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
             )
         }
     }
 }
+
+private val SportWords = Regex(
+    "\\b(v|vs)\\b|premier league|champions league|football|soccer|rugby|cricket|tennis|golf|formula 1|\\bf1\\b|grand prix|nfl|nba|mlb|nhl|boxing|ufc|darts|snooker|motogp|match of the day|sky sports|live:",
+    RegexOption.IGNORE_CASE,
+)
+
+private fun looksLikeSport(title: String) = SportWords.containsMatchIn(title)
