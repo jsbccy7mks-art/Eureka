@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlin.math.abs
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -194,6 +195,52 @@ class Playback(
     }
 
     fun isOn(c: Channel?): Boolean = c != null && channel?.streamUrl == c.streamUrl
+
+    /** What's actually playing, in short: "4K", "HDR10", "Dolby Atmos 5.1", "23.976 fps". */
+    @OptIn(UnstableApi::class)
+    fun techParts(): List<String> {
+        val v = player.videoFormat
+        val a = player.audioFormat
+        val out = ArrayList<String>()
+        val h = if (videoHeight > 0) videoHeight else v?.height ?: 0
+        when {
+            h >= 1800 -> out.add("4K")
+            h >= 1000 -> out.add("1080p")
+            h >= 700 -> out.add("720p")
+            h > 0 -> out.add("SD")
+        }
+        if (v != null) {
+            when {
+                v.sampleMimeType == MimeTypes.VIDEO_DOLBY_VISION || v.codecs?.startsWith("dvh") == true || v.codecs?.startsWith("dva") == true -> out.add("Dolby Vision")
+                v.colorInfo?.colorTransfer == C.COLOR_TRANSFER_ST2084 -> out.add("HDR10")
+                v.colorInfo?.colorTransfer == C.COLOR_TRANSFER_HLG -> out.add("HLG")
+            }
+        }
+        if (a != null) {
+            val codec = when (a.sampleMimeType) {
+                MimeTypes.AUDIO_E_AC3_JOC -> "Dolby Atmos"
+                MimeTypes.AUDIO_TRUEHD -> "Dolby TrueHD"
+                MimeTypes.AUDIO_E_AC3 -> "Dolby Digital+"
+                MimeTypes.AUDIO_AC3 -> "Dolby Digital"
+                MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_DTS_HD, MimeTypes.AUDIO_DTS_EXPRESS -> "DTS"
+                MimeTypes.AUDIO_AAC -> "AAC"
+                else -> null
+            }
+            val ch = when (a.channelCount) {
+                1 -> "Mono"
+                2 -> "Stereo"
+                6 -> "5.1"
+                8 -> "7.1"
+                Format.NO_VALUE -> null
+                else -> "${a.channelCount}ch"
+            }
+            listOfNotNull(codec, ch).joinToString(" ").takeIf { it.isNotBlank() }?.let { out.add(it) }
+        }
+        v?.frameRate?.takeIf { it > 1f }?.let { f ->
+            out.add((if (abs(f - Math.round(f)) < 0.01f) "${Math.round(f)}" else String.format(java.util.Locale.UK, "%.3f", f)) + " fps")
+        }
+        return out
+    }
 
     fun play(c: Channel) {
         if (isOn(c) && error == null && player.playbackState != Player.STATE_IDLE) {

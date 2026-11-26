@@ -502,7 +502,7 @@ internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp
                     val y = size.height / 2f
                     val w = size.width
                     val r = androidx.compose.ui.geometry.CornerRadius(h / 2f)
-                    drawRoundRect(Color.White.copy(alpha = 0.22f), androidx.compose.ui.geometry.Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(w, h), r)
+                    drawRoundRect(Color.White.copy(alpha = 0.2f), androidx.compose.ui.geometry.Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(w, h), r)
                     // Intro, recap and credits marked on the bar.
                     for (m in markers) {
                         val a = (m.startMs.toFloat() / duration).coerceIn(0f, 1f) * w
@@ -510,7 +510,7 @@ internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp
                         drawRect(Color.White.copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(a, y - h / 2f), androidx.compose.ui.geometry.Size((b - a).coerceAtLeast(2f), h))
                     }
                     drawRoundRect(
-                        Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2), startX = 0f, endX = w),
+                        Brush.horizontalGradient(barColors(), startX = 0f, endX = w),
                         androidx.compose.ui.geometry.Offset(0f, y - h / 2f),
                         androidx.compose.ui.geometry.Size(w * fraction, h),
                         r,

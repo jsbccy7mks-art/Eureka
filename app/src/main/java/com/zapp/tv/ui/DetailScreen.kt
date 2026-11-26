@@ -84,7 +84,7 @@ fun episodeLabel(v: Video): String =
     if (v.season != null && v.episode != null) "S${v.season} E${v.episode}" + (v.title.takeIf { it.isNotBlank() }?.let { ", $it" } ?: "")
     else v.title
 
-private fun shortLabel(v: Video): String =
+fun shortLabel(v: Video): String =
     if (v.season != null && v.episode != null) "S${v.season} E${v.episode}" else v.title
 
 
@@ -283,7 +283,18 @@ fun DetailScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Spacer(Modifier.height(10.dp))
-                            MovieTitle(meta.name, if (meta.name.length > 24) 38.sp else 48.sp, maxLines = 2, modifier = Modifier.widthIn(max = 600.dp))
+                            // The title's own logo when there is one, otherwise its name in poster lettering.
+                            if (meta.logo != null) {
+                                AsyncImage(
+                                    model = meta.logo,
+                                    contentDescription = meta.name,
+                                    contentScale = ContentScale.Fit,
+                                    alignment = Alignment.BottomStart,
+                                    modifier = Modifier.heightIn(max = 120.dp).widthIn(max = 460.dp),
+                                )
+                            } else {
+                                MovieTitle(meta.name, if (meta.name.length > 24) 38.sp else 48.sp, maxLines = 2, modifier = Modifier.widthIn(max = 600.dp))
+                            }
                             // Tagline: the first sentence of the story, after a short accent line.
                             val tagline = tmdb?.tagline ?: meta.description?.let { d -> d.split(Regex("(?<=[.!?])\\s")).firstOrNull()?.trim() }?.takeIf { it.length in 8..140 }
                             if (tagline != null) {
@@ -524,7 +535,11 @@ fun DetailScreen(
                         .padding(start = 56.dp, end = 48.dp, top = 22.dp, bottom = 22.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MovieTitle(meta.name, 22.sp, maxLines = 1, modifier = Modifier.widthIn(max = 360.dp))
+                    if (meta.logo != null) {
+                        AsyncImage(model = meta.logo, contentDescription = meta.name, contentScale = ContentScale.Fit, alignment = Alignment.CenterStart, modifier = Modifier.heightIn(max = 34.dp).widthIn(max = 200.dp))
+                    } else {
+                        MovieTitle(meta.name, 22.sp, maxLines = 1, modifier = Modifier.widthIn(max = 360.dp))
+                    }
                     Spacer(Modifier.width(14.dp))
                     Text(
                         if (isSeries) "${seasons.count { it > 0 }} seasons  ·  ${videos.size} episodes" else listOfNotNull(meta.releaseInfo, prettyRuntime(detail?.runtime)).joinToString("  ·  "),

@@ -300,7 +300,7 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
         )
         SettingRow(
             title = "Play the next episode automatically",
-            body = "Counts down from 10 at the end of an episode, then plays the next one.",
+            body = "The Up next card always appears at the credits. On: it counts down from 10, then plays the next episode. Off: it waits for you.",
             value = SettingValue.Toggle(s.autoNextEpisode),
             onClick = { s.autoNextEpisode = !s.autoNextEpisode },
         )

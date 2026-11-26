@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.28.0
+
+**New**
+- Title logos on the details page (and its slim header) instead of lettering, when there is one.
+- Player: the logo (or title) sits bottom left above the seek bar, with the episode and a quiet
+  line of what's actually playing: resolution (4K, 1080p…), HDR10 / Dolby Vision / HLG, the audio
+  (Dolby Atmos 5.1, DTS…) and frame rate. The clock and "Ends at" stay top right.
+- Paused view: pause and leave it, and the picture dims while the logo, episode, story and what's
+  playing appear above the seek bar. Any button brings the controls back.
+- Up next card with the next episode's picture always appears at the credits. "Play the next
+  episode automatically" (Settings, Playback) decides whether it counts down or waits for you.
+
+**Fixed**
+- The seek bar and progress lines were hard to see in Monochrome; they're near-white there now.
+
 ## 0.27.1
 
 **Fixed**

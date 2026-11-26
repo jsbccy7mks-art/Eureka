@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -97,6 +100,8 @@ fun VodPlayer(
     var barVisible by remember { mutableStateOf(true) }
     var idleTick by remember { mutableIntStateOf(0) }
     var ended by remember { mutableStateOf(false) }
+    var paused by remember { mutableStateOf(false) }
+    var nextCard by remember(info.videoId) { mutableStateOf(false) }
     val currentInfo by rememberUpdatedState(info)
     val next = remember(request.videoId) { request.video?.let { mvm.nextEpisode(request.videos, it.id) } }
     // Until the first picture appears, the Zapp starting screen stays up (it carries on from the
@@ -170,6 +175,7 @@ fun VodPlayer(
 
             // Tell Simkl when watching starts and pauses, so Nuvio and other apps see it.
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                paused = !isPlaying && player.playbackState == Player.STATE_READY && !player.playWhenReady
                 if (isPlaying) {
                     mvm.scrobble("start", currentInfo, percentNow(), player.duration.coerceAtLeast(0))
                 } else if (player.playbackState == Player.STATE_READY && !player.playWhenReady) {
@@ -226,8 +232,9 @@ fun VodPlayer(
         barVisible = false
     }
     LaunchedEffect(idleTick, panel) {
-        if (panel == VodPanel.Controls && playback.error == null && player.isPlaying) {
-            delay(5_000)
+        if (panel == VodPanel.Controls && playback.error == null) {
+            // Playing: controls go after 5 s. Paused: after 7 s, and the paused view takes over.
+            delay(if (player.isPlaying) 5_000 else 7_000)
             panel = VodPanel.None
         }
     }
@@ -265,7 +272,9 @@ fun VodPlayer(
     // Next episode: count down after the episode ends (or when the credits start), if autoplay is on.
     var countdown by remember(info.videoId) { mutableIntStateOf(-1) }
     LaunchedEffect(credits) {
-        if (!credits || !mvm.settings.autoNextEpisode) return@LaunchedEffect
+        if (!credits) return@LaunchedEffect
+        nextCard = true
+        if (!mvm.settings.autoNextEpisode) return@LaunchedEffect
         for (i in 10 downTo 1) {
             countdown = i
             delay(1_000)
@@ -279,10 +288,8 @@ fun VodPlayer(
             close()
             return@LaunchedEffect
         }
-        if (!mvm.settings.autoNextEpisode) {
-            panel = VodPanel.Controls
-            return@LaunchedEffect
-        }
+        nextCard = true
+        if (!mvm.settings.autoNextEpisode) return@LaunchedEffect
         for (i in 10 downTo 1) {
             countdown = i
             delay(1_000)
@@ -365,8 +372,7 @@ fun VodPlayer(
         ) {
             BottomScrim {
                 Column {
-                    Text(info.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    info.episodeLabel?.let { Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 1) }
+                    PlayerInfoBlock(playback, request, info, synopsis = false, compact = true)
                     SeekBar(playback, active = false, markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro))
                 }
             }
@@ -378,7 +384,7 @@ fun VodPlayer(
             enter = fadeIn(),
             exit = fadeOut(),
         ) {
-            VodTopBar(playback, info)
+            VodTopBar(playback)
         }
 
         AnimatedVisibility(
@@ -388,6 +394,9 @@ fun VodPlayer(
             exit = fadeOut(),
         ) {
             BottomScrim {
+                Column {
+                PlayerInfoBlock(playback, request, info, synopsis = false)
+                Spacer(Modifier.height(4.dp))
                 VodControls(
                     playback = playback,
                     info = info,
@@ -403,6 +412,27 @@ fun VodPlayer(
                     markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro),
                     onNext = { next?.let { playNext(it) } },
                 )
+                }
+            }
+        }
+
+        // Paused for a while with nothing open: the picture dims and the title, its story and
+        // what's playing appear above the seek bar. Any button brings the controls back.
+        AnimatedVisibility(
+            visible = paused && started && panel == VodPanel.None && !nextCard,
+            enter = fadeIn(androidx.compose.animation.core.tween(600)),
+            exit = fadeOut(androidx.compose.animation.core.tween(250)),
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f))) {
+                Box(Modifier.align(Alignment.TopCenter)) { VodTopBar(playback) }
+                Box(Modifier.align(Alignment.BottomCenter)) {
+                    BottomScrim {
+                        Column {
+                            PlayerInfoBlock(playback, request, info, synopsis = true)
+                            SeekBar(playback, active = false, markers = listOfNotNull(segments?.intro, segments?.recap, segments?.outro))
+                        }
+                    }
+                }
             }
         }
 
@@ -473,31 +503,58 @@ fun VodPlayer(
             )
         }
 
-        if (countdown > 0 && next != null) {
-            Column(
+        if ((countdown > 0 || nextCard) && next != null && panel == VodPanel.None) {
+            Row(
                 Modifier
                     .align(Alignment.BottomEnd)
                     .padding(40.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(ZappColors.Panel)
-                    .padding(18.dp),
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(ZappColors.Panel.copy(alpha = 0.94f))
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Next episode in $countdown", color = ZappColors.Dim, fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(episodeLabel(next), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(280.dp))
-                Spacer(Modifier.height(12.dp))
-                val playNow = remember { FocusRequester() }
-                LaunchedEffect(Unit) { playNow.tryRequest() }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ZButton("Play now", { playNext(next) }, style = ButtonStyle.Primary, focusRequester = playNow)
-                    if (credits) {
-                        ZButton("Keep watching", {
-                            creditsDismissed = true
-                            countdown = -1
-                            focus.tryRequest()
-                        })
-                    } else {
-                        ZButton("Stop", { close() })
+                Box(
+                    Modifier
+                        .width(176.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ZappColors.Glass),
+                ) {
+                    Artwork(next.thumbnail ?: request.meta.background, shortLabel(next))
+                    if (countdown > 0) {
+                        ProgressLine(
+                            countdown / 10f,
+                            Modifier.align(Alignment.BottomCenter).padding(horizontal = 8.dp, vertical = 6.dp).fillMaxWidth(),
+                            track = Color(0x55FFFFFF),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.width(230.dp)) {
+                    Text(
+                        if (countdown > 0) "NEXT EPISODE IN $countdown" else "UP NEXT",
+                        color = ZappColors.Brand2,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.8.sp,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(episodeLabel(next), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(10.dp))
+                    val playNow = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { playNow.tryRequest() }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ZButton("Play now", { playNext(next) }, style = ButtonStyle.Primary, focusRequester = playNow)
+                        if (ended) {
+                            ZButton("Close", { close() })
+                        } else {
+                            ZButton("Keep watching", {
+                                creditsDismissed = true
+                                nextCard = false
+                                countdown = -1
+                                focus.tryRequest()
+                            })
+                        }
                     }
                 }
             }
@@ -506,7 +563,7 @@ fun VodPlayer(
 }
 
 @Composable
-private fun VodTopBar(playback: Playback, info: MediaInfo) {
+private fun VodTopBar(playback: Playback) {
     val now = rememberNow(15_000)
     val timeFormat = rememberTimeFormat()
     val remaining by produceState(0L) {
@@ -516,36 +573,70 @@ private fun VodTopBar(playback: Playback, info: MediaInfo) {
             delay(1_000)
         }
     }
+    // Only the time, top right: the title lives bottom left, above the seek bar.
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.62f), Color.Transparent)))
-            .padding(start = 56.dp, end = 56.dp, top = 34.dp, bottom = 70.dp),
-        verticalAlignment = Alignment.Top,
+            .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent)))
+            .padding(start = 56.dp, end = 56.dp, top = 30.dp, bottom = 50.dp),
+        horizontalArrangement = Arrangement.End,
     ) {
-        Column(Modifier.weight(1f)) {
-            info.episodeLabel?.let {
-                Text(
-                    it.substringBefore(",").uppercase(),
-                    color = ZappColors.Brand2.copy(alpha = 0.95f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 2.2.sp,
-                    maxLines = 1,
-                )
-                Spacer(Modifier.height(6.dp))
-            }
-            MovieTitle(info.title, 30.sp, maxLines = 1)
-            info.episodeLabel?.substringAfter(", ", "")?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(2.dp))
-                Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
         Column(horizontalAlignment = Alignment.End) {
             Text(timeFormat.format(now), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             if (remaining > 0) {
                 Text("Ends at ${timeFormat.format(now + remaining)}", color = ZappColors.Dim, fontSize = 11.5.sp)
             }
+        }
+    }
+}
+
+/**
+ * Bottom left, above the seek bar: the title's logo (or its name in poster lettering), the episode,
+ * and a quiet line saying what's actually playing (4K · HDR10 · Dolby Atmos 5.1 · 24 fps).
+ * [synopsis]: the paused view also shows the story.
+ */
+@Composable
+private fun PlayerInfoBlock(playback: Playback, request: PlayRequest, info: MediaInfo, synopsis: Boolean, compact: Boolean = false) {
+    val tech by produceState(emptyList<String>(), info.videoId) {
+        while (true) {
+            value = playback.techParts()
+            delay(2_000)
+        }
+    }
+    val logo = request.meta.logo
+    Column(Modifier.widthIn(max = 620.dp).padding(bottom = 6.dp)) {
+        if (logo != null) {
+            AsyncImage(
+                model = logo,
+                contentDescription = info.title,
+                contentScale = ContentScale.Fit,
+                alignment = Alignment.BottomStart,
+                modifier = Modifier.heightIn(max = if (compact) 46.dp else 70.dp).widthIn(max = if (compact) 220.dp else 320.dp),
+            )
+        } else {
+            MovieTitle(info.title, if (compact) 22.sp else 30.sp, maxLines = 1)
+        }
+        val ep = request.video
+        if (ep != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                listOfNotNull(ep.season?.let { "S$it" }, ep.episode?.let { "E$it" }, ep.title.takeIf { it.isNotBlank() }).joinToString("  ·  "),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.9f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (synopsis) {
+            (ep?.overview ?: request.meta.description)?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.height(8.dp))
+                Text(it, fontSize = 13.sp, lineHeight = 19.sp, color = Color.White.copy(alpha = 0.78f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (tech.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text(tech.joinToString("  ·  "), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
         }
     }
 }

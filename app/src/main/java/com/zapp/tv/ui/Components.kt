@@ -575,10 +575,14 @@ fun LogoTile(
     }
 }
 
+/** Progress colours: the theme's gradient, or near-white for Monochrome so it stands out on video. */
+fun barColors(): List<Color> =
+    if (ZappColors.palette.id == "mono") listOf(Color(0xFFC8C8C8), Color.White) else listOf(ZappColors.Brand1, ZappColors.Brand2)
+
 @Composable
 fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, track: Color = ZappColors.Line, fill: Color = Color.Unspecified) {
     // No colour given: the theme's gradient, like the focus ring.
-    val brush = if (fill == Color.Unspecified) Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2)) else SolidColor(fill)
+    val brush = if (fill == Color.Unspecified) Brush.horizontalGradient(barColors()) else SolidColor(fill)
     Box(
         modifier
             .height(3.dp)
