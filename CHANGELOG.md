@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.37.0
+
+**New**
+- Ratings: Dislike, Like or Love any title, from the long-press menu (Rate), the details page
+  (next to the library button), or the end screen ("How was it?"). Press again to clear.
+  Kept per profile, and sent to Simkl when it's connected (Love 10, Like 8, Dislike 3).
+  Loved titles get a tiny heart on their cards.
+- Your taste: Zapp learns the genres, actors and directors you love (and don't) from your ratings
+  (with your TMDB key), and uses it for:
+  - New Home rows: "For you", "Because you loved …" and "Hidden gems for you" (Home layout to move
+    or hide them).
+  - A "% match" on details pages.
+  - End-screen suggestions skip what you disliked.
+- Things you dislike move to the back of catalogue rows.
+- Library: a "Loved" tab, and "Rate films": popular films to rate quickly (OK cycles Like, Love,
+  Dislike, clear). Home shows a "Rate a few films" card until you've rated some.
+
 ## 0.36.0
 
 **New**
