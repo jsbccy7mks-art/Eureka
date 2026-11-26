@@ -525,7 +525,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
             .put("stremio", if (zapp.stremio.signedIn) st(true, "Connected" + settings.stremioUser.takeIf { it.isNotBlank() }?.let { " as $it" }.orEmpty()) else st(false, "Not connected"))
             .put("nuvio", if (nuvio.signedIn(pid)) st(true, "Connected" + nuvio.user(pid).takeIf { it.isNotBlank() }?.let { " as $it" }.orEmpty() + nuvio.linkedProfileName(pid).takeIf { it.isNotBlank() }?.let { ", profile $it" }.orEmpty()) else st(false, "Not connected"))
             .put("simkl", when {
-                zapp.simkl.signedIn -> st(true, "Connected")
+                zapp.simkl.client.signedIn -> st(true, "Connected")
                 settings.simklClientId.isNotBlank() -> st(false, "App ID saved. Connect Simkl on the TV (Settings, Accounts and sync).")
                 else -> st(false, "Not connected")
             })
