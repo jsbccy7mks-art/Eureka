@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
  * found in your TV guide; OK plays the channel it's on.
  */
 @Composable
-fun SportsScreen(vm: AppViewModel, focusTick: Int, onPlay: (Channel) -> Unit) {
+fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, onPlay: (Channel) -> Unit) {
     LaunchedEffect(Unit) { vm.refreshSports() }
     val scope = rememberCoroutineScope()
     val now = rememberNow(30_000)
@@ -90,12 +90,12 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, onPlay: (Channel) -> Unit) {
     LazyColumn(
         Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(22.dp),
-        contentPadding = PaddingValues(start = 40.dp, end = 40.dp, top = 28.dp, bottom = 40.dp),
+        contentPadding = PaddingValues(start = if (showHeader) 40.dp else 28.dp, end = 40.dp, top = if (showHeader) 28.dp else 8.dp, bottom = 40.dp),
     ) {
         item(key = "head") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Sports", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    if (showHeader) Text("Sports", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Text(
                         if (teams.isEmpty()) "Follow your teams to see their matches, and play them on the channel they're on." else teams.joinToString("  ·  ") { it.name },
                         color = ZappColors.Dim,

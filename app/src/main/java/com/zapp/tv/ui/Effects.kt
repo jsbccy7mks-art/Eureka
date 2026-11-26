@@ -160,6 +160,8 @@ object NavShortcuts {
     var settings: () -> Unit = {}
     /** Down from the buttons: back to the page (on Home, its first row: Continue watching). */
     var down: () -> Unit = {}
+    /** Opens Rate films (from Settings). */
+    var rate: () -> Unit = {}
     /** The Search button, so Up from the top row of a page can land on it. */
     val requester = androidx.compose.ui.focus.FocusRequester()
 }

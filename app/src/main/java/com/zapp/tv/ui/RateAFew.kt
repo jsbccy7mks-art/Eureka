@@ -72,9 +72,19 @@ fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
                         color = ZappColors.Dim, fontSize = 13.sp,
                     )
                 }
-                Text("${films.orEmpty().count { rated[it.id] != null }} rated", color = ZappColors.Faint, fontSize = 13.sp)
+                // How far along For you is, and a clear way out.
+                val total = rated.size
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        if (total >= 5) "$total rated" else "$total of 5 rated",
+                        color = if (total >= 5) Color(0xFF7EE2A8) else ZappColors.Text,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(if (total >= 5) "For you is ready on Home" else "For you starts at 5", color = ZappColors.Faint, fontSize = 11.sp)
+                }
                 Spacer(Modifier.padding(start = 16.dp))
-                ZButton("Done", onDone, style = ButtonStyle.Primary)
+                ZButton(if (total >= 5) "Done, see my picks" else "Done", onDone, style = ButtonStyle.Primary)
             }
             Spacer(Modifier.height(18.dp))
             val list = films

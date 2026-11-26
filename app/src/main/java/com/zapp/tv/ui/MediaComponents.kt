@@ -544,7 +544,7 @@ fun CatalogRow(
         val numbered = top10 && !landscape
         val extra = (if (numbered) width * 1.62f else width) + 24.dp
         // With numbers beside posters, focus lands on the poster, so line the poster up (keeps "1" in view).
-        PivotScrolling(RowInset + extra + if (numbered) width * 0.62f else 0.dp) {
+        RowScrolling(RowInset + extra + if (numbered) width * 0.62f else 0.dp) {
             LazyRow(
                 state = listState,
                 modifier = Modifier

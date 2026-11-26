@@ -180,7 +180,8 @@ fun LibraryScreen(
 ) {
     val library by mvm.library.collectAsState()
     val lastWatched by mvm.lastWatched.collectAsState()
-    var tab by remember { mutableStateOf(mvm.settings.libraryTab) }
+    // Always opens on Films.
+    var tab by remember { mutableStateOf("movie") }
     var sort by remember { mutableStateOf(mvm.settings.librarySort) }
     var menuFor by remember { mutableStateOf<MetaPreview?>(null) }
     menuFor?.let { m -> TitleMenu(mvm, m) { menuFor = null } }
@@ -227,15 +228,13 @@ fun LibraryScreen(
         }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.padding(start = 40.dp, end = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-            val showCollections = mvm.settings.libraryCollections
             Segmented(
-                listOf("all" to "All", "movie" to "Films", "series" to "Series", "loved" to "Loved") + if (showCollections) listOf("collections" to "Collections") else emptyList(),
+                listOf("movie" to "Films", "series" to "Series", "all" to "All", "loved" to "Loved"),
                 tab,
             ) {
                 tab = it
-                mvm.settings.libraryTab = it
             }
-            if (tab != "collections") {
+            run {
                 Spacer(Modifier.width(18.dp))
                 Text("Sort", color = ZappColors.Faint, fontSize = 12.sp)
                 Spacer(Modifier.width(8.dp))
@@ -246,54 +245,8 @@ fun LibraryScreen(
             }
             Spacer(Modifier.weight(1f))
             ZButton("Rate films", onRateAFew, style = ButtonStyle.Quiet)
-            Spacer(Modifier.width(6.dp))
-            // Library settings: Collections on or off.
-            ZButton(if (showCollections) "Hide collections" else "Show collections", {
-                mvm.settings.libraryCollections = !showCollections
-                if (showCollections && tab == "collections") {
-                    tab = "all"
-                    mvm.settings.libraryTab = "all"
-                }
-            }, style = ButtonStyle.Quiet)
         }
         Spacer(Modifier.height(18.dp))
-        if (tab == "collections" && mvm.settings.libraryCollections) {
-            val shelves = mvm.collectionShelves
-            if (shelves.isEmpty()) {
-                Text(
-                    if (mvm.tmdb.enabled) "Finding collections on TMDB…" else "Collections need your TMDB key (Settings, Accounts and sync).",
-                    color = ZappColors.Dim,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(start = 40.dp),
-                )
-            }
-            val firstCard = shelves.firstOrNull()?.items?.firstOrNull()
-            androidx.compose.foundation.lazy.LazyColumn(
-                contentPadding = PaddingValues(bottom = 40.dp, top = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(22.dp),
-            ) {
-                items(shelves.size, key = { shelves[it].id }) { i ->
-                    val shelf = shelves[i]
-                    Column {
-                        Text(shelf.title, color = ZappColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 40.dp, bottom = 10.dp))
-                        androidx.compose.foundation.lazy.LazyRow(
-                            contentPadding = PaddingValues(start = 40.dp, end = 40.dp),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            items(shelf.items.size, key = { shelf.items[it].id }) { j ->
-                                val c = shelf.items[j]
-                                CollectionCard(
-                                    c,
-                                    cardWidth(1, true),
-                                    modifier = if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier,
-                                ) { onOpenCollection(c.id) }
-                            }
-                        }
-                    }
-                }
-            }
-            return@Column
-        }
         if (shown.isEmpty()) {
             Text(
                 if (library.isEmpty()) "Open a film or series and choose Add to library, or hold OK on any title."

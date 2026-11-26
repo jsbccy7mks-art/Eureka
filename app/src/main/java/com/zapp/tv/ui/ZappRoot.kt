@@ -67,12 +67,12 @@ import kotlinx.coroutines.launch
 enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
     Search("Search", Glyph.Search),
-    Live("Live TV", Glyph.Live),
-    Guide("TV guide", Glyph.Guide),
-    Sports("Sports", Glyph.Sports),
     Movies("Movies", Glyph.Movies),
     Series("Series", Glyph.Series),
     Library("Library", Glyph.Library),
+    Collections("Collections", Glyph.Collections),
+    // Channels, TV guide and Sports, as tabs.
+    Live("Live TV", Glyph.Live),
     Settings("Settings", Glyph.Settings),
 }
 
@@ -159,7 +159,7 @@ fun ZappRoot(vm: AppViewModel) {
 
     fun open(d: Dest) {
         // Kids profiles: no live TV; Settings needs the main profile's PIN when it has one.
-        if (kids && (d == Dest.Live || d == Dest.Guide || d == Dest.Sports)) return
+        if (kids && d == Dest.Live) return
         if (kids && d == Dest.Settings && profiles.firstOrNull { it.id == 1L }?.pin != null) {
             settingsPin = true
             return
@@ -168,7 +168,7 @@ fun ZappRoot(vm: AppViewModel) {
         requestContentFocus()
     }
 
-    LaunchedEffect(kids) { if (kids && (dest == Dest.Live || dest == Dest.Guide || dest == Dest.Sports)) dest = Dest.Home }
+    LaunchedEffect(kids) { if (kids && dest == Dest.Live) dest = Dest.Home }
 
     fun useProfile(p: com.zapp.tv.data.Profile) {
         mvm.switchProfile(p.id)
@@ -182,6 +182,7 @@ fun ZappRoot(vm: AppViewModel) {
 
     NavShortcuts.search = { open(Dest.Search) }
     NavShortcuts.settings = { open(Dest.Settings) }
+    NavShortcuts.rate = { rateAFew = true }
     NavShortcuts.down = {
         if (dest == Dest.Home) StartFocus.fresh = true
         requestContentFocus(0)
@@ -431,15 +432,23 @@ fun ZappRoot(vm: AppViewModel) {
                             open(Dest.Settings)
                         }
                         Dest.Library -> LibraryScreen(mvm, focusTick, onOpenCollection = { collectionOpen = it }, onRateAFew = { rateAFew = true }) { openTitle(it) }
-                        Dest.Live -> Column(Modifier.fillMaxSize()) {
-                            ScreenHeader("Live TV", vm.guideStatus)
-                            LiveScreen(vm, playback, focusTick) { watch(it) }
+                        Dest.Collections -> CollectionsHome(mvm, focusTick) { collectionOpen = it }
+                        Dest.Live -> {
+                            // Always opens on Channels.
+                            var liveTab by remember { mutableStateOf("channels") }
+                            var liveTick by remember { mutableIntStateOf(0) }
+                            LaunchedEffect(liveTab) { if (liveTab != "channels") playback.stop() }
+                            Column(Modifier.fillMaxSize()) {
+                                LiveTabsHeader(liveTab, vm.guideStatus) { liveTab = it; liveTick++ }
+                                // Focus goes into the tab's content on arrival and when you switch.
+                                val tick = focusTick + liveTick
+                                when (liveTab) {
+                                    "guide" -> GuideScreen(vm, tick, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
+                                    "sports" -> SportsScreen(vm, tick, showHeader = false) { c -> watchChannel(c) }
+                                    else -> LiveScreen(vm, playback, tick) { watch(it) }
+                                }
+                            }
                         }
-                        Dest.Guide -> Column(Modifier.fillMaxSize()) {
-                            ScreenHeader("TV guide", vm.guideStatus)
-                            GuideScreen(vm, focusTick, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
-                        }
-                        Dest.Sports -> SportsScreen(vm, focusTick) { c -> watchChannel(c) }
                         Dest.Search -> SearchScreen(vm, playback, focusTick, mvm, { openTitle(it) }) { watchChannel(it) }
                         Dest.Settings -> SettingsScreen(
                             mvm = mvm,
@@ -468,7 +477,7 @@ fun ZappRoot(vm: AppViewModel) {
                 Sidebar(
                     locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null || rateAFew || WhatsNewState.notes != null,
                     onRight = { requestContentFocus(0) },
-                    dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide && it != Dest.Sports) },
+                    dests = Dest.entries.filter { (!kids || it != Dest.Live) && (it != Dest.Collections || (mvm.tmdb.enabled && mvm.settings.libraryCollections)) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
                     onProfiles = { choosingProfile = true },
                     current = dest,
@@ -723,19 +732,21 @@ fun ZappRoot(vm: AppViewModel) {
     }
 }
 
-/** Title row above Live TV and the guide, with the guide status and a clock. */
+/** Live TV's title row: the Channels, TV guide and Sports tabs, the guide status and a clock. */
 @Composable
-private fun ScreenHeader(title: String, guideStatus: String?) {
+private fun LiveTabsHeader(tab: String, guideStatus: String?, onTab: (String) -> Unit) {
     val now = rememberNow(15_000)
     val timeFormat = rememberTimeFormat()
     Row(
         Modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(64.dp)
             .padding(start = 28.dp, end = 32.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
+        Text("Live TV", fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
+        Spacer(Modifier.width(20.dp))
+        Segmented(listOf("channels" to "Channels", "guide" to "TV guide", "sports" to "Sports"), tab, onTab)
         Spacer(Modifier.weight(1f))
         if (guideStatus != null) {
             CircularProgressIndicator(color = ZappColors.Dim, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))

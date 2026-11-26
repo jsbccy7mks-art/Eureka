@@ -55,6 +55,33 @@ fun PivotScrolling(pivot: Dp, content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec, content = content)
 }
 
+/**
+ * Rows: focus walks freely across the cards on screen until it's about halfway along; from there
+ * the row slides and focus stays at that point, so a couple of upcoming cards are always in view.
+ * Going back, focus walks back to the first card's place before the row slides the other way.
+ * At either end the row stops, so focus walks the rest of the way to the first or last card.
+ */
+private class RowSpec(private val startPx: Float, private val middle: Float) : BringIntoViewSpec {
+    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 300, easing = TvEasing)
+
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val farthest = maxOf(startPx, containerSize * middle - size / 2f)
+        return when {
+            offset < startPx -> offset - startPx
+            offset > farthest -> offset - farthest
+            else -> 0f
+        }
+    }
+}
+
+/** For horizontal rows; [start] is where the first card sits (the row's start padding). */
+@Composable
+fun RowScrolling(start: Dp, middle: Float = 0.5f, content: @Composable () -> Unit) {
+    val px = with(LocalDensity.current) { start.toPx() }
+    val spec = remember(px, middle) { RowSpec(px, middle) }
+    CompositionLocalProvider(LocalBringIntoViewSpec provides spec, content = content)
+}
+
 /** A scroller that doesn't move by itself when focus changes; the screen scrolls it on purpose. */
 private object NoScrollSpec : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = 0f

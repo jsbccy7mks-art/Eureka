@@ -121,7 +121,7 @@ fun HomeScreen(
     val gems by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.hiddenGems() }.getOrDefault(emptyList()) }
     // "For you" starts once there are a few ratings to go on; until then, the nudge to rate.
     val ratedCount = mvm.ratings.all().size
-    val noRatings = ratedCount < 3
+    val noRatings = ratedCount < 5
     val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
@@ -252,7 +252,7 @@ fun HomeScreen(
                     RowHeader(shelfTitle)
                     val w = cardWidth(row.size, true)
                     val extra = w + 24.dp
-                    PivotScrolling(RowInset + extra) {
+                    RowScrolling(RowInset + extra) {
                         androidx.compose.foundation.lazy.LazyRow(
                             modifier = Modifier.extendLeft(extra).fadeLeftOf(extra + RowInset),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -292,7 +292,7 @@ fun HomeScreen(
                                     Text(if (ratedCount == 0) "Rate a few films" else "Rate a few more", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                                     Text(
                                         if (ratedCount == 0) "Like, love or dislike a few things you've watched and this row fills with picks for you."
-                                        else "$ratedCount of 3 rated. A couple more and this row fills with picks for you.",
+                                        else "$ratedCount of 5 rated. A few more and this row fills with picks for you.",
                                         color = ZappColors.Dim, fontSize = 12.sp,
                                     )
                                 }
@@ -444,7 +444,7 @@ private fun ContinueRow(
     Column {
         RowHeader("Continue watching")
         val extra = cardWidth(size, true) + 24.dp
-        PivotScrolling(RowInset + extra) {
+        RowScrolling(RowInset + extra) {
             LazyRow(
                 state = listState,
                 modifier = Modifier
@@ -558,7 +558,7 @@ private fun MetaRow(
     Column {
         RowHeader(title)
         val extra = width + 24.dp
-        PivotScrolling(RowInset + extra) {
+        RowScrolling(RowInset + extra) {
             LazyRow(
                 state = listState,
                 modifier = Modifier

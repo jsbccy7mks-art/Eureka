@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 
 /** Line icons drawn in code, so they stay crisp at any size and match each other. */
-enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock, Sports }
+enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock, Sports, Collections }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifier) {
@@ -70,6 +70,12 @@ fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifie
                 line(color, w, 0.22f, 0.18f, 0.22f, 0.84f, stroke)
                 line(color, w, 0.42f, 0.18f, 0.42f, 0.84f, stroke)
                 line(color, w, 0.6f, 0.24f, 0.78f, 0.82f, stroke)
+            }
+            Glyph.Collections -> {
+                // Three posters standing in a fan, the front one whole.
+                drawRoundRect(color, Offset(w * 0.12f, w * 0.26f), Size(w * 0.34f, w * 0.5f), CornerRadius(w * 0.06f), style = stroke, alpha = 0.55f)
+                drawRoundRect(color, Offset(w * 0.54f, w * 0.26f), Size(w * 0.34f, w * 0.5f), CornerRadius(w * 0.06f), style = stroke, alpha = 0.55f)
+                drawRoundRect(color, Offset(w * 0.3f, w * 0.14f), Size(w * 0.4f, w * 0.72f), CornerRadius(w * 0.07f), style = stroke)
             }
             Glyph.Sports -> {
                 // A ball: a circle with two seams.

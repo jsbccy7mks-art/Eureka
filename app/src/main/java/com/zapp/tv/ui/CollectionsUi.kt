@@ -385,3 +385,135 @@ fun ThemeMusic(youtubeId: String, volume: Int) {
         )
     }
 }
+
+/**
+ * Collections, its own page: a large header for the collection you're on (its artwork across the
+ * top, everything centred), then the shelves: yours, unfinished, genres, studios, decades, themes.
+ */
+@Composable
+fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit) {
+    LaunchedEffect(Unit) { mvm.refreshCollections() }
+    val shelves = mvm.collectionShelves
+    var focused by remember { mutableStateOf<MediaViewModel.CollectionSummary?>(null) }
+    var shown by remember { mutableStateOf<MediaViewModel.CollectionSummary?>(null) }
+    // The header follows focus after a short pause, so moving quickly stays smooth.
+    LaunchedEffect(focused) {
+        if (shown != null) kotlinx.coroutines.delay(200)
+        shown = focused
+    }
+    val first = remember { FocusRequester() }
+    var handled by remember { mutableIntStateOf(focusTick) }
+    LaunchedEffect(focusTick, shelves.isNotEmpty()) {
+        if (focusTick == handled && focused != null) return@LaunchedEffect
+        handled = focusTick
+        kotlinx.coroutines.delay(120)
+        first.tryRequest()
+    }
+    val tint = rememberArtColor(shown?.poster ?: shown?.backdrop)
+    LaunchedEffect(tint) { ArtTint.color = tint }
+    DisposableEffect(Unit) { onDispose { ArtTint.color = null } }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val headerHeight = maxHeight * 0.46f
+        // The artwork, wide across the top and fading into the page on every side.
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(headerHeight + 60.dp)
+                .clipToBounds()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.45f)), blendMode = BlendMode.DstIn)
+                    drawRect(
+                        Brush.horizontalGradient(0f to Color.Transparent, 0.22f to Color.Black, 0.78f to Color.Black, 1f to Color.Transparent),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+        ) {
+            Crossfade(targetState = shown?.backdrop, animationSpec = tween(650), label = "colsBg", modifier = Modifier.fillMaxSize()) { u ->
+                if (u != null) AsyncImage(model = hiRes(u), contentDescription = null, contentScale = ContentScale.Crop, alpha = 0.75f, modifier = Modifier.fillMaxSize().drift())
+            }
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x66000000), 0.5f to Color.Transparent, 1f to Color(0x99000000))))
+        }
+        AmbientGlow(0.6f, tint = tint)
+
+        Column(Modifier.fillMaxSize()) {
+            // ---- the header, centred
+            Box(Modifier.fillMaxWidth().height(headerHeight), contentAlignment = Alignment.Center) {
+                AnimatedContent(
+                    targetState = shown,
+                    transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(200)) },
+                    label = "colsHead",
+                ) { c ->
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 80.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            c?.let { when (it.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; else -> "COLLECTION" } } ?: "COLLECTIONS",
+                            color = ZappColors.Brand2.copy(alpha = 0.95f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 3.sp,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        MovieTitle(c?.name ?: "Collections", if ((c?.name?.length ?: 0) > 22) 42.sp else 54.sp, maxLines = 2, center = true)
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            c?.note ?: c?.takeIf { it.yours > 0 }?.let { "${it.yours} of yours in this collection" }
+                                ?: if (c == null) "Franchises, studios, decades and themes" else "Press OK to open",
+                            color = ZappColors.Dim,
+                            fontSize = 13.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
+            }
+
+            // ---- the shelves
+            if (shelves.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ZappLoader(26.dp)
+                        Spacer(Modifier.height(10.dp))
+                        Text("Finding collections on TMDB…", color = ZappColors.Dim, fontSize = 13.sp)
+                    }
+                }
+                return@Column
+            }
+            val firstCard = shelves.first().items.firstOrNull()
+            PivotScrolling(0.dp) {
+                androidx.compose.foundation.lazy.LazyColumn(
+                    modifier = Modifier.fillMaxSize().fadeAbove(0.dp),
+                    contentPadding = PaddingValues(bottom = 60.dp, top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp),
+                ) {
+                    items(shelves.size, key = { shelves[it].id }) { i ->
+                        val shelf = shelves[i]
+                        Column {
+                            RowHeader(shelf.title)
+                            val w = cardWidth(1, true)
+                            val extra = w + 24.dp
+                            RowScrolling(RowInset + extra) {
+                                LazyRow(
+                                    modifier = Modifier.extendLeft(extra).fadeLeftOf(extra + RowInset),
+                                    contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                ) {
+                                    items(shelf.items.size, key = { shelf.items[it].id }) { j ->
+                                        val c = shelf.items[j]
+                                        CollectionCard(
+                                            c,
+                                            w,
+                                            modifier = if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier,
+                                            onFocus = { focused = c },
+                                        ) { onOpen(c.id) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

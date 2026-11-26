@@ -784,7 +784,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
             Spacer(Modifier.height(6.dp))
             NuvioSection(mvm)
         }
-        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected: cast photos, reviews and recommendations" else "Optional: cast photos, reviews and recommendations on details pages") {
+        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected: cast photos, reviews, recommendations and Collections" else "Optional: cast photos, reviews, recommendations, and the Collections page") {
             Text(
                 "With your own free TMDB key, details pages show cast photos, age ratings, reviews, \"More with…\" and \"People also watched\".",
                 color = ZappColors.Dim,
@@ -1241,6 +1241,23 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
                 color = ZappColors.Dim,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
+        item(key = "rate") {
+            SettingRow(
+                title = "Rate films and series",
+                body = "Like, love or dislike what you've watched. For you, Because you loved and the % match on details pages all come from these.",
+                value = SettingValue.Choice("${mvm.ratings.all().size} rated"),
+                onClick = { NavShortcuts.rate() },
+            )
+        }
+        item(key = "collections") {
+            SettingRow(
+                title = "Collections in the sidebar",
+                body = if (mvm.tmdb.enabled) "Franchises, studios, decades and themes, on a page of their own."
+                else "Needs your TMDB key (Accounts and sync, TMDB). Then franchises, studios, decades and themes get a page of their own.",
+                value = SettingValue.Toggle(mvm.settings.libraryCollections && mvm.tmdb.enabled),
+                onClick = { if (mvm.tmdb.enabled) mvm.settings.libraryCollections = !mvm.settings.libraryCollections },
             )
         }
         items(rows.size, key = { rows[it].id }) { i ->
