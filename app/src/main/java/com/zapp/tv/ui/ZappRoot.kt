@@ -400,8 +400,10 @@ fun ZappRoot(vm: AppViewModel) {
                     androidx.compose.animation.AnimatedContent(
                         targetState = dest,
                         transitionSpec = {
-                            (fadeIn(tween(280, delayMillis = 70)) + androidx.compose.animation.scaleIn(tween(320, delayMillis = 70), initialScale = 0.985f)) togetherWith
-                                fadeOut(tween(140))
+                            // A soft crossfade with a slight slide, the way the sidebar points (down the list: up).
+                            val down = targetState.ordinal > initialState.ordinal
+                            (fadeIn(tween(300, delayMillis = 60)) + androidx.compose.animation.slideInVertically(tween(340, delayMillis = 60)) { h -> if (down) h / 28 else -h / 28 }) togetherWith
+                                (fadeOut(tween(150)) + androidx.compose.animation.slideOutVertically(tween(180)) { h -> if (down) -h / 40 else h / 40 })
                         },
                         label = "page",
                     ) { shown ->
@@ -847,6 +849,28 @@ private fun Sidebar(
                     Text("Zapp", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, modifier = Modifier.padding(start = 12.dp))
                 }
             }
+            // Who's watching, at the top: tap to switch profile.
+            if (profile != null) {
+                Spacer(Modifier.height(18.dp))
+                FocusSurface(
+                    onClick = onProfiles,
+                    modifier = Modifier
+                        .focusProperties { canFocus = !locked }
+                        .width(if (open) RailOpenWidth - 28.dp else 44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    focusScale = 1f,
+                ) { focused ->
+                    Row(Modifier.height(44.dp).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(profile, 28.dp)
+                        AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
+                            Column(Modifier.padding(start = 12.dp)) {
+                                Text(profile.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text, maxLines = 1)
+                                Text("Switch profile", fontSize = 10.5.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.weight(1f))
             @Composable
             fun Item(d: Dest) {
@@ -886,7 +910,7 @@ private fun Sidebar(
                                     },
                                     20.dp,
                                 )
-                                if (d == Dest.Settings && updateReady) {
+                                if ((d == Dest.Settings && updateReady) || (d == Dest.Library && SideBadges.newEpisodes > 0)) {
                                     Box(
                                         Modifier
                                             .align(Alignment.TopEnd)
@@ -920,27 +944,6 @@ private fun Sidebar(
             if (Dest.Settings in dests) {
                 Item(Dest.Settings)
                 Spacer(Modifier.height(6.dp))
-            }
-            // Who's watching: tap to switch profile.
-            if (profile != null) {
-                FocusSurface(
-                    onClick = onProfiles,
-                    modifier = Modifier
-                        .focusProperties { canFocus = !locked }
-                        .width(if (open) RailOpenWidth - 28.dp else 44.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    focusScale = 1f,
-                ) { focused ->
-                    Row(Modifier.height(44.dp).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(profile, 28.dp)
-                        AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
-                            Column(Modifier.padding(start = 12.dp)) {
-                                Text(profile.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text, maxLines = 1)
-                                Text("Switch profile", fontSize = 10.5.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, maxLines = 1)
-                            }
-                        }
-                    }
-                }
             }
         }
     }

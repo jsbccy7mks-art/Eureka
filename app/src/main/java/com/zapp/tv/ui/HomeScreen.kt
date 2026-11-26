@@ -78,6 +78,11 @@ object StartFocus {
     var fresh = true
 }
 
+/** Little dots on the sidebar: new episodes of series in your library. */
+object SideBadges {
+    var newEpisodes by androidx.compose.runtime.mutableIntStateOf(0)
+}
+
 /** True while something full screen is on top of the page (Rate films, What's new…), so the page underneath never takes focus. */
 object OverlayFocus {
     var open by androidx.compose.runtime.mutableStateOf(false)
@@ -123,6 +128,7 @@ fun HomeScreen(
     val ratedCount = mvm.ratings.all().size
     val noRatings = ratedCount < 5
     val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
+    LaunchedEffect(newEpisodes.size) { SideBadges.newEpisodes = newEpisodes.size }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
     // Your teams: what's on now or in the next 24 hours.

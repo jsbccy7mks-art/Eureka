@@ -471,11 +471,17 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
 
             // ---- the shelves
             if (shelves.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(top = 20.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        ZappLoader(26.dp)
-                        Spacer(Modifier.height(10.dp))
-                        Text("Finding collections on TMDB…", color = ZappColors.Dim, fontSize = 13.sp)
+                // Shelves in outline while the collections are found.
+                val b = shimmerBrush()
+                Column(Modifier.padding(start = RowInset, top = 4.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+                    repeat(2) {
+                        Column {
+                            Box(Modifier.width(160.dp).height(14.dp).clip(RoundedCornerShape(6.dp)).background(b))
+                            Spacer(Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                repeat(5) { Box(Modifier.width(cardWidth(1, true)).aspectRatio(WideAspect).clip(RoundedCornerShape(12.dp)).background(b)) }
+                            }
+                        }
                     }
                 }
                 return@Column

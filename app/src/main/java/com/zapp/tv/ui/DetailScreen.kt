@@ -247,7 +247,8 @@ fun DetailScreen(
         AmbientGlow(0.6f, tint = rememberArtColor(meta?.poster ?: meta?.background))
 
         if (!done && meta == null) {
-            ZappLoader(44.dp, Modifier.align(Alignment.Center))
+            // The page's shape while it loads: logo, facts, story and buttons, shimmering.
+            DetailSkeleton(Modifier.align(Alignment.BottomStart))
             return@Box
         }
         if (meta == null) {
@@ -1253,6 +1254,33 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
             Spacer(Modifier.height(6.dp))
             Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(if (upNext) "Up next" else v.released?.take(10).orEmpty(), fontSize = 10.5.sp, color = if (upNext) ZappColors.Brand2 else ZappColors.Faint, maxLines = 1)
+        }
+    }
+}
+
+
+/** Shimmering blocks where the details page's title, facts, story and buttons will be. */
+@Composable
+private fun DetailSkeleton(modifier: Modifier) {
+    val b = shimmerBrush()
+    @Composable
+    fun bar(w: androidx.compose.ui.unit.Dp, h: androidx.compose.ui.unit.Dp, r: androidx.compose.ui.unit.Dp = 6.dp) =
+        Box(Modifier.width(w).height(h).clip(RoundedCornerShape(r)).background(b))
+    Column(modifier.padding(start = 56.dp, bottom = 70.dp)) {
+        bar(90.dp, 10.dp)
+        Spacer(Modifier.height(14.dp))
+        bar(380.dp, 64.dp, 10.dp)
+        Spacer(Modifier.height(16.dp))
+        bar(300.dp, 12.dp)
+        Spacer(Modifier.height(18.dp))
+        bar(520.dp, 12.dp)
+        Spacer(Modifier.height(8.dp))
+        bar(480.dp, 12.dp)
+        Spacer(Modifier.height(24.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            bar(140.dp, 40.dp, 50.dp)
+            bar(100.dp, 40.dp, 50.dp)
+            bar(40.dp, 40.dp, 50.dp)
         }
     }
 }
