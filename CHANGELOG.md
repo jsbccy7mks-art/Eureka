@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.32.0
+
+**New**
+- Ratings at a glance (with your own free MDBList key, added on the phone page's new MDBList tab):
+  IMDb, Rotten Tomatoes critics and audience, Metacritic and Letterboxd on details pages, and
+  Rotten Tomatoes beside the year on Home. Green or red where the score means fresh or not.
+- Franchise collections (with your TMDB key): Library, Collections, for any franchise you've saved
+  or watched a film of. Each opens as a showcase:
+  - The page takes on the colours of the artwork, with the films' backdrops drifting behind.
+  - The films stand in release order as a cover-flow of large posters: the one you're on lifted
+    forward with a reflection, the rest turned away. Ticks on the ones you've seen, "Next to watch"
+    marked, and a timeline of dots underneath.
+  - Its theme tune plays softly (from ThemerrDB, when it has one), fading in, and stops when you
+    open a film. Settings, Appearance: Collection theme music and its volume.
+  - "Show/Hide collections" in Library; a "Your collections" row can be switched on in Home layout.
+
 ## 0.31.0
 
 **New**
