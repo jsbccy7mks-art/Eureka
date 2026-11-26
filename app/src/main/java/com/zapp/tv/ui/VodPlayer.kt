@@ -521,7 +521,6 @@ fun VodPlayer(
             BottomScrim {
                 Column {
                 PlayerInfoBlock(playback, request, info, synopsis = false)
-                Spacer(Modifier.height(4.dp))
                 VodControls(
                     playback = playback,
                     info = info,
@@ -780,7 +779,7 @@ private fun PlayerInfoBlock(playback: Playback, request: PlayRequest, info: Medi
         }
     }
     val logo = request.meta.logo
-    Column(Modifier.widthIn(max = 620.dp).padding(bottom = 6.dp)) {
+    Column(Modifier.widthIn(max = 620.dp)) {
         TitleLogo(request.meta.id, logo, info.title, Modifier.heightIn(max = if (compact) 46.dp else 70.dp).widthIn(max = if (compact) 220.dp else 320.dp)) {
             MovieTitle(info.title, if (compact) 22.sp else 30.sp, maxLines = 1)
         }
@@ -830,8 +829,18 @@ internal fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Mod
                     drawRoundRect(color, Offset(w * 0.24f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.17f, w * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
                     drawRoundRect(color, Offset(w * 0.59f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.17f, w * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
                 }
-                PlayerIcon.Audio, PlayerIcon.Boost -> {
-                    // A speaker; sound waves for audio, a plus for boost.
+                PlayerIcon.Boost -> {
+                    // Night mode: a crescent moon.
+                    val moon = Path().apply {
+                        addOval(androidx.compose.ui.geometry.Rect(Offset(w * 0.5f, w * 0.5f), w * 0.34f))
+                    }
+                    val bite = Path().apply {
+                        addOval(androidx.compose.ui.geometry.Rect(Offset(w * 0.66f, w * 0.38f), w * 0.29f))
+                    }
+                    drawPath(Path.combine(androidx.compose.ui.graphics.PathOperation.Difference, moon, bite), color)
+                }
+                PlayerIcon.Audio -> {
+                    // A speaker with sound waves.
                     val sw = w * 0.075f
                     drawPath(
                         Path().apply {
@@ -1156,7 +1165,7 @@ private fun VodControls(
                     opt(PlayerIcon.Subtitles, "Subtitles", subsNow, onClick = onSubtitles)
                     opt(PlayerIcon.Sources, "Sources", null, onClick = onSources)
                     opt(PlayerIcon.Picture, "Picture", listOf("Fit", "Fill", "Stretch")[playback.pictureMode]) { playback.pictureMode = (playback.pictureMode + 1) % 3 }
-                    opt(PlayerIcon.Boost, "Volume boost", if (playback.boost) "On" else "Off") { playback.toggleBoost(!playback.boost) }
+                    opt(PlayerIcon.Boost, "Night mode", if (playback.boost) "On: loud parts quieter, speech clearer" else "Off") { playback.toggleBoost(!playback.boost) }
                     opt(PlayerIcon.Info, "Stream info", null, onClick = onDetails)
                     if (next != null) opt(PlayerIcon.Next, "Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, accent = true, onClick = onNext)
                 }

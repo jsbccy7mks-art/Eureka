@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.43.1
+
+**New**
+- Night mode (replaces Volume boost in the player's options): loud moments are held down and
+  quiet ones brought up, so speech stays clear at low volume. It works on the box's own sound,
+  not when Dolby or DTS is passed straight to an amplifier.
+
+**Improved**
+- Continue watching: a thinner, sleeker progress line and smaller "time left" text.
+- Player: the title or logo sits closer to the seek bar.
+
 ## 0.43.0
 
 **Improved**

@@ -274,9 +274,9 @@ fun ContinueCard(
             Spacer(Modifier.width(8.dp))
             Text(
                 listOfNotNull(progress.episodeLabel?.substringBefore(","), minutesLeft(progress)).joinToString("  ·  "),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White.copy(alpha = 0.9f),
                 maxLines = 1,
                 style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1f), 4f)),
             )
@@ -286,9 +286,10 @@ fun ContinueCard(
             else ((progress.percent ?: 0.0) / 100).toFloat().coerceIn(0f, 1f),
             Modifier
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 12.dp, vertical = 5.dp)
+                .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
                 .fillMaxWidth(),
-            track = Color(0x40FFFFFF),
+            track = Color(0x2EFFFFFF),
+            thickness = 2.dp,
         )
     }
 }

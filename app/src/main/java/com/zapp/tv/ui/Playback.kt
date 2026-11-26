@@ -257,10 +257,16 @@ class Playback(
     /** How the picture fills the screen: 0 fit, 1 fill (crop the edges), 2 stretch. */
     var pictureMode by mutableIntStateOf(0)
 
-    /** Louder, clearer speech for quiet films (Android's loudness enhancer). */
+    /**
+     * Night mode: evens out the sound for late-night watching. Loud moments (explosions, music) are
+     * held down and quiet ones (speech) brought up, so you can hear the dialogue without waking
+     * the house. Android's dynamics processor (a compressor and a limiter) on the film's sound.
+     * (It can't work while sound goes to an amplifier untouched, e.g. Dolby passthrough.)
+     */
     var boost by mutableStateOf(false)
         private set
-    private var enhancer: android.media.audiofx.LoudnessEnhancer? = null
+    private var night: android.media.audiofx.DynamicsProcessing? = null
+    private var lift: android.media.audiofx.LoudnessEnhancer? = null
 
     fun toggleBoost(on: Boolean) {
         boost = on
@@ -268,18 +274,57 @@ class Playback(
     }
 
     private fun applyBoost() {
+        runCatching { night?.release() }
+        runCatching { lift?.release() }
+        night = null
+        lift = null
+        if (!boost) return
+        val session = player.audioSessionId
+        if (session == C.AUDIO_SESSION_ID_UNSET) return
         try {
-            enhancer?.release()
-            enhancer = null
-            if (!boost) return
-            val session = player.audioSessionId
-            if (session == C.AUDIO_SESSION_ID_UNSET) return
-            enhancer = android.media.audiofx.LoudnessEnhancer(session).apply {
-                setTargetGain(900)
-                enabled = true
+            if (android.os.Build.VERSION.SDK_INT >= 28) {
+                val channels = (player.audioFormat?.channelCount ?: 2).coerceIn(1, 8)
+                val cfg = android.media.audiofx.DynamicsProcessing.Config.Builder(
+                    android.media.audiofx.DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
+                    channels,
+                    false, 0, // no EQ before
+                    true, 1, // one-band compressor
+                    false, 0, // no EQ after
+                    true, // a limiter at the end
+                ).build()
+                val dp = android.media.audiofx.DynamicsProcessing(0, session, cfg)
+                for (ch in 0 until channels) {
+                    val band = dp.getMbcBandByChannelIndex(ch, 0)
+                    band.attackTime = 3f
+                    band.releaseTime = 180f
+                    band.ratio = 4f
+                    band.threshold = -32f
+                    band.kneeWidth = 6f
+                    band.noiseGateThreshold = -90f
+                    band.expanderRatio = 1f
+                    band.preGain = 0f
+                    band.postGain = 10f
+                    dp.setMbcBandByChannelIndex(ch, 0, band)
+                    val limiter = dp.getLimiterByChannelIndex(ch)
+                    limiter.isEnabled = true
+                    limiter.attackTime = 1f
+                    limiter.releaseTime = 60f
+                    limiter.ratio = 10f
+                    limiter.threshold = -3f
+                    limiter.postGain = 0f
+                    dp.setLimiterByChannelIndex(ch, limiter)
+                }
+                dp.enabled = true
+                night = dp
+            } else {
+                lift = android.media.audiofx.LoudnessEnhancer(session).apply {
+                    setTargetGain(500)
+                    enabled = true
+                }
             }
         } catch (e: Exception) {
-            enhancer = null
+            night = null
+            lift = null
         }
     }
 

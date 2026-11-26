@@ -626,19 +626,19 @@ fun barColors(): List<Color> =
     if (ZappColors.palette.id == "mono") listOf(Color(0xFFC8C8C8), Color.White) else listOf(ZappColors.Brand1, ZappColors.Brand2)
 
 @Composable
-fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, track: Color = ZappColors.Line, fill: Color = Color.Unspecified) {
+fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, track: Color = ZappColors.Line, fill: Color = Color.Unspecified, thickness: androidx.compose.ui.unit.Dp = 3.dp) {
     // No colour given: the theme's gradient, like the focus ring.
     val brush = if (fill == Color.Unspecified) Brush.horizontalGradient(barColors()) else SolidColor(fill)
     Box(
         modifier
-            .height(3.dp)
+            .height(thickness)
             .clip(RoundedCornerShape(50))
             .background(track),
     ) {
         Box(
             Modifier
                 .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(3.dp)
+                .height(thickness)
                 .clip(RoundedCornerShape(50))
                 .background(brush),
         )

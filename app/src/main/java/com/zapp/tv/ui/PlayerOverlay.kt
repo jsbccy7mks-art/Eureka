@@ -540,12 +540,12 @@ internal fun SeekBar(
     LaunchedEffect(position / 10_000, seeking) { if (seeking) thumbs?.request(position) }
     val picture = thumbs?.shown?.takeIf { seeking && kotlin.math.abs(it.first - position) < 40_000 }
 
-    Spacer(Modifier.height(14.dp))
+    Spacer(Modifier.height(2.dp))
     val thick by androidx.compose.animation.core.animateDpAsState(if (barFocused) 6.dp else 3.dp, androidx.compose.animation.core.tween(160), label = "bar")
     val fraction = (position.toFloat() / duration).coerceIn(0f, 1f)
     Column {
         // While seeking: a picture from that moment, with the time and part, above the playhead.
-        BoxWithConstraints(Modifier.fillMaxWidth().height(if (thumbs != null && seeking) 128.dp else 24.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth().height(if (thumbs != null && seeking) 128.dp else if (seeking) 24.dp else 6.dp)) {
             if (seeking) {
                 val boxW = if (picture != null) 176.dp else 70.dp
                 val x = (maxWidth - boxW) * fraction
