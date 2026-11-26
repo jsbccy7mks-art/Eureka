@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
@@ -181,8 +182,10 @@ fun CollectionScreen(
             }
 
             // ---- the showcase
-            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                val posterW = 150.dp
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(vertical = 10.dp).clipToBounds()) {
+                // Posters sized to the space (with room for the lifted one and its reflection),
+                // so they never run into the text above or below.
+                val posterW = (((maxHeight - 34.dp) / 1.1f) * (2f / 3f)).coerceIn(84.dp, 150.dp)
                 val centre = (maxWidth - posterW) / 2
                 val listState = rememberLazyListState()
                 LaunchedEffect(focusTick, c.id) {
@@ -200,7 +203,7 @@ fun CollectionScreen(
                         itemsIndexed(c.parts, key = { _, p -> p.item.id }) { i, p ->
                             val d = (i - index).toFloat()
                             val rot by animateFloatAsState((-d * 28f).coerceIn(-55f, 55f), tween(380), label = "rot")
-                            val scale by animateFloatAsState(if (d == 0f) 1.18f else (1f - 0.08f * abs(d)).coerceAtLeast(0.72f), tween(380), label = "scale")
+                            val scale by animateFloatAsState(if (d == 0f) 1.08f else (1f - 0.08f * abs(d)).coerceAtLeast(0.72f), tween(380), label = "scale")
                             val fade by animateFloatAsState((1f - 0.2f * abs(d)).coerceAtLeast(0.3f), tween(380), label = "fade")
                             val id = imdb[p.item.id]
                             val density = LocalDensity.current.density
@@ -238,7 +241,7 @@ fun CollectionScreen(
                                 Box(
                                     Modifier
                                         .fillMaxWidth()
-                                        .height(46.dp)
+                                        .height(26.dp)
                                         .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
                                         .drawWithContent {
                                             drawContent()

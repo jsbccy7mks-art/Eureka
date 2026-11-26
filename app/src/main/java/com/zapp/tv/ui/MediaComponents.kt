@@ -146,7 +146,7 @@ fun PosterCard(
                     }
                 }
             } else {
-                Artwork(meta.poster, meta.name)
+                Artwork(meta.poster, meta.name, fallback = fallbackPoster(meta.id))
             }
             if (meta.id in WatchedMarks.ids) {
                 WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
@@ -183,9 +183,12 @@ fun PosterCard(
     }
 }
 
+/** A poster that always exists for IMDb titles (Cinemeta's image server), used when one is missing or broken. */
+fun fallbackPoster(id: String): String? = id.substringBefore(':').takeIf { it.startsWith("tt") }?.let { "https://images.metahub.space/poster/medium/$it/img" }
+
 /** Image that fills its box, with the title as a fallback while it loads (or if there is none). */
 @Composable
-fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentScale.Crop) {
+fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentScale.Crop, fallback: String? = null) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             title,
@@ -196,8 +199,17 @@ fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentSca
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(10.dp),
         )
-        if (!url.isNullOrBlank()) {
-            AsyncImage(model = url, contentDescription = null, contentScale = contentScale, modifier = Modifier.fillMaxSize())
+        val src = url?.takeIf { it.isNotBlank() } ?: fallback
+        if (!src.isNullOrBlank()) {
+            // If the picture won't load, try the fallback (a poster that always exists for IMDb titles).
+            var failed by remember(src) { mutableStateOf(false) }
+            AsyncImage(
+                model = if (failed && fallback != null && fallback != src) fallback else src,
+                contentDescription = null,
+                contentScale = contentScale,
+                onError = { failed = true },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 }
@@ -352,10 +364,11 @@ fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: Str
 fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: Int = 2, modifier: Modifier = Modifier) {
     Text(
         name,
-        fontFamily = TitleFont,
-        fontSize = size,
-        lineHeight = size * 1.02f,
-        letterSpacing = 0.4.sp,
+        fontFamily = CinemaFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = size * 0.86f,
+        lineHeight = size * 1.0f,
+        letterSpacing = (size.value * 0.05f).sp,
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         color = Color.White,
