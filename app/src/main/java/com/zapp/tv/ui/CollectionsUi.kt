@@ -223,17 +223,6 @@ fun CollectionScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(it, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
                 }
-                // What's playing, and a way to choose another tune (Up from the posters).
-                tuneStatus?.let { st ->
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(st, color = ZappColors.Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 420.dp))
-                        if (candidates.isNotEmpty()) {
-                            Spacer(Modifier.width(10.dp))
-                            ZButton("Change tune", { picking = true }, style = ButtonStyle.Quiet)
-                        }
-                    }
-                }
             }
 
             // ---- the showcase
@@ -241,7 +230,7 @@ fun CollectionScreen(
                 // Posters sized to the space (with room for the lifted one and its reflection),
                 // so they never run into the text above or below.
                 // Room above for the lifted, focused poster (it grows and rises a little), and below for its reflection.
-                val posterW = (((maxHeight - 26.dp - 34.dp) / 1.16f) * (2f / 3f)).coerceIn(80.dp, 150.dp)
+                val posterW = (((maxHeight - 26.dp - 30.dp) / 1.12f) * (2f / 3f)).coerceIn(80.dp, 160.dp)
                 val centre = (maxWidth - posterW) / 2
                 val listState = rememberLazyListState()
                 LaunchedEffect(focusTick, c.id) {
@@ -474,12 +463,15 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
     // Hold OK on a collection: pin it, take it out of Your collections, or arrange its shelf.
     var menu by remember { mutableStateOf<Pair<MediaViewModel.CollectionSummary, String>?>(null) }
     menu?.let { (c, shelfId) -> CollectionMenu(mvm, c, shelfId, shelves.map { it.id }) { menu = null } }
+    val shelfMemory = rememberFocusMemory()
     var handled by remember { mutableIntStateOf(focusTick) }
     LaunchedEffect(focusTick, shelves.isNotEmpty()) {
         if (focusTick == handled && focused != null) return@LaunchedEffect
         handled = focusTick
         kotlinx.coroutines.delay(120)
-        first.tryRequest()
+        // Back to the collection you were on (if it's still on screen), else the first.
+        val back = shelfMemory.target()
+        if (back != FocusRequester.Default) back.tryRequest() else first.tryRequest()
     }
     val tint = rememberArtColor(shown?.poster ?: shown?.backdrop)
     LaunchedEffect(tint) { ArtTint.color = tint }
@@ -561,7 +553,9 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
             val firstCard = shelves.first().items.firstOrNull()
             PivotScrolling(52.dp) {
                 androidx.compose.foundation.lazy.LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
+                    // Like Home: Up/Down stay in the shelves, and coming back (from the sidebar) lands
+                    // on the collection you were on.
+                    modifier = Modifier.fillMaxSize().trapVertical(up = null).restoreFocus(shelfMemory),
                     contentPadding = PaddingValues(bottom = 60.dp, top = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
@@ -582,7 +576,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                                         CollectionCard(
                                             c,
                                             w,
-                                            modifier = if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier,
+                                            modifier = Modifier.rememberFocus(shelfMemory, shelf.id + ":" + c.id).then(if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier),
                                             onFocus = { focused = c; mvm.prefetchTheme(c.id, c.name) },
                                             onLongClick = { menu = c to shelf.id },
                                         ) { onOpen(c.id) }

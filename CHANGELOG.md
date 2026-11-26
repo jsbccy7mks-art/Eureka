@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.42.1
+
+**Improved**
+- Collection pages just play the theme tune, with no tune name or "Change tune" line, and the
+  posters are back to full size (a little bigger, in fact).
+
+**Fixed**
+- Collections page: Left into the sidebar and Right back out work properly, and you come back to
+  the collection you were on.
+
 ## 0.42.0
 
 **New**

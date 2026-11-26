@@ -824,7 +824,7 @@ private fun Sidebar(
                         else -> onStray() // landed here by accident: back to the page, closed
                     }
                 }
-                .focusProperties { enter = { railFocus } }
+                .focusProperties { enter = { if (current in dests) railFocus else FocusRequester.Default } }
                 .onPreviewKeyEvent { e ->
                     // Right goes back to where you were on the page. If the page can't take focus
                     // (still loading), focus moves right anyway, so the sidebar always closes.
