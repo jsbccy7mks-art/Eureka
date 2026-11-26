@@ -86,7 +86,11 @@ fun NativeVideo(
     val ended by rememberUpdatedState(onEnded)
     val player = remember(source) {
         val factory = DefaultMediaSourceFactory(YtChunksFactory(YT_UA))
-        ExoPlayer.Builder(context).setMediaSourceFactory(factory).build().apply {
+        // Start as soon as there's half a second to play (trailers and tunes, not films).
+        val quick = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(4_000, 30_000, 500, 1_500)
+            .build()
+        ExoPlayer.Builder(context).setMediaSourceFactory(factory).setLoadControl(quick).build().apply {
             val main = source.video ?: source.audio!!
             val item = MediaItem.Builder().setUri(main).apply { if (source.hls) setMimeType(MimeTypes.APPLICATION_M3U8) }.build()
             if (source.video != null && source.audio != null && !source.hls) {
@@ -119,7 +123,10 @@ fun NativeVideo(
                 if (state == Player.STATE_READY && source.video == null) shown = true
                 if (state == Player.STATE_ENDED) ended()
             }
-            override fun onPlayerError(error: PlaybackException) { failed() }
+            override fun onPlayerError(error: PlaybackException) {
+                (context.applicationContext as ZappApp).youtube.note(error.errorCodeName + (error.cause?.message?.let { " ($it)" } ?: ""))
+                failed()
+            }
         }
         player.addListener(l)
         onDispose {
@@ -267,6 +274,7 @@ fun FullTrailer(youtubeId: String, onClose: () -> Unit) {
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { e ->
+                if (e.key == Key.Back || e.key == Key.Escape) return@onPreviewKeyEvent false // BackHandler closes it
                 if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent e.key == Key.DirectionCenter || e.key == Key.Enter
                 poke++
                 when (e.key) {
@@ -306,10 +314,10 @@ fun FullTrailer(youtubeId: String, onClose: () -> Unit) {
 @Composable
 fun ThemeMusic(youtubeId: String, volume: Int) {
     val yt = (LocalContext.current.applicationContext as ZappApp).youtube
-    var source by remember(youtubeId) { mutableStateOf<YtSource?>(null) }
+    var source by remember(youtubeId) { mutableStateOf(yt.cachedAudio(youtubeId)) }
     var web by remember(youtubeId) { mutableStateOf(false) }
     LaunchedEffect(youtubeId) {
-        source = yt.resolve(youtubeId, 0, audioOnly = true)
+        if (source == null) source = yt.resolve(youtubeId, 0, audioOnly = true)
         if (source == null) web = true
     }
     val s = source

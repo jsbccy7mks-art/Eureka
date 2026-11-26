@@ -505,7 +505,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                                             c,
                                             w,
                                             modifier = if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier,
-                                            onFocus = { focused = c },
+                                            onFocus = { focused = c; mvm.prefetchTheme(c.id) },
                                         ) { onOpen(c.id) }
                                     }
                                 }

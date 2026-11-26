@@ -154,6 +154,11 @@ fun DetailScreen(
     var keyTick by remember(request.id) { mutableIntStateOf(0) }
     var trailerShowing by remember(request.id) { mutableStateOf(false) }
     var trailerSound by remember(request.id) { mutableStateOf(FocusStyle.trailerSound) }
+    // Have the trailer's streams ready before Trailer is pressed (or Play rested on).
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    LaunchedEffect(detail?.trailerYoutube) {
+        detail?.trailerYoutube?.let { (appContext as com.zapp.tv.ZappApp).youtube.prefetch(it, trailerHeightCap()) }
+    }
 
     LaunchedEffect(done, focusTick) { if (done) playFocus.tryRequest() }
 

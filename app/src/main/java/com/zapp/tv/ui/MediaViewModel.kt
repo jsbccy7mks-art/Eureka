@@ -1197,6 +1197,15 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             .awaitAll().mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
     }
 
+    /** While a collection's card is focused: find its theme tune now, so it plays the moment it opens. */
+    fun prefetchTheme(id: Long) {
+        if (!settings.themeMusic || id <= 0) return
+        viewModelScope.launch {
+            val yt = collectionTheme(id) ?: return@launch
+            zapp.youtube.prefetch(yt, 0, audioOnly = true)
+        }
+    }
+
     /** Only franchises have theme tunes. */
     suspend fun collectionTheme(id: Long): String? = if (settings.themeMusic && id > 0) runCatching { zapp.themes.collectionTheme(id) }.getOrNull() else null
 

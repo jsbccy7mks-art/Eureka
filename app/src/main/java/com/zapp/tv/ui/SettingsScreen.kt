@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -474,6 +475,17 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
         Spacer(Modifier.height(22.dp))
         val u = vm.update
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            var trailerTest by remember { mutableStateOf<String?>(null) }
+            val testScope = androidx.compose.runtime.rememberCoroutineScope()
+            SettingRow(
+                title = "Test trailers",
+                body = trailerTest ?: "Checks that trailers and theme tunes can play in Zapp's own player, and says what went wrong if not.",
+                value = SettingValue.Action,
+                onClick = {
+                    trailerTest = "Testing…"
+                    testScope.launch { trailerTest = (context.applicationContext as com.zapp.tv.ZappApp).youtube.test() }
+                },
+            )
             SettingRow(
                 title = "What's new",
                 body = "What changed in this version and the few before it.",

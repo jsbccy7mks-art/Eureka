@@ -27,7 +27,16 @@ data class YtSource(val video: String?, val audio: String?, val hls: Boolean, va
  * YouTube changes this from time to time; when it stops working, the web player is used instead.
  */
 class YouTube(private val http: OkHttpClient) {
-    private val client = http.newBuilder().connectTimeout(8, TimeUnit.SECONDS).readTimeout(10, TimeUnit.SECONDS).build()
+    private val client = http.newBuilder().connectTimeout(4, TimeUnit.SECONDS).readTimeout(6, TimeUnit.SECONDS).build()
+
+    /** What happened last time (for Settings, Updates and about, Test trailers). */
+    @Volatile var lastReport: String = "Nothing tried yet."
+        private set
+
+    /** The player couldn't play what was found (so the web player took over). */
+    fun note(problem: String) {
+        lastReport = "Found the streams, but they wouldn't play: $problem"
+    }
 
     private val cache = ConcurrentHashMap<String, YtSource>()
     private val misses = ConcurrentHashMap<String, Long>()
@@ -55,9 +64,12 @@ class YouTube(private val http: OkHttpClient) {
     fun cached(videoId: String, maxHeight: Int): YtSource? =
         cache["$videoId|$maxHeight|false"]?.takeIf { it.expires > System.currentTimeMillis() + 60_000 }
 
+    fun cachedAudio(videoId: String): YtSource? =
+        cache["$videoId|0|true"]?.takeIf { it.expires > System.currentTimeMillis() + 60_000 }
+
     /** Looks it up in the background so it's ready by the time it's wanted. */
-    suspend fun prefetch(videoId: String, maxHeight: Int) {
-        runCatching { resolve(videoId, maxHeight) }
+    suspend fun prefetch(videoId: String, maxHeight: Int, audioOnly: Boolean = false) {
+        runCatching { resolve(videoId, maxHeight, audioOnly) }
     }
 
     /** The streams for [videoId], or null if they can't be found (the web player is used then). */
@@ -85,15 +97,50 @@ class YouTube(private val http: OkHttpClient) {
         }
     }
 
+    /** Asks as each app at once and takes the first good answer (in the callers' order of preference). */
     private fun find(id: String, maxHeight: Int, audioOnly: Boolean): YtSource? {
-        for (c in callers) {
-            val o = ask(c, id) ?: continue
-            if (o.optJSONObject("playabilityStatus")?.optString("status") != "OK") continue
-            val sd = o.optJSONObject("streamingData") ?: continue
-            val expires = System.currentTimeMillis() + (sd.optString("expiresInSeconds").toLongOrNull() ?: 18_000L) * 1000L - 10 * 60_000L
-            pick(sd, maxHeight, audioOnly, expires)?.let { return it }
+        val started = System.currentTimeMillis()
+        val notes = java.util.Collections.synchronizedList(ArrayList<String>())
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(callers.size)
+        try {
+            val jobs = callers.map { c ->
+                pool.submit(java.util.concurrent.Callable<YtSource?> {
+                    val o = ask(c, id)
+                    if (o == null) { notes.add("${c.name}: no answer"); return@Callable null }
+                    val st = o.optJSONObject("playabilityStatus")
+                    if (st?.optString("status") != "OK") {
+                        notes.add("${c.name}: ${st?.optString("status")} ${st?.optString("reason").orEmpty()}".trim())
+                        return@Callable null
+                    }
+                    val sd = o.optJSONObject("streamingData")
+                    if (sd == null) { notes.add("${c.name}: no streams"); return@Callable null }
+                    val expires = System.currentTimeMillis() + (sd.optString("expiresInSeconds").toLongOrNull() ?: 18_000L) * 1000L - 10 * 60_000L
+                    pick(sd, maxHeight, audioOnly, expires).also { if (it == null) notes.add("${c.name}: nothing playable") }
+                })
+            }
+            for ((i, j) in jobs.withIndex()) {
+                val s = runCatching { j.get(9, TimeUnit.SECONDS) }.getOrNull() ?: continue
+                val secs = "%.1f".format(java.util.Locale.UK, (System.currentTimeMillis() - started) / 1000.0)
+                lastReport = "Zapp's player: " + (if (audioOnly) "audio" else if (s.hls) "HLS stream" else "${s.height}p video and audio") + " from ${callers[i].name} in $secs s."
+                return s
+            }
+            lastReport = "Couldn't get the streams (the web player is used instead). " + notes.joinToString("; ")
+            return null
+        } finally {
+            pool.shutdownNow()
         }
-        return null
+    }
+
+    /** A quick check from Settings: a well-known video, then a theme tune. */
+    suspend fun test(): String {
+        cache.clear()
+        misses.clear()
+        quietUntil = 0
+        val v = resolve("dQw4w9WgXcQ", 1080)
+        val vr = lastReport
+        val a = resolve("yB-c85V8Zsg", 0, audioOnly = true)
+        val ar = lastReport
+        return "Trailer: $vr\nTheme tune: $ar"
     }
 
     private fun ask(c: Caller, id: String): JSONObject? {
@@ -114,7 +161,7 @@ class YouTube(private val http: OkHttpClient) {
             .build()
         return try {
             client.newCall(req).execute().use { r ->
-                if (r.code == 429) quietUntil = System.currentTimeMillis() + 10 * 60_000L
+                if (r.code == 429) quietUntil = System.currentTimeMillis() + 5 * 60_000L
                 if (!r.isSuccessful) null else JSONObject(r.body?.string().orEmpty())
             }
         } catch (e: Exception) {
