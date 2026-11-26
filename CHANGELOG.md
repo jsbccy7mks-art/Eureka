@@ -6,6 +6,7 @@
 - Theme tunes (and some trailers): when YouTube answers the iPhone-style request, Zapp now plays
   its HLS stream, which downloads without the extra token its separate files need. Theme tunes play
   sound only, without fetching any picture.
+- Collections page: the big title and the shelf names are no longer cut off at the top.
 - Test trailers also checks that the files actually download, and lists what each way of asking
   YouTube said.
 

@@ -415,7 +415,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
     DisposableEffect(Unit) { onDispose { ArtTint.color = null } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val headerHeight = maxHeight * 0.46f
+        val headerHeight = maxHeight * 0.44f
         // The artwork, wide across the top and fading into the page on every side.
         Box(
             Modifier
@@ -448,7 +448,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                     transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(200)) },
                     label = "colsHead",
                 ) { c ->
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 80.dp, vertical = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.fillMaxWidth().padding(start = 80.dp, end = 80.dp, top = 36.dp, bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             c?.let { when (it.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; else -> "COLLECTION" } } ?: "COLLECTIONS",
                             color = ZappColors.Brand2.copy(alpha = 0.95f),
@@ -457,7 +457,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                             letterSpacing = 3.sp,
                         )
                         Spacer(Modifier.height(10.dp))
-                        MovieTitle(c?.name ?: "Collections", if ((c?.name?.length ?: 0) > 22) 42.sp else 54.sp, maxLines = 2, center = true)
+                        MovieTitle(c?.name ?: "Collections", if ((c?.name?.length ?: 0) > 18) 34.sp else 44.sp, maxLines = 1, center = true)
                         Spacer(Modifier.height(10.dp))
                         Text(
                             c?.note ?: c?.takeIf { it.yours > 0 }?.let { "${it.yours} of yours in this collection" }
@@ -488,7 +488,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                 return@Column
             }
             val firstCard = shelves.first().items.firstOrNull()
-            PivotScrolling(14.dp) {
+            PivotScrolling(52.dp) {
                 androidx.compose.foundation.lazy.LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 60.dp, top = 14.dp),
