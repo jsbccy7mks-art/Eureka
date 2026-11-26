@@ -127,6 +127,22 @@ class PlaylistRepository(
 
     suspend fun channel(id: Long): Channel? = db.channelDao().get(id)
 
+    /**
+     * Channels showing a match, from the TV guide: programmes around its start time whose title
+     * mentions both teams (or one of them, when nothing mentions both).
+     */
+    suspend fun channelsFor(home: String?, away: String?, start: Long): List<ProgrammeHit> {
+        fun short(t: String) = t.replace(Regex("\\b(FC|AFC|CF|SC|United|City)\\b", RegexOption.IGNORE_CASE), "").trim().ifBlank { t }
+        val names = listOfNotNull(home, away).map { short(it) }.filter { it.length >= 3 }
+        if (names.isEmpty()) return emptyList()
+        val window = (start - 45 * 60_000L)..(start + 45 * 60_000L)
+        val hits = names.flatMap { n -> db.programmeDao().search(n, start - 3 * 3_600_000L, 80) }
+            .filter { it.start in window || (it.start <= start && it.stop > start + 10 * 60_000L) }
+            .distinctBy { it.channelId }
+        val both = hits.filter { h -> names.all { h.title.contains(it, ignoreCase = true) } }
+        return (both.ifEmpty { hits }).sortedBy { kotlin.math.abs(it.start - start) }.take(6)
+    }
+
     /** Guide channels: everything in the list, or only channels with a programme on now. */
     fun guideChannels(scope: Scope, liveOnly: Boolean): Flow<PagingData<ChannelRow>> {
         if (!liveOnly || scope.favorites || scope.recent) return channels(scope)

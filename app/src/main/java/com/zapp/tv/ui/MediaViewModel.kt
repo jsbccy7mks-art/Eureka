@@ -48,6 +48,7 @@ const val BECAUSE_ROW = "because"
 const val NEW_EPISODES_ROW = "newEpisodes"
 const val LIBRARY_ROW = "library"
 const val COLLECTIONS_ROW = "collections"
+const val SPORTS_ROW = "sports"
 
 data class HomeRowSetting(
     val id: String,
@@ -1160,6 +1161,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         catalogs.forEach { available[it.key] = it.title }
         available[LIBRARY_ROW] = "Your library"
         available[COLLECTIONS_ROW] = "Your collections"
+        available[SPORTS_ROW] = "Your teams"
 
         val saved = parseLayout(settings.homeRowsJson)
         val result = ArrayList<HomeRowSetting>()
@@ -1172,7 +1174,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                 // Collections start switched off on Home (they live in Library); turn them on in Home layout.
                 val row = HomeRowSetting(id, title, id != COLLECTIONS_ROW, landscape = id == CONTINUE_ROW || id == COLLECTIONS_ROW)
                 // New smart rows go just below Continue watching; everything else at the end.
-                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW) result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row) else result.add(row)
+                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW) result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row) else result.add(row)
             }
         }
         // A first "top" or "trending" catalogue becomes a Top 10 until you choose otherwise.

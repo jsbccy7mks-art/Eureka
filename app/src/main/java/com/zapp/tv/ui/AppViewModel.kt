@@ -143,6 +143,46 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
 
     suspend fun channelById(id: Long): Channel? = repo.channel(id)
 
+    // ------------------------------------------------------------ sports
+
+    val sports get() = zapp.sports
+    var followedTeams by mutableStateOf<List<com.zapp.tv.data.SportTeam>>(emptyList())
+        private set
+    var fixtures by mutableStateOf<List<com.zapp.tv.data.SportEvent>>(emptyList())
+        private set
+    var fixturesLoading by mutableStateOf(false)
+        private set
+    private var fixturesAt = 0L
+
+    /** Reloads the teams this profile follows and their matches (at most every 10 minutes unless asked). */
+    fun refreshSports(force: Boolean = false) {
+        followedTeams = sports.followed()
+        if (followedTeams.isEmpty()) {
+            fixtures = emptyList()
+            return
+        }
+        if (!force && System.currentTimeMillis() - fixturesAt < 10 * 60_000L && fixtures.isNotEmpty()) return
+        fixturesLoading = true
+        viewModelScope.launch {
+            try {
+                fixtures = sports.fixtures(followedTeams)
+                fixturesAt = System.currentTimeMillis()
+            } finally {
+                fixturesLoading = false
+            }
+        }
+    }
+
+    fun follow(team: com.zapp.tv.data.SportTeam, on: Boolean) {
+        val list = sports.followed().filter { it.id != team.id } + if (on) listOf(team) else emptyList()
+        sports.setFollowed(list)
+        refreshSports(force = true)
+    }
+
+    /** Channels in your guide showing this match. */
+    suspend fun channelsFor(e: com.zapp.tv.data.SportEvent): List<com.zapp.tv.data.ProgrammeHit> =
+        runCatching { repo.channelsFor(e.home, e.away, e.start) }.getOrDefault(emptyList())
+
     val categories: StateFlow<List<CategoryItem>> = scopeFlow
         .map { it?.playlistId }
         .distinctUntilChanged()
@@ -545,6 +585,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     }
                     showToast("TMDB connected from your phone")
                     return@withContext "TMDB is connected. Details pages now show cast photos, reviews and more."
+                }
+                "sportsdb" -> {
+                    val key = body.optString("sportsDbKey").trim()
+                    if (key.length < 3) fail("Paste your TheSportsDB key.")
+                    settings.setSecret("sportsDbKey", key)
+                    refreshSports(force = true)
+                    showToast("TheSportsDB key saved")
+                    return@withContext "Saved. Sports now uses your own TheSportsDB key."
                 }
                 "mdblist" -> {
                     val key = body.optString("mdblistKey").trim()

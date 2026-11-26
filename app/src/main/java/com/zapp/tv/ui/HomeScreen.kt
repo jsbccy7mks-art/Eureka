@@ -13,6 +13,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -95,6 +98,7 @@ fun HomeScreen(
     onResume: (WatchProgress) -> Unit,
     onOpenAddons: () -> Unit,
     onOpenCollection: (Long) -> Unit = {},
+    onPlayChannel: (com.zapp.tv.data.Channel) -> Unit = {},
 ) {
     val addons by mvm.addons.collectAsState()
     val continueItems by mvm.continueWatching.collectAsState()
@@ -115,11 +119,16 @@ fun HomeScreen(
             NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
+            SPORTS_ROW -> !mvm.isKids && sportsSoon.isNotEmpty()
             else -> catalogs.any { it.key == r.id }
         }
     }
 
     var focused by remember { mutableStateOf<HeroItem?>(null) }
+    // Your teams: what's on now or in the next 24 hours.
+    LaunchedEffect(Unit) { vm.refreshSports() }
+    val sportsSoon = vm.fixtures.filter { val n = System.currentTimeMillis(); it.liveAt(n) || (it.start > n && it.start < n + 24 * 3_600_000L) }.take(10)
+    val sportsScope = rememberCoroutineScope()
     // Opening animation waits for this: something on Home has focus (its rows have loaded).
     LaunchedEffect(focused != null) { if (focused != null) { delay(700); HomeReady.ready = true } }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
@@ -192,6 +201,32 @@ fun HomeScreen(
                         options = RowOptions(row.id, p, p.asPreview().copy(name = a?.name?.takeIf { p.name.startsWith("tt") || p.name.isBlank() } ?: p.name))
                     },
                 )
+            } else if (row.id == SPORTS_ROW) {
+                Column {
+                    RowHeader("Your teams", "live and the next 24 hours")
+                    val now = System.currentTimeMillis()
+                    val tf = rememberTimeFormat()
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(start = RowInset, end = RowInset),
+                    ) {
+                        items(sportsSoon, key = { it.id }) { e ->
+                            Box(Modifier.onFocusChanged { if (it.hasFocus) { lastFocus = HomeFocus(row.id, e.id); moves++ } }) {
+                                MatchCard(e, now, tf, live = e.liveAt(now)) {
+                                    sportsScope.launch {
+                                        val hits = vm.channelsFor(e)
+                                        val h = hits.firstOrNull()
+                                        when {
+                                            h == null -> vm.showToast("Couldn't find ${e.title} in your TV guide")
+                                            h.start > now + 15 * 60_000L -> vm.showToast("${e.title} starts at ${tf.format(h.start)} on ${h.channelName}")
+                                            else -> vm.channelById(h.channelId)?.let(onPlayChannel)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             } else if (row.id == COLLECTIONS_ROW) {
                 Column {
                     RowHeader("Your collections")

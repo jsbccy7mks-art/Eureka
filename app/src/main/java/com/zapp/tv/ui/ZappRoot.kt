@@ -69,6 +69,7 @@ enum class Dest(val label: String, val glyph: Glyph) {
     Search("Search", Glyph.Search),
     Live("Live TV", Glyph.Live),
     Guide("TV guide", Glyph.Guide),
+    Sports("Sports", Glyph.Sports),
     Movies("Movies", Glyph.Movies),
     Series("Series", Glyph.Series),
     Library("Library", Glyph.Library),
@@ -153,7 +154,7 @@ fun ZappRoot(vm: AppViewModel) {
 
     fun open(d: Dest) {
         // Kids profiles: no live TV; Settings needs the main profile's PIN when it has one.
-        if (kids && (d == Dest.Live || d == Dest.Guide)) return
+        if (kids && (d == Dest.Live || d == Dest.Guide || d == Dest.Sports)) return
         if (kids && d == Dest.Settings && profiles.firstOrNull { it.id == 1L }?.pin != null) {
             settingsPin = true
             return
@@ -162,7 +163,7 @@ fun ZappRoot(vm: AppViewModel) {
         requestContentFocus()
     }
 
-    LaunchedEffect(kids) { if (kids && (dest == Dest.Live || dest == Dest.Guide)) dest = Dest.Home }
+    LaunchedEffect(kids) { if (kids && (dest == Dest.Live || dest == Dest.Guide || dest == Dest.Sports)) dest = Dest.Home }
 
     fun useProfile(p: com.zapp.tv.data.Profile) {
         mvm.switchProfile(p.id)
@@ -409,6 +410,7 @@ fun ZappRoot(vm: AppViewModel) {
                                 open(Dest.Settings)
                             },
                             onOpenCollection = { collectionOpen = it },
+                            onPlayChannel = { c -> watchChannel(c) },
                         )
                         Dest.Movies -> BrowseScreen(mvm, "movie", focusTick, { openTitle(it) }) {
                             settingsSection = "Addons"
@@ -427,6 +429,7 @@ fun ZappRoot(vm: AppViewModel) {
                             ScreenHeader("TV guide", vm.guideStatus)
                             GuideScreen(vm, focusTick, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
                         }
+                        Dest.Sports -> SportsScreen(vm, focusTick) { c -> watchChannel(c) }
                         Dest.Search -> SearchScreen(vm, playback, focusTick, mvm, { openTitle(it) }) { watchChannel(it) }
                         Dest.Settings -> SettingsScreen(
                             mvm = mvm,
@@ -455,7 +458,7 @@ fun ZappRoot(vm: AppViewModel) {
                 Sidebar(
                     locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null,
                     onRight = { requestContentFocus(0) },
-                    dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide) },
+                    dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide && it != Dest.Sports) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
                     onProfiles = { choosingProfile = true },
                     current = dest,

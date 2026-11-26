@@ -394,6 +394,11 @@ class Settings(context: Context) {
         get() = themeVolumeState.intValue
         set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
 
+    /** Teams this profile follows (JSON). */
+    var sportsTeamsJson: String
+        get() = prefs.getString(acct("sportsTeams"), "") ?: ""
+        set(value) { prefs.edit().putString(acct("sportsTeams"), value).apply(); accountTick.intValue++ }
+
     private val liveRewindState = mutableStateOf(prefs.getBoolean("liveRewind", true))
     /** Keep the last five minutes of the channel you're watching, to pause and rewind. */
     var liveRewind: Boolean

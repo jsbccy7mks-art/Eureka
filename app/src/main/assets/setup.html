@@ -107,6 +107,7 @@
     <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
     <button type="button" data-type="tmdb" aria-pressed="false">TMDB</button>
     <button type="button" data-type="mdblist" aria-pressed="false">MDBList</button>
+    <button type="button" data-type="sportsdb" aria-pressed="false">Sports</button>
   </div>
 
   <form id="form" class="card" autocomplete="off">
@@ -214,6 +215,16 @@
       </div>
     </div>
 
+    <!-- TheSportsDB -->
+    <div data-for="sportsdb" hidden>
+      <h2>TheSportsDB</h2>
+      <p>Sports works without this, using TheSportsDB's free shared key. If you support TheSportsDB on Patreon, paste your own key for fuller fixtures and results.</p>
+      <div class="field">
+        <label for="sportsDbKey">API key</label>
+        <input id="sportsDbKey" autocapitalize="off" spellcheck="false">
+      </div>
+    </div>
+
     <!-- MDBList -->
     <div data-for="mdblist" hidden>
       <h2>MDBList</h2>
@@ -276,7 +287,7 @@
   let format = 'ts';
   let debridService = 'pm';
   const remembered = { playlist: 'xtream', accounts: 'stremio' };
-  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect', mdblist: 'Connect' };
+  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect', mdblist: 'Connect', sportsdb: 'Save' };
 
   if (!token) $('codeBox').hidden = false;
   function currentToken() { return token || $('code').value.trim().toUpperCase(); }
@@ -321,7 +332,7 @@
   // The TV can open a particular part of this page (?tab=stremio and so on).
   const want = params.get('tab');
   if (want === 'xtream' || want === 'm3u') { remembered.playlist = want; choose('playlist'); }
-  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb' || want === 'mdblist') { remembered.accounts = want; choose('accounts'); }
+  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb' || want === 'mdblist' || want === 'sportsdb') { remembered.accounts = want; choose('accounts'); }
   else if (want === 'addon' || want === 'help') { choose(want); }
   else { show(); }
 
@@ -364,6 +375,7 @@
     debrid: (b) => !b.debridKey.trim() && 'Paste the API key first.',
     tmdb: (b) => !b.tmdbKey.trim() && 'Paste your TMDB key first.',
     mdblist: (b) => !b.mdblistKey.trim() && 'Paste your MDBList key first.',
+    sportsdb: (b) => !b.sportsDbKey.trim() && 'Paste your TheSportsDB key first.',
   };
   const working = {
     xtream: 'Adding the playlist. Big playlists can take a minute…',
@@ -401,6 +413,7 @@
       nuvioServer: $('nuvioServer').value,
       tmdbKey: $('tmdbKey').value,
       mdblistKey: $('mdblistKey').value,
+      sportsDbKey: $('sportsDbKey').value,
     };
     const problem = missing[type] && missing[type](body);
     if (problem) { setStatus('err', problem); return; }
