@@ -292,6 +292,17 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             value = SettingValue.Toggle(s.sameSource),
             onClick = { s.sameSource = !s.sameSource },
         )
+        var learnReset by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Sources that learn",
+            body = "Zapp notes how each add-on and release has played on this box (how fast it started, if it failed, if you switched away) and lists reliable ones higher. Kept only on this TV." +
+                if (learnReset) " Cleared." else "",
+            value = SettingValue.Choice("Start over"),
+            onClick = {
+                (vm.getApplication<com.zapp.tv.ZappApp>()).sourceStats.reset()
+                learnReset = true
+            },
+        )
         SettingRow(
             title = "Skip intros",
             body = "Using IntroDB's community timings, where an episode has them.",

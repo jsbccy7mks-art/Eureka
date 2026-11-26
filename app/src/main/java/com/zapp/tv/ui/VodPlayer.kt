@@ -88,6 +88,7 @@ fun VodPlayer(
     playback: Playback,
     request: PlayRequest,
     onChooseSource: () -> Unit,
+    onFirstFrame: () -> Unit = {},
     onPlayNext: (Video) -> Unit,
     onClose: () -> Unit,
     onSourceFailed: () -> Unit = {},
@@ -108,6 +109,7 @@ fun VodPlayer(
     // Until the first picture appears, the Zapp starting screen stays up (it carries on from the
     // sources screen, so starting a film looks like one smooth step).
     var started by remember(info.videoId) { mutableStateOf(false) }
+    LaunchedEffect(started) { if (started) onFirstFrame() }
     LaunchedEffect(info.videoId) {
         var playingFor = 0
         while (!started) {

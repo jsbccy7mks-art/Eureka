@@ -500,6 +500,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val debrid = zapp.debrid
+
+    /** How sources have done on this box (sources that learn). */
+    val sourceStats get() = zapp.sourceStats
     var debridSignIn by mutableStateOf<DebridSignIn>(DebridSignIn.None)
         private set
     private var debridJob: Job? = null
@@ -633,7 +636,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             val all = p.batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
                 .flatMap { b ->
                     val kept = b.streams.filter { it.qualityRank <= cap }
-                    if (settings.bestFirst) kept.sortedByDescending { (if (it.markedReady == true) 10_000 else 0) + it.qualityRank } else kept
+                    if (settings.bestFirst) kept.sortedByDescending { (if (it.markedReady == true) 10_000 else 0) + it.qualityRank + sourceStats.bonus(it) } else kept
                 }
             // Only sources the debrid service already has (cached): they cost nothing to add and use no
             // download slot. If none are cached, nothing is prepared and Play works as usual.

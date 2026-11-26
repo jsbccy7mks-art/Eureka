@@ -187,15 +187,27 @@ fun ZappRoot(vm: AppViewModel) {
     var starting by remember { mutableStateOf(false) }
     /** The source now playing (its link or torrent), so a failing one can be skipped. */
     var currentSourceKey by remember { mutableStateOf<String?>(null) }
+    // For "sources that learn": the source now starting or playing, and when Play was pressed.
+    var currentStream by remember { mutableStateOf<com.zapp.tv.addons.StreamItem?>(null) }
+    var streamPickedAt by remember { mutableStateOf(0L) }
+    var streamStartedAt by remember { mutableStateOf(0L) }
 
     fun startStream(req: PlayRequest, stream: com.zapp.tv.addons.StreamItem, resolvedUrl: String? = null) {
+        if (resolvedUrl == null) {
+            currentStream = stream
+            streamPickedAt = System.currentTimeMillis()
+            streamStartedAt = 0L
+        }
         if (resolvedUrl == null && stream.url.isNullOrBlank() && stream.infoHash != null) {
             // Torrent source: ask the debrid service for a link first.
             mvm.resolveTorrent(
                 stream = stream,
                 title = req.meta.name,
                 onReady = { url -> startStream(req, stream, url) },
-                onError = { msg -> vm.showToast(msg) },
+                onError = { msg ->
+                    mvm.sourceStats.failed(stream)
+                    vm.showToast(msg)
+                },
             )
             return
         }
@@ -558,13 +570,24 @@ fun ZappRoot(vm: AppViewModel) {
                 mvm = mvm,
                 playback = playback,
                 request = pr,
+                onFirstFrame = {
+                    currentStream?.let { s ->
+                        if (streamStartedAt == 0L) {
+                            streamStartedAt = System.currentTimeMillis()
+                            mvm.sourceStats.started(s, streamStartedAt - streamPickedAt)
+                        }
+                    }
+                },
                 onChooseSource = {
+                    // Switching away within two minutes of it starting counts against that source.
+                    currentStream?.let { s -> if (streamStartedAt > 0 && System.currentTimeMillis() - streamStartedAt < 120_000) mvm.sourceStats.switchedAway(s) }
                     val at = playback.player.currentPosition
                     vodOpen = false
                     playback.stop()
                     playRequest = pr.copy(resumeMs = at, autoPlay = false)
                 },
                 onSourceFailed = {
+                    currentStream?.let { mvm.sourceStats.failed(it) }
                     val at = playback.player.currentPosition
                     vodOpen = false
                     playback.stop()

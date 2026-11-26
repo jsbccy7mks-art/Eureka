@@ -101,7 +101,9 @@ fun SourcesOverlay(
             else -> false
         }
     }
-    fun rank(s: StreamItem): Int = (if (isReady(s) == true) 10_000 else 0) + s.qualityRank
+    // Ready first, then quality, nudged by how each add-on and release has done on this box.
+    val stats = mvm.sourceStats
+    fun rank(s: StreamItem): Int = (if (isReady(s) == true) 10_000 else 0) + s.qualityRank + stats.bonus(s)
 
     val sorted = batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
     val all = sorted.flatMap { b ->
@@ -250,7 +252,7 @@ fun SourcesOverlay(
                                         modifier = Modifier.padding(start = 4.dp, top = if (i == 0) 0.dp else 10.dp, bottom = 6.dp),
                                     )
                                 }
-                                StreamRow(s, if (i == 0) firstFocus else null, if (s.playable) null else if (s.infoHash != null) debridName else null, isReady(s) == true) {
+                                StreamRow(s, if (i == 0) firstFocus else null, if (s.playable) null else if (s.infoHash != null) debridName else null, isReady(s) == true, stats.note(s)) {
                                     if (canPlay(s)) pick(s)
                                 }
                             }
@@ -263,7 +265,7 @@ fun SourcesOverlay(
 }
 
 @Composable
-private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?, readyNow: Boolean, onClick: () -> Unit) {
+private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?, readyNow: Boolean, learned: String? = null, onClick: () -> Unit) {
     val note = when {
         s.playable -> null
         s.infoHash != null && debrid != null -> if (readyNow) "Ready on $debrid" else "Through $debrid (may need downloading first)"
@@ -319,10 +321,11 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
                     )
                 }
                 val tags = s.tags
-                if (tags.isNotEmpty() || note != null || readyNow) {
+                if (tags.isNotEmpty() || note != null || readyNow || learned != null) {
                     Spacer(Modifier.height(5.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (readyNow) Tag("Ready")
+                        learned?.let { Tag(it, highlight = it == "Reliable") }
                         tags.forEach { Tag(it) }
                         note?.let { Text(it, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = 11.sp) }
                     }
