@@ -174,11 +174,12 @@ fun DetailScreen(
     // Get ready for Play while you read: fetch the sources for what Play would start (the film, or
     // the next episode), then, after a few seconds here, get its debrid link ready too.
     val playTarget = if (request.type == "series") nextUp.first?.id else request.id
+    var sources by remember(request.id) { mutableStateOf<MediaViewModel.Prefetch?>(null) }
     LaunchedEffect(playTarget, done) {
         val target = playTarget ?: return@LaunchedEffect
         if (!done) return@LaunchedEffect
         kotlinx.coroutines.delay(500)
-        mvm.prefetchStreams(request.type, target)
+        sources = mvm.prefetchStreams(request.type, target)
         kotlinx.coroutines.delay(3_000)
         mvm.prepareLink(request.type, target, request.id, detail?.preview?.name ?: request.preview?.name.orEmpty())
     }
@@ -376,7 +377,30 @@ fun DetailScreen(
                                 if (isSeries) (seasons.count { it > 0 }.takeIf { it > 0 }?.let { "$it season" + if (it > 1) "s" else "" }) else detail?.runtime,
                                 meta.genres,
                                 size = 12.sp,
+                                modifier = Modifier.weight(1f, fill = false),
                             )
+                            // The best picture and sound on offer, from the sources found for it.
+                            val all = sources?.batches?.flatMap { it.streams }.orEmpty()
+                            val best = all.maxOfOrNull { it.qualityRank } ?: 0
+                            val top = all.filter { it.qualityRank == best }
+                            val av = buildList {
+                                if (best >= 2160) add("4K")
+                                if (top.any { "Dolby Vision" in it.tags }) add("DOLBY VISION") else if (top.any { "HDR" in it.tags }) add("HDR")
+                                if (all.any { "Atmos" in it.tags }) add("ATMOS")
+                            }
+                            av.forEach { b ->
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    b,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.6.sp,
+                                    color = ZappColors.Text,
+                                    modifier = Modifier
+                                        .background(Color(0x1FFFFFFF), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                                )
+                            }
                             }
                             // Just IMDb up here (in the line above); every score is on the next page.
                             match?.let { m ->
@@ -473,29 +497,38 @@ fun DetailScreen(
                             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(bottom = 26.dp)) {
                                 // Season tabs.
                                 if (seasons.size > 1) {
+                                    // Seasons as tiles: a still from the season, its name, and how much you've watched.
                                     MinimalScrolling {
-                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(horizontal = 50.dp)) {
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 56.dp)) {
                                             items(seasons) { sn ->
+                                                val eps = videos.filter { it.season == sn }
+                                                val seen = eps.count { v -> progress.any { it.videoId == v.id && it.watched } }
+                                                val still = eps.firstOrNull { it.thumbnail != null }?.thumbnail ?: meta.background
                                                 FocusSurface(
                                                     onClick = { season = sn },
-                                                    shape = RoundedCornerShape(50),
+                                                    modifier = Modifier.width(132.dp).height(62.dp),
+                                                    shape = RoundedCornerShape(10.dp),
                                                     focusScale = 1f,
+                                                    restColor = ZappColors.Glass,
+                                                    focusColor = ZappColors.Glass,
+                                                    ring = true,
                                                 ) { focused ->
-                                                    Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                    Artwork(still, "")
+                                                    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (sn == season || focused) 0.35f else 0.62f)))
+                                                    Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 9.dp, vertical = 6.dp)) {
+                                                        Text(seasonName(sn), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = if (sn == season || focused) 1f else 0.75f), maxLines = 1)
                                                         Text(
-                                                            seasonName(sn),
-                                                            fontSize = 13.sp,
-                                                            fontWeight = if (sn == season || focused) FontWeight.SemiBold else FontWeight.Medium,
-                                                            color = when {
-                                                                focused -> ZappColors.OnFocus
-                                                                sn == season -> ZappColors.Text
-                                                                else -> ZappColors.Faint
-                                                            },
+                                                            if (seen == 0) "${eps.size} episodes" else if (seen >= eps.size) "Watched" else "$seen of ${eps.size} watched",
+                                                            fontSize = 9.5.sp,
+                                                            color = Color.White.copy(alpha = 0.7f),
+                                                            maxLines = 1,
                                                         )
-                                                        if (sn == season) {
-                                                            Spacer(Modifier.width(6.dp))
-                                                            Text("${videos.count { it.season == sn }} episodes", fontSize = 11.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim)
-                                                        }
+                                                    }
+                                                    if (eps.isNotEmpty() && seen > 0) {
+                                                        ProgressLine((seen.toFloat() / eps.size).coerceIn(0f, 1f), Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp), track = Color(0x33FFFFFF))
+                                                    }
+                                                    if (sn == season) {
+                                                        Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(ZappColors.Brand2))
                                                     }
                                                 }
                                             }
@@ -832,19 +865,19 @@ private fun CastSection(
                     MinimalScrolling {
                         LazyRow(modifier = Modifier.restoreFocus(memory), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(people, key = { it.name }) { person ->
-                                Column(Modifier.width(92.dp)) {
+                                // Round photos, with who they play underneath.
+                                Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     FocusSurface(
                                         onClick = { onPerson(person.name) },
                                         modifier = Modifier
                                             .rememberFocus(memory, person.name)
-                                            .fillMaxWidth()
-                                            .aspectRatio(0.78f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        focusScale = 1f,
+                                            .size(84.dp),
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        focusScale = 1.06f,
                                         restColor = ZappColors.Glass,
                                         focusColor = ZappColors.Glass,
                                         ring = true,
-                                        ringCorner = 12.dp,
+                                        ringCorner = 42.dp,
                                     ) {
                                         if (person.photo != null) {
                                             AsyncImage(model = person.photo, contentDescription = person.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -854,9 +887,9 @@ private fun CastSection(
                                             }
                                         }
                                     }
-                                    Spacer(Modifier.height(6.dp))
-                                    Text(person.name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    person.role?.let { Text(it, fontSize = 10.5.sp, color = ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(person.name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    person.role?.let { Text(it, fontSize = 10.5.sp, color = ZappColors.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 13.sp) }
                                 }
                             }
                         }
@@ -1173,7 +1206,16 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
             ring = true,
             ringCorner = 12.dp,
         ) { f ->
-            Artwork(v.thumbnail, shortLabel(v))
+            // After a second on it, the still slowly pans, like the art behind Home.
+            var panning by remember { mutableStateOf(false) }
+            LaunchedEffect(f) {
+                panning = false
+                if (f) {
+                    kotlinx.coroutines.delay(1_000)
+                    panning = true
+                }
+            }
+            Box(Modifier.fillMaxSize().then(if (panning) Modifier.drift() else Modifier)) { Artwork(v.thumbnail, shortLabel(v)) }
             if (f) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
                 Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
