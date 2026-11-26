@@ -351,7 +351,8 @@ fun DelayedTrailer(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var show by remember(key) { mutableStateOf(false) }
-    val allowed = enabled && TrailerGate.appVisible && !TrailerGate.playing && (onDetail || !TrailerGate.detailOpen)
+    // Never behind something full screen (What's new, Rate films).
+    val allowed = enabled && TrailerGate.appVisible && !TrailerGate.playing && !OverlayFocus.open && (onDetail || !TrailerGate.detailOpen)
     // Find the trailer's streams straight away, so it starts the moment the wait is over.
     LaunchedEffect(youtubeId) {
         if (youtubeId != null && FocusStyle.trailers) (context.applicationContext as com.zapp.tv.ZappApp).youtube.prefetch(youtubeId, trailerHeightCap())

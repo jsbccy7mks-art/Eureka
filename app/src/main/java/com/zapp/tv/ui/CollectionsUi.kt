@@ -334,7 +334,8 @@ fun CollectionScreen(
             Column(Modifier.padding(start = 64.dp, end = 64.dp, bottom = 34.dp)) {
                 Timeline(c.parts.size, index, c.parts.map { p -> imdb[p.item.id]?.let { it in watched } == true }, nextIndex)
                 Spacer(Modifier.height(14.dp))
-                AnimatedContent(targetState = index, transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(120)) }, label = "colInfo") { i ->
+                // A fixed height, so a film with a longer (or no) story never resizes the posters above.
+                AnimatedContent(targetState = index, transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(120)) }, label = "colInfo", modifier = Modifier.height(66.dp)) { i ->
                     val p = c.parts.getOrNull(i)
                     if (p != null) {
                         Column {
