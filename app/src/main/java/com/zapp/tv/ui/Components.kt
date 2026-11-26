@@ -505,47 +505,6 @@ fun ZButton(
 // ---------------------------------------------------------------------------- brand + glyphs
 
 @Composable
-fun LogoMark(size: Dp, modifier: Modifier = Modifier) {
-    Canvas(modifier.size(size)) {
-        val s = this.size.width
-        drawRoundRect(
-            brush = Brush.linearGradient(
-                listOf(ZappColors.Brand1, ZappColors.Brand2),
-                start = Offset.Zero,
-                end = Offset(s, s),
-            ),
-            cornerRadius = CornerRadius(s * 0.28f),
-        )
-        val bolt = Path().apply {
-            moveTo(0.58f * s, 0.12f * s)
-            lineTo(0.28f * s, 0.56f * s)
-            lineTo(0.47f * s, 0.56f * s)
-            lineTo(0.42f * s, 0.88f * s)
-            lineTo(0.73f * s, 0.43f * s)
-            lineTo(0.54f * s, 0.43f * s)
-            lineTo(0.62f * s, 0.12f * s)
-            close()
-        }
-        drawPath(bolt, Color.White)
-    }
-}
-
-@Composable
-fun ZappLogo(height: Dp, modifier: Modifier = Modifier) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        LogoMark(height)
-        Spacer(Modifier.width(height * 0.36f))
-        Text(
-            text = "zapp",
-            fontSize = (height.value * 0.82f).sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.02f * height.value).sp,
-            color = ZappColors.Text,
-        )
-    }
-}
-
-@Composable
 fun StarGlyph(color: Color, size: Dp) {
     Canvas(Modifier.size(size)) {
         val r = this.size.minDimension / 2f

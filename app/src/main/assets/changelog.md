@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.46.0
+
+**New**
+- A new Zapp logo: a soft play button with a lightning spark through it, and new "zapp" lettering.
+  It's on the TV's apps row (a new, sharper banner and icon), the opening, the sidebar, loading
+  screens, What's new, About and the phone setup page.
+- A new opening: the spark spins into place, the bolt strikes through it, the name slides out and
+  a gleam passes over the logo.
+
+**Improved**
+- The opening and the loading spark are smooth: their shapes are made once instead of every frame,
+  and Home starts loading just after the logo has settled, so they no longer stutter.
+
 ## 0.45.0
 
 **New**

@@ -54,92 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
-
-/**
- * The Zapp mark, animated: the tile traces itself in the theme's gradient, fills, and the bolt
- * strikes in. Then it rests with a slow light sweep across it and a soft breathing glow behind,
- * tinted by [glow] (the poster's colour) when given.
- */
-@Composable
-fun ZappMarkAnimated(size: Dp, modifier: Modifier = Modifier, glow: Color? = null) {
-    val draw = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { draw.animateTo(1f, tween(1300, easing = FastOutSlowInEasing)) }
-    val t = rememberInfiniteTransition(label = "mark")
-    val sweep by t.animateFloat(-0.7f, 1.7f, infiniteRepeatable(tween(2600, delayMillis = 700, easing = LinearEasing)), label = "sweep")
-    val breathe by t.animateFloat(0.3f, 0.62f, infiniteRepeatable(tween(1500, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breathe")
-    val glowColor = glow ?: ZappColors.Brand1
-    val b1 = ZappColors.Brand1
-    val b2 = ZappColors.Brand2
-
-    Canvas(modifier.size(size * 2.2f)) {
-        val d = draw.value
-        val s = size.toPx()
-        val c = center
-        val tl = Offset(c.x - s / 2f, c.y - s / 2f)
-        val brand = Brush.linearGradient(listOf(b1, b2), start = tl, end = Offset(tl.x + s, tl.y + s))
-
-        // Glow behind.
-        val g = breathe * d
-        drawCircle(
-            Brush.radialGradient(listOf(glowColor.copy(alpha = g), b2.copy(alpha = g * 0.35f), Color.Transparent), center = c, radius = s * 1.1f),
-            radius = s * 1.1f,
-            center = c,
-        )
-
-        val tile = Path().apply { addRoundRect(RoundRect(tl.x, tl.y, tl.x + s, tl.y + s, CornerRadius(s * 0.28f))) }
-
-        // 1. The outline traces itself.
-        val trace = (d / 0.5f).coerceIn(0f, 1f)
-        if (trace in 0.001f..0.999f) {
-            val pm = PathMeasure()
-            pm.setPath(tile, false)
-            val seg = Path()
-            pm.getSegment(0f, pm.length * trace, seg, true)
-            drawPath(seg, brand, style = Stroke(s * 0.04f, cap = StrokeCap.Round))
-        }
-        // 2. The tile fills.
-        val fill = ((d - 0.4f) / 0.3f).coerceIn(0f, 1f)
-        if (fill > 0f) drawPath(tile, brand, alpha = fill)
-
-        // 3. The bolt strikes: traced, then filled.
-        val bolt = Path().apply {
-            moveTo(tl.x + 0.58f * s, tl.y + 0.12f * s)
-            lineTo(tl.x + 0.28f * s, tl.y + 0.56f * s)
-            lineTo(tl.x + 0.47f * s, tl.y + 0.56f * s)
-            lineTo(tl.x + 0.42f * s, tl.y + 0.88f * s)
-            lineTo(tl.x + 0.73f * s, tl.y + 0.43f * s)
-            lineTo(tl.x + 0.54f * s, tl.y + 0.43f * s)
-            lineTo(tl.x + 0.62f * s, tl.y + 0.12f * s)
-            close()
-        }
-        val strike = ((d - 0.6f) / 0.4f).coerceIn(0f, 1f)
-        if (strike > 0f) {
-            val pm = PathMeasure()
-            pm.setPath(bolt, false)
-            val seg = Path()
-            pm.getSegment(0f, pm.length * (strike / 0.6f).coerceAtMost(1f), seg, true)
-            drawPath(seg, Color.White, style = Stroke(s * 0.025f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            val solid = ((strike - 0.45f) / 0.55f).coerceIn(0f, 1f)
-            if (solid > 0f) drawPath(bolt, Color.White, alpha = solid)
-        }
-
-        // 4. Resting: a band of light sweeps across the tile.
-        if (d >= 1f) {
-            clipPath(tile) {
-                val x = tl.x + s * sweep
-                drawRect(
-                    Brush.linearGradient(
-                        listOf(Color.Transparent, Color.White.copy(alpha = 0.32f), Color.Transparent),
-                        start = Offset(x - s * 0.35f, tl.y),
-                        end = Offset(x + s * 0.15f, tl.y + s * 0.5f),
-                    ),
-                    topLeft = tl,
-                    size = Size(s, s),
-                )
-            }
-        }
-    }
-}
+import kotlinx.coroutines.launch
 
 /** Small loader wherever something is on its way (details, buffering). */
 @Composable
@@ -265,14 +180,16 @@ fun StartingScreen(background: String?, title: String, subtitle: String? = null,
 }
 
 /**
- * Shown when Zapp opens: the mark draws itself, the name fades in, and (if switched on) a short
- * chime plays, while Home loads behind. [ready] lets it finish early once the minimum has passed.
+ * Shown when Zapp opens: the logo builds itself (see [LaunchLogo]) and, if switched on, a short
+ * chime plays. [onSettled] comes once the logo has finished its main movement (Home starts
+ * loading behind then, so the two don't compete for the same frames); [ready] lets it finish
+ * early once the minimum has passed.
  */
 @Composable
-fun LaunchScreen(sound: Boolean, ready: () -> Boolean, onDone: () -> Unit) {
+fun LaunchScreen(sound: Boolean, ready: () -> Boolean, onSettled: () -> Unit = {}, onDone: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val fade = remember { Animatable(1f) }
-    val word = remember { Animatable(0f) }
+    val clock = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         if (sound) {
             runCatching {
@@ -283,8 +200,9 @@ fun LaunchScreen(sound: Boolean, ready: () -> Boolean, onDone: () -> Unit) {
                 }
             }
         }
-        delay(700)
-        word.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
+        launch { clock.animateTo(1800f, tween(1800, easing = LinearEasing)) }
+        delay(1250)
+        onSettled()
         // At least about 2.5 s; then until Home has loaded (up to 8 s in all).
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < 1_200 || (!ready() && System.currentTimeMillis() - start < 6_700)) delay(100)
@@ -304,19 +222,6 @@ fun LaunchScreen(sound: Boolean, ready: () -> Boolean, onDone: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         AmbientGlow(0.8f)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            ZappMarkAnimated(80.dp)
-            Text(
-                "zapp",
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.6).sp,
-                color = ZappColors.Text,
-                modifier = Modifier.graphicsLayer {
-                    alpha = word.value
-                    translationY = (1f - word.value) * 18f
-                },
-            )
-        }
+        LaunchLogo(clock = { clock.value }, height = 66.dp)
     }
 }

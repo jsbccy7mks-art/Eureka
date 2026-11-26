@@ -111,6 +111,8 @@ fun ZappRoot(vm: AppViewModel) {
     var vodOpen by remember { mutableStateOf(false) }
     val railFocus = remember { FocusRequester() }
     var launching by rememberSaveable { mutableStateOf(true) }
+    // Home waits for the opening logo to finish moving, so the animation stays smooth.
+    var introHold by remember { mutableStateOf(true) }
     // Just closed a title, the sources or the player: the sidebar can't take focus for a moment, so
     // focus goes back to the card you were on instead of falling onto the sidebar.
     var railLockUntil by remember { mutableStateOf(0L) }
@@ -434,6 +436,7 @@ fun ZappRoot(vm: AppViewModel) {
                         },
                         label = "page",
                     ) { shown ->
+                    if (launching && introHold) return@AnimatedContent
                     when (shown) {
                         Dest.Home -> HomeScreen(
                             vm = vm,
@@ -570,6 +573,7 @@ fun ZappRoot(vm: AppViewModel) {
             LaunchScreen(
                 sound = mvm.settings.startupSound,
                 ready = { HomeReady.ready || dest != Dest.Home },
+                onSettled = { introHold = false },
                 onDone = {
                     launching = false
                     StartFocus.fresh = true
@@ -875,7 +879,7 @@ private fun Sidebar(
             Row(Modifier.padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 LogoMark(24.dp)
                 AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
-                    Text("Zapp", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, modifier = Modifier.padding(start = 12.dp))
+                    WordMark(17.dp, Modifier.padding(start = 11.dp))
                 }
             }
             // Who's watching, at the top: tap to switch profile.
