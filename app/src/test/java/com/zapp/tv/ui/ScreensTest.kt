@@ -11,7 +11,8 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -35,12 +36,25 @@ import java.io.File
 @Config(sdk = [34], qualifiers = "w960dp-h540dp-xhdpi")
 @OptIn(ExperimentalTestApi::class)
 class ScreensTest {
-    @get:Rule val rule = createComposeRule()
+    @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
+
+    private fun key(code: Int) {
+        rule.runOnUiThread {
+            rule.activity.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
+            rule.activity.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code))
+        }
+        rule.mainClock.advanceTimeBy(300)
+    }
 
     private fun save(name: String) {
-        val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
+        // Drawn straight from the window (waiting for the screen to be "idle" never ends: glows loop).
+        var bmp: Bitmap? = null
+        rule.runOnUiThread {
+            val v = rule.activity.window.decorView
+            bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888).also { v.draw(android.graphics.Canvas(it)) }
+        }
         val dir = File("build/screens").apply { mkdirs() }
-        File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File(dir, "$name.png").outputStream().use { bmp!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     private fun settings(section: String, downs: Int) {
@@ -64,8 +78,8 @@ class ScreensTest {
         rule.mainClock.advanceTimeBy(1500)
         tick.intValue = 1
         rule.mainClock.advanceTimeBy(1200)
-        rule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
-        repeat(downs) { rule.onRoot().performKeyInput { pressKey(Key.DirectionDown) } }
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        repeat(downs) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
         rule.mainClock.advanceTimeBy(800)
         save("settings-$section")
     }
