@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.42.0
+
+**New**
+- Collection theme tunes now come from the official 30-second previews on Apple Music and Deezer
+  (looping softly), with the full YouTube tune only as a fallback. Under the collection's name a
+  small line shows what's playing (or why nothing is), and "Change tune" (Up from the posters)
+  lets you hear the other matches and keep the one you like, or go back to Zapp's pick.
+- Collections: hold OK on any collection to pin it to the front of Your collections, remove it
+  from there, move its shelf up or down, hide the shelf, or add the shelf to Home.
+- Settings, Home screen, Collections layout: every shelf, to show or hide and put in order.
+- Home layout is redesigned: "On Home" in order, then "Not on Home" grouped by where rows come
+  from, one slim line each. OK on a row: Move (Up/Down, OK to drop), Rename, Size, Shape,
+  Top 10, Remove from Home; on a row not on Home: add it to the top or bottom. Reset Home to the
+  default at the end.
+- Rename rows from Home too: hold OK on a card, Row settings, Rename.
+
 ## 0.41.3
 
 **Fixed**
