@@ -565,6 +565,12 @@ fun ZappRoot(vm: AppViewModel) {
                     focusTick = detailTick,
                     onPlay = { playRequest = it },
                     onOpenTitle = { m -> detail = DetailRequest(m.type, m.id, m) },
+                    onSearchPerson = { name ->
+                        detail = null
+                        collectionOpen = null
+                        vm.setSearch(name)
+                        open(Dest.Search)
+                    },
                     onClose = {
                         lockRail()
                         detail = null

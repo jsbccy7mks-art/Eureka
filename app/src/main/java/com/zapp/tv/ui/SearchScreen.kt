@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,6 +81,20 @@ fun SearchScreen(
     fun type(t: String) = vm.setSearch((query + t).take(60))
     fun saveRecent(q: String) = mvm.addRecentSearch(q)
     var menuFor by remember { mutableStateOf<com.zapp.tv.addons.MetaPreview?>(null) }
+    // People matching the search (TMDB), and the one you've picked.
+    val people by androidx.compose.runtime.produceState(emptyList<com.zapp.tv.data.TmdbPerson>(), vm.searchText) {
+        val q = vm.searchText.trim()
+        if (q.length < 3 || !mvm.tmdb.enabled) {
+            value = emptyList()
+            return@produceState
+        }
+        kotlinx.coroutines.delay(500)
+        value = runCatching { mvm.tmdb.searchPeople(q) }.getOrDefault(emptyList())
+    }
+    var person by remember(vm.searchText) { mutableStateOf<com.zapp.tv.data.TmdbPerson?>(null) }
+    val personWork by androidx.compose.runtime.produceState(emptyList<com.zapp.tv.data.TmdbItem>(), person) {
+        value = person?.let { runCatching { mvm.tmdbPersonWork(it.id, -1) }.getOrDefault(emptyList()) } ?: emptyList()
+    }
     menuFor?.let { m -> TitleMenu(mvm, m) { menuFor = null } }
 
     // Voice: the TV's own speech recogniser, when it has one.
@@ -240,6 +255,86 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                     contentPadding = PaddingValues(bottom = 30.dp, top = 4.dp),
                 ) {
+                    // Best matches across every add-on, ranked with what you watch and save.
+                    val best = mvm.bestMatches(mediaResults.orEmpty(), query)
+                    if (best.size > 1) {
+                        item(key = "best") {
+                            val memory = rememberFocusMemory()
+                            Column {
+                                SectionTitle("Best matches")
+                                LazyRow(
+                                    modifier = Modifier.restoreFocus(memory),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp),
+                                ) {
+                                    items(best, key = { it.id }) { meta ->
+                                        PosterCard(
+                                            meta = meta,
+                                            modifier = Modifier.rememberFocus(memory, meta.id),
+                                            onFocus = {},
+                                            onClick = {
+                                                saveRecent(query.trim())
+                                                onOpenTitle(meta)
+                                            },
+                                            onLongClick = { menuFor = meta },
+                                            width = cardWidth(1, false),
+                                            showTitle = true,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // People (with TMDB): their films and series.
+                    if (people.isNotEmpty()) {
+                        item(key = "people") {
+                            Column {
+                                SectionTitle("People")
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(horizontal = 10.dp)) {
+                                    items(people, key = { it.id }) { p ->
+                                        Column(Modifier.width(84.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                            FocusSurface(
+                                                onClick = { person = if (person?.id == p.id) null else p },
+                                                modifier = Modifier.size(72.dp),
+                                                shape = androidx.compose.foundation.shape.CircleShape,
+                                                focusScale = 1f,
+                                                restColor = ZappColors.Glass,
+                                                focusColor = ZappColors.Glass,
+                                                ring = true,
+                                                ringCorner = 36.dp,
+                                            ) {
+                                                coil.compose.AsyncImage(model = p.photo, contentDescription = p.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                                            }
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(p.name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            p.role?.let { Text(it, fontSize = 10.sp, color = ZappColors.Faint, maxLines = 1) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    person?.let { p ->
+                        item(key = "work:" + p.id) {
+                            Column {
+                                SectionTitle("With ${p.name}")
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 10.dp)) {
+                                    items(personWork, key = { it.type + it.id }) { w ->
+                                        val preview = com.zapp.tv.addons.MetaPreview("tmdb:${w.id}", w.type, w.name, w.poster, "poster", w.backdrop, null, null, w.year, null, emptyList())
+                                        PosterCard(
+                                            meta = preview,
+                                            onFocus = {},
+                                            onClick = {
+                                                scope.launch { mvm.tmdbToPreview(w)?.let { onOpenTitle(it) } }
+                                            },
+                                            width = cardWidth(1, false),
+                                            showTitle = true,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     mediaResults.orEmpty().forEach { (ref, metas) ->
                         item(key = "m:" + ref.key) {
                             val memory = rememberFocusMemory()

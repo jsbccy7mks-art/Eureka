@@ -184,6 +184,17 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
         )
     }
 
+    /** People whose name matches (actors and directors), most popular first. */
+    suspend fun searchPeople(query: String): List<TmdbPerson> = withContext(Dispatchers.IO) {
+        if (query.length < 3) return@withContext emptyList()
+        val o = get("search/person", mapOf("query" to query)) ?: return@withContext emptyList()
+        o.optJSONArray("results").objects()
+            .filter { it.optString("profile_path").isNotBlank() && it.optDouble("popularity") > 1.0 }
+            .sortedByDescending { it.optDouble("popularity") }
+            .take(8)
+            .map { TmdbPerson(it.optLong("id"), it.optString("name"), it.optString("known_for_department").takeIf { d -> d.isNotBlank() }, img(it.optString("profile_path"), "w185")) }
+    }
+
     /** Films and series someone was in, most popular first. */
     suspend fun personWork(personId: Long, exceptTmdbId: Long): List<TmdbItem> = withContext(Dispatchers.IO) {
         credits[personId]?.let { return@withContext it }

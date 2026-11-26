@@ -125,6 +125,8 @@ fun DetailScreen(
     onPlay: (PlayRequest) -> Unit,
     onClose: () -> Unit,
     onOpenTitle: (MetaPreview) -> Unit = {},
+    /** Search for someone in the cast (OK on their photo). */
+    onSearchPerson: (String) -> Unit = {},
 ) {
     BackHandler(onBack = onClose)
     val loaded by produceState<Pair<Boolean, MetaDetail?>>(false to null, request.id) {
@@ -522,6 +524,7 @@ fun DetailScreen(
                     }
                     // ================================================= 3. cast, credits and reviews
                     CastSection(
+                        onPerson = onSearchPerson,
                         meta = meta,
                         detail = detail,
                         tmdb = tmdb,
@@ -765,6 +768,7 @@ private fun CastSection(
     detail: MetaDetail?,
     tmdb: com.zapp.tv.data.TmdbDetails?,
     modifier: Modifier = Modifier,
+    onPerson: (String) -> Unit = {},
 ) {
     val people = tmdb?.cast?.takeIf { it.isNotEmpty() }?.map { com.zapp.tv.addons.Person(it.name, it.role, it.photo) } ?: detail?.people.orEmpty()
     Column(
@@ -783,7 +787,7 @@ private fun CastSection(
                             items(people, key = { it.name }) { person ->
                                 Column(Modifier.width(92.dp)) {
                                     FocusSurface(
-                                        onClick = {},
+                                        onClick = { onPerson(person.name) },
                                         modifier = Modifier
                                             .rememberFocus(memory, person.name)
                                             .fillMaxWidth()

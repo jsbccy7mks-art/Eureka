@@ -783,6 +783,36 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     private val searchQuery = MutableStateFlow("")
 
+    /**
+     * The best results across all your add-ons, in one row: how well the title matches, then a
+     * boost for what's in your library, what you're watching or have watched, and its rating.
+     */
+    fun bestMatches(results: List<Pair<CatalogRef, List<MetaPreview>>>, query: String): List<MetaPreview> {
+        val q = query.trim().lowercase()
+        if (q.length < 2) return emptyList()
+        val lib = library.value.map { it.metaId }.toHashSet()
+        val watching = continueWatching.value.map { it.metaId }.toHashSet()
+        val seen = watchedTitles.value
+        val all = LinkedHashMap<String, MetaPreview>()
+        results.forEach { (_, list) -> list.forEach { m -> all.putIfAbsent(m.id, m) } }
+        fun score(m: MetaPreview): Double {
+            val n = m.name.lowercase()
+            var s = when {
+                n == q -> 60.0
+                n.startsWith(q) -> 35.0
+                n.split(' ', ':', '-').any { it.startsWith(q) } -> 22.0
+                n.contains(q) -> 12.0
+                else -> 0.0
+            }
+            if (m.id in lib) s += 30
+            if (m.id in watching) s += 25
+            if (m.id in seen) s += 15
+            s += (m.imdbRating?.toDoubleOrNull() ?: 0.0) * 1.5
+            return s
+        }
+        return all.values.sortedByDescending(::score).take(15)
+    }
+
     fun search(text: String) {
         searchQuery.value = text.trim()
     }
