@@ -54,13 +54,18 @@ jobs:
           SCREENS: "1"
         run: gradle testDebugUnitTest --no-daemon --rerun --tests '*ScreensTest*'
 
-      - uses: actions/upload-artifact@v4
+      # Kept on a branch of their own (screens), for looking at from anywhere.
+      - name: Keep screens
         if: github.ref != 'refs/heads/main'
         continue-on-error: true
-        with:
-          name: screens
-          path: app/build/screens
-          if-no-files-found: ignore
+        run: |
+          [ -d app/build/screens ] || exit 0
+          mkdir -p /tmp/s && cp app/build/screens/*.png /tmp/s/
+          cd /tmp/s
+          git init -q && git checkout -q -b screens
+          git -c user.name=ci -c user.email=ci@localhost add -A
+          git -c user.name=ci -c user.email=ci@localhost commit -qm "Screens for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screens
 
       - name: Build APK
         env:
