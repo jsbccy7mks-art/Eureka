@@ -124,7 +124,9 @@ fun Modifier.fadeAbove(line: Dp): Modifier = drawWithContent {
 fun Modifier.fadeLeftOf(line: Dp): Modifier = drawWithContent {
     // Only the left edge is cut; above and below stay open so a focused card's glow isn't sliced off.
     val big = 200.dp.toPx()
-    clipRect(left = line.toPx() - 3.dp.toPx(), top = -big, right = size.width + big, bottom = size.height + big) { this@drawWithContent.drawContent() }
+    // A little room left of the line so the first card's focus glow isn't cut off (less than the gap
+    // between cards, so the card before it stays hidden).
+    clipRect(left = line.toPx() - 9.dp.toPx(), top = -big, right = size.width + big, bottom = size.height + big) { this@drawWithContent.drawContent() }
 }
 
 /**

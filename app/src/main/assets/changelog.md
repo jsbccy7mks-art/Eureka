@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.44.0
+
+**Improved**
+- Smoother scrolling: while you're moving around, the slow zoom on artwork and the glow's pulse
+  hold still (they carry on when you rest); holding a direction glides quicker and evenly, and
+  the header waits until you let go; cards appear without a fade.
+- The first card in a row no longer has its focus glow cut off on the left.
+- Settings, Updates and about: "Show frame rate" puts a small counter at the top of the screen
+  (frames per second, and slow frames), to see how smoothly things run.
+
+**Fixed**
+- No trailer plays behind What's new (or Rate films).
+- Collection pages: the posters no longer jump in size as you move between films.
+
 ## 0.43.1
 
 **New**
