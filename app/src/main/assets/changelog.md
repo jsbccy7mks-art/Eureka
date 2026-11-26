@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.42.2
+
+**Improved**
+- Collections page: the shelf you're on sits neatly at the top; the edge of the shelf above it
+  no longer peeks in.
+
 ## 0.42.1
 
 **Improved**

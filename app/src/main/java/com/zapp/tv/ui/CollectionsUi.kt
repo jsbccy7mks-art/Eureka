@@ -555,8 +555,9 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                 androidx.compose.foundation.lazy.LazyColumn(
                     // Like Home: Up/Down stay in the shelves, and coming back (from the sidebar) lands
                     // on the collection you were on.
-                    modifier = Modifier.fillMaxSize().trapVertical(up = null).restoreFocus(shelfMemory),
-                    contentPadding = PaddingValues(bottom = 60.dp, top = 14.dp),
+                    // The shelf you're on always sits at the top with its name; shelves above it are hidden.
+                    modifier = Modifier.fillMaxSize().fadeAbove(20.dp).trapVertical(up = null).restoreFocus(shelfMemory),
+                    contentPadding = PaddingValues(bottom = 60.dp, top = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
                     items(shelves.size, key = { shelves[it].id }) { i ->
