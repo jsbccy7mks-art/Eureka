@@ -61,8 +61,8 @@ object Palettes {
 object ZappColors {
     var palette by mutableStateOf(Palettes.Aurora)
 
-    val Bg: Color get() = palette.bg
-    val Panel: Color get() = palette.panel
+    val Bg: Color get() = if (FocusStyle.trueBlack) Color.Black else palette.bg
+    val Panel: Color get() = if (FocusStyle.trueBlack) Color(0xFF0C0C0E) else palette.panel
     val PanelHigh: Color get() = lerp(palette.panel, Color.White, 0.06f)
     val Glass = Color(0x12FFFFFF)
     val GlassHigh = Color(0x22FFFFFF)
@@ -72,7 +72,7 @@ object ZappColors {
     val Faint = Color(0xFF6B7080)
     /** Focus takes a light tint of the theme (plain white-grey for Monochrome). */
     val Focus: Color get() = lerp(palette.brand1, Color.White, 0.8f)
-    val OnFocus: Color get() = palette.bg
+    val OnFocus: Color get() = Bg
     val OnFocusDim = Color(0xFF555A68)
     val Brand1: Color get() = palette.brand1
     val Brand2: Color get() = palette.brand2
@@ -80,7 +80,7 @@ object ZappColors {
     val Live = Color(0xFFFF4F6A)
     val Star = Color(0xFFFFC94A)
     val Error = Color(0xFFFF8A9A)
-    val Scrim: Color get() = palette.bg.copy(alpha = 0.9f)
+    val Scrim: Color get() = Bg.copy(alpha = 0.9f)
 }
 
 /** Anton: tall, condensed poster lettering for film and series titles. */

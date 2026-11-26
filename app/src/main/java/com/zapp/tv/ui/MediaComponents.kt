@@ -178,7 +178,7 @@ fun PosterCard(
                 )
             }
         }
-        if (showTitle) {
+        if (showTitle || FocusStyle.cardTitles) {
             Spacer(Modifier.height(7.dp))
             Text(meta.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZappColors.Dim)
         }
@@ -364,13 +364,15 @@ fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: Str
 /** A film or series title in poster lettering (Anton), large and tight. */
 @Composable
 fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: Int = 2, modifier: Modifier = Modifier, center: Boolean = false) {
+    // Title lettering (Appearance): cinematic, clean modern, or bold condensed.
+    val font = FocusStyle.titleFont
     Text(
         name,
-        fontFamily = CinemaFont,
-        fontWeight = FontWeight.Bold,
-        fontSize = size * 0.86f,
+        fontFamily = when (font) { 1 -> Inter; 2 -> TitleFont; else -> CinemaFont },
+        fontWeight = when (font) { 1 -> FontWeight.Bold; 2 -> FontWeight.Normal; else -> FontWeight.Bold },
+        fontSize = when (font) { 1 -> size * 0.9f; 2 -> size; else -> size * 0.86f },
         lineHeight = size * 1.0f,
-        letterSpacing = (size.value * 0.05f).sp,
+        letterSpacing = when (font) { 1 -> (size.value * -0.015f).sp; 2 -> (size.value * 0.01f).sp; else -> (size.value * 0.05f).sp },
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         color = Color.White,

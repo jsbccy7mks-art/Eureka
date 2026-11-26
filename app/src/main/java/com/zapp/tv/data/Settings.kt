@@ -505,6 +505,28 @@ class Settings(context: Context) {
 
     private fun ringWidthFor(v: Int) = when (v) { 0 -> 1.5f; 2 -> 3.5f; else -> 2.5f }
 
+    // ---- the look (Appearance)
+    private val trueBlackState = mutableStateOf(prefs.getBoolean("trueBlack", false))
+    var trueBlack: Boolean
+        get() = trueBlackState.value
+        set(value) { trueBlackState.value = value; prefs.edit().putBoolean("trueBlack", value).apply(); com.zapp.tv.ui.FocusStyle.trueBlack = value }
+    private val titleFontState = mutableIntStateOf(prefs.getInt("titleFont", 0))
+    var titleFont: Int
+        get() = titleFontState.intValue
+        set(value) { titleFontState.intValue = value; prefs.edit().putInt("titleFont", value).apply(); com.zapp.tv.ui.FocusStyle.titleFont = value }
+    private val cardStyleState = mutableIntStateOf(prefs.getInt("cardStyle", 0))
+    var cardStyle: Int
+        get() = cardStyleState.intValue
+        set(value) { cardStyleState.intValue = value; prefs.edit().putInt("cardStyle", value).apply(); com.zapp.tv.ui.FocusStyle.cardStyle = value }
+    private val cardTitlesState = mutableStateOf(prefs.getBoolean("cardTitles", false))
+    var cardTitles: Boolean
+        get() = cardTitlesState.value
+        set(value) { cardTitlesState.value = value; prefs.edit().putBoolean("cardTitles", value).apply(); com.zapp.tv.ui.FocusStyle.cardTitles = value }
+    private val glowLevelState = mutableIntStateOf(prefs.getInt("glowLevel", 1))
+    var glowLevel: Int
+        get() = glowLevelState.intValue
+        set(value) { glowLevelState.intValue = value; prefs.edit().putInt("glowLevel", value).apply(); com.zapp.tv.ui.FocusStyle.glowLevel = value }
+
     init {
         com.zapp.tv.ui.FocusStyle.ringWidth = ringWidthFor(prefs.getInt("focusRing", 1))
         com.zapp.tv.ui.FocusStyle.glow = prefs.getBoolean("focusGlow", true)
@@ -514,6 +536,11 @@ class Settings(context: Context) {
         com.zapp.tv.ui.FocusStyle.trailerDelay = prefs.getInt("trailerDelay", 4)
         com.zapp.tv.ui.FocusStyle.trailerSound = prefs.getBoolean("trailerSound", false)
         com.zapp.tv.ui.FocusStyle.trailerBest = prefs.getBoolean("trailerBest", true)
+        com.zapp.tv.ui.FocusStyle.trueBlack = prefs.getBoolean("trueBlack", false)
+        com.zapp.tv.ui.FocusStyle.titleFont = prefs.getInt("titleFont", 0)
+        com.zapp.tv.ui.FocusStyle.cardStyle = prefs.getInt("cardStyle", 0)
+        com.zapp.tv.ui.FocusStyle.cardTitles = prefs.getBoolean("cardTitles", false)
+        com.zapp.tv.ui.FocusStyle.glowLevel = prefs.getInt("glowLevel", 1)
     }
 
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))

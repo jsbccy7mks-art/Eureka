@@ -225,6 +225,12 @@ fun FocusSurface(
         label = "scale",
     )
     val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
+    // Cards lift a little, with a soft shadow beneath, rather than only growing.
+    val lift by animateFloatAsState(if (ring && focused) 1f else 0f, tween(220), label = "lift")
+    // Card style (Appearance): square corners, or a thin border at rest.
+    val isCard = ring && ringCorner <= 14.dp // cards, not round swatches
+    val corner = if (isCard && FocusStyle.cardStyle == 1) 3.dp else ringCorner
+    val cardShape = if (isCard) RoundedCornerShape(corner) else shape
     val fill by animateColorAsState(
         when {
             focused -> focusColor
@@ -238,8 +244,9 @@ fun FocusSurface(
     Box(
         modifier = modifier
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                scaleX = scale * (1f + 0.035f * lift)
+                scaleY = scale * (1f + 0.035f * lift)
+                translationY = -5.dp.toPx() * lift
             }
             // Always one focusRequester node (ours if none given): adding or removing it would rebuild
             // the focus node below and drop focus.
@@ -283,9 +290,17 @@ fun FocusSurface(
             .focusable()
             .drawWithContent {
                 // The glow sits behind the card; the ring on top of it.
-                if (ring && ringAlpha > 0.01f) drawFocusGlow(ringCorner.toPx(), pulse.value, ringAlpha)
+                if (ring) drawLiftShadow(corner.toPx(), lift)
+                if (ring && ringAlpha > 0.01f) drawFocusGlow(corner.toPx(), pulse.value, ringAlpha)
                 drawContent()
-                if (ring && ringAlpha > 0.01f) drawFocusRing(ringCorner.toPx(), pulse.value, ringAlpha)
+                if (ring && ringAlpha > 0.01f) drawFocusRing(corner.toPx(), pulse.value, ringAlpha)
+                if (isCard && FocusStyle.cardStyle == 2 && ringAlpha < 0.99f) {
+                    drawRoundRect(
+                        Color.White.copy(alpha = 0.16f * (1f - ringAlpha)),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner.toPx()),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+                    )
+                }
             }
             .pointerInput(Unit) {
                 detectTapGestures(
@@ -293,7 +308,7 @@ fun FocusSurface(
                     onLongPress = { longState?.invoke() },
                 )
             }
-            .clip(shape)
+            .clip(cardShape)
             .background(fill),
     ) {
         content(focused)
@@ -317,6 +332,38 @@ object FocusStyle {
     var trailerSound by mutableStateOf(false)
     /** Trailers in up to 4K. */
     var trailerBest by mutableStateOf(true)
+    /** Pure black pages (OLED TVs). */
+    var trueBlack by mutableStateOf(false)
+    /** Title lettering: 0 cinematic (Cinzel), 1 clean modern, 2 bold condensed. */
+    var titleFont by mutableStateOf(0)
+    /** Cards: 0 rounded, 1 square, 2 rounded with a thin border. */
+    var cardStyle by mutableStateOf(0)
+    /** Names under posters in rows. */
+    var cardTitles by mutableStateOf(false)
+    /** The page's colour glow: 0 subtle, 1 normal, 2 vivid. */
+    var glowLevel by mutableStateOf(1)
+}
+
+/** How much the page glow shows, from the Glow setting. */
+val glowFactor: Float get() = when (FocusStyle.glowLevel) { 0 -> 0.55f; 2 -> 1.7f; else -> 1f }
+
+private val liftPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+private var liftBlur: android.graphics.BlurMaskFilter? = null
+
+/** A soft shadow under a lifted card. */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawLiftShadow(corner: Float, alpha: Float) {
+    if (alpha <= 0.01f) return
+    val drop = 10.dp.toPx()
+    if (android.os.Build.VERSION.SDK_INT >= 28) {
+        if (liftBlur == null) liftBlur = android.graphics.BlurMaskFilter(16.dp.toPx(), android.graphics.BlurMaskFilter.Blur.NORMAL)
+        liftPaint.maskFilter = liftBlur
+        liftPaint.color = Color.Black.copy(alpha = 0.55f * alpha).toArgb()
+        drawIntoCanvas { c ->
+            c.nativeCanvas.drawRoundRect(size.width * 0.06f, drop, size.width * 0.94f, size.height + drop, corner, corner, liftPaint)
+        }
+    } else {
+        drawRoundRect(Color.Black.copy(alpha = 0.3f * alpha), topLeft = Offset(size.width * 0.05f, drop), size = androidx.compose.ui.geometry.Size(size.width * 0.9f, size.height), cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner))
+    }
 }
 
 /** One shared, slow pulse (0..1) for the focus glow, so cards don't each run an animation. */
@@ -639,7 +686,8 @@ fun AmbientBackground() {
 
 /** Just the glow, to lay over artwork so every screen shares the same light. */
 @Composable
-fun AmbientGlow(strength: Float = 1f, modifier: Modifier = Modifier, tint: Color? = null) {
+fun AmbientGlow(strengthIn: Float = 1f, modifier: Modifier = Modifier, tint: Color? = null) {
+    val strength = strengthIn * glowFactor
     val c1 by animateColorAsState(tint ?: ZappColors.Brand1, tween(900), label = "glow1")
     val c2 by animateColorAsState(if (tint != null) androidx.compose.ui.graphics.lerp(tint, ZappColors.Brand2, 0.45f) else ZappColors.Brand2, tween(900), label = "glow2")
     Canvas(modifier.fillMaxSize()) {
