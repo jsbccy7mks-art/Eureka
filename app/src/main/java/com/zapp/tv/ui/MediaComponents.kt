@@ -750,3 +750,35 @@ fun RatingButtons(current: com.zapp.tv.data.Rating?, size: Dp = 40.dp, first: an
 object LovedMarks {
     var ids by androidx.compose.runtime.mutableStateOf<Set<String>>(emptySet())
 }
+
+/** Cinemeta's logo for an IMDb title (most films and series have one), used when nothing else has a logo. */
+fun fallbackLogo(id: String): String? = id.substringBefore(':').takeIf { it.startsWith("tt") }?.let { "https://images.metahub.space/logo/medium/$it/img" }
+
+/**
+ * A title's logo: its own, else Cinemeta's, else [fallback] (its name in poster lettering), so
+ * nearly everything gets a logo and nothing shows a broken image.
+ */
+@Composable
+fun TitleLogo(
+    id: String,
+    logo: String?,
+    name: String,
+    modifier: Modifier,
+    alignment: Alignment = Alignment.BottomStart,
+    fallback: @Composable () -> Unit,
+) {
+    val url = logo ?: fallbackLogo(id)
+    var failed by remember(url) { mutableStateOf(url == null) }
+    if (failed) {
+        fallback()
+    } else {
+        AsyncImage(
+            model = url,
+            contentDescription = name,
+            contentScale = ContentScale.Fit,
+            alignment = alignment,
+            onError = { failed = true },
+            modifier = modifier,
+        )
+    }
+}

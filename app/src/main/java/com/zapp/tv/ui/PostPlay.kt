@@ -130,9 +130,7 @@ fun PostPlayPage(
             Column(Modifier.padding(start = 64.dp, bottom = 56.dp).widthIn(max = 620.dp)) {
                 Text("UP NEXT  ·  " + cur.reason.uppercase(), color = ZappColors.Brand2.copy(alpha = 0.95f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(10.dp))
-                if (m.logo != null) {
-                    AsyncImage(model = m.logo, contentDescription = m.name, contentScale = ContentScale.Fit, alignment = Alignment.BottomStart, modifier = Modifier.heightIn(max = 96.dp).widthIn(max = 420.dp))
-                } else {
+                TitleLogo(m.id, m.logo, m.name, Modifier.heightIn(max = 96.dp).widthIn(max = 420.dp)) {
                     MovieTitle(m.name, if (m.name.length > 24) 36.sp else 44.sp, maxLines = 2)
                 }
                 Spacer(Modifier.height(10.dp))

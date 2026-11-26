@@ -337,15 +337,7 @@ fun DetailScreen(
                             )
                             Spacer(Modifier.height(10.dp))
                             // The title's own logo when there is one, otherwise its name in poster lettering.
-                            if (meta.logo != null) {
-                                AsyncImage(
-                                    model = meta.logo,
-                                    contentDescription = meta.name,
-                                    contentScale = ContentScale.Fit,
-                                    alignment = Alignment.BottomStart,
-                                    modifier = Modifier.heightIn(max = 120.dp).widthIn(max = 460.dp),
-                                )
-                            } else {
+                            TitleLogo(meta.id, meta.logo, meta.name, Modifier.heightIn(max = 120.dp).widthIn(max = 460.dp)) {
                                 MovieTitle(meta.name, if (meta.name.length > 24) 38.sp else 48.sp, maxLines = 2, modifier = Modifier.widthIn(max = 600.dp))
                             }
                             // Tagline: the first sentence of the story, after a short accent line.

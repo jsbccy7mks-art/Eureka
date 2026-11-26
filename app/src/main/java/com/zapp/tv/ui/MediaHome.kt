@@ -114,10 +114,25 @@ fun ImmersiveLayout(
         val screenHeight = maxHeight
         val heroHeight = screenHeight * 0.47f
         val backdropUrl = hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster }
+        // The hero breathes: a few seconds into a trailer, the text steps back and the picture grows;
+        // the moment you move, it all comes back.
+        var trailerOn by remember { mutableStateOf(false) }
+        var breathe by remember { mutableStateOf(false) }
+        LaunchedEffect(trailerOn, hero?.meta?.id) {
+            breathe = false
+            if (trailerOn) {
+                delay(3_500)
+                breathe = true
+            }
+        }
+        val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 0.12f else 1f, tween(if (breathe) 900 else 250), label = "breathe")
+        val grow by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, tween(if (breathe) 1200 else 300), label = "grow")
         Backdrop(
             backdropUrl,
             trailer = detail?.takeIf { it.preview.id == hero?.meta?.id }?.trailerYoutube,
             trailerKey = hero?.meta?.id,
+            grow = grow,
+            onTrailer = { trailerOn = it },
         )
         // The title's colour tints the glow behind the whole screen, sidebar included.
         val art = rememberArtColor(hero?.meta?.poster ?: backdropUrl)
@@ -143,7 +158,8 @@ fun ImmersiveLayout(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(heroHeight),
+                .height(heroHeight)
+                .graphicsLayer { alpha = textAlpha },
         ) {
             when {
                 header != null -> header()
@@ -176,7 +192,7 @@ fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
 
 /** Artwork of the title you're on, filling the top right and fading into the page. */
 @Composable
-private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = null) {
+private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = null, grow: Float = 0f, onTrailer: (Boolean) -> Unit = {}) {
     Box(Modifier.fillMaxSize()) {
         // The picture itself fades out (rather than being covered with page colour), so whatever is
         // behind it, the glow included, shows through evenly right up to the sidebar.
@@ -185,13 +201,13 @@ private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = n
                 .align(Alignment.TopEnd)
                 // A whole 16:9 picture sitting higher up, so the rows cover only its faded edge
                 // and the picture (and trailer) isn't cut off behind the cards.
-                .fillMaxHeight(0.66f)
+                .fillMaxHeight(0.66f + 0.16f * grow)
                 .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true)
                 .clipToBounds()
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f - 0.3f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                     drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.62f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                 },
         ) {
@@ -213,7 +229,7 @@ private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = n
                     }
                 }
             }
-            DelayedTrailer(trailer, trailerKey, Modifier.fillMaxSize())
+            DelayedTrailer(trailer, trailerKey, Modifier.fillMaxSize(), onShowing = onTrailer)
         }
     }
 }
@@ -257,15 +273,7 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ra
                 )
                 Spacer(Modifier.height(8.dp))
                 Box(Modifier.height(56.dp).fillMaxWidth(), contentAlignment = Alignment.BottomStart) {
-                    if (logo != null) {
-                        AsyncImage(
-                            model = logo,
-                            contentDescription = m.name,
-                            contentScale = ContentScale.Fit,
-                            alignment = Alignment.BottomStart,
-                            modifier = Modifier.height(56.dp).widthIn(max = 300.dp),
-                        )
-                    } else {
+                    TitleLogo(m.id, logo, m.name, Modifier.height(56.dp).widthIn(max = 300.dp)) {
                         // One line, smaller for long titles, so it always sits neatly in its slot.
                         MovieTitle(
                             m.name,

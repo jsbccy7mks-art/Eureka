@@ -698,15 +698,7 @@ private fun PlayerInfoBlock(playback: Playback, request: PlayRequest, info: Medi
     }
     val logo = request.meta.logo
     Column(Modifier.widthIn(max = 620.dp).padding(bottom = 6.dp)) {
-        if (logo != null) {
-            AsyncImage(
-                model = logo,
-                contentDescription = info.title,
-                contentScale = ContentScale.Fit,
-                alignment = Alignment.BottomStart,
-                modifier = Modifier.heightIn(max = if (compact) 46.dp else 70.dp).widthIn(max = if (compact) 220.dp else 320.dp),
-            )
-        } else {
+        TitleLogo(request.meta.id, logo, info.title, Modifier.heightIn(max = if (compact) 46.dp else 70.dp).widthIn(max = if (compact) 220.dp else 320.dp)) {
             MovieTitle(info.title, if (compact) 22.sp else 30.sp, maxLines = 1)
         }
         val ep = request.video
