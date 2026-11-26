@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.39.0
+
+**New**
+- What's new: after an update, Zapp shows what changed (once). Open it again any time from
+  Settings, Updates and about.
+- New settings get a small dot until you've moved over them, and so do their section and group,
+  so nothing new gets missed.
+- The phone page shows what's connected on each account tab (a green dot on connected ones).
+- Rate what you've watched: Rate films now shows the films and series you've finished (and series
+  you've seen a few episodes of), instead of popular films.
+
+**Improved**
+- Live TV controls: play, pause, back and forward sit in the middle, always in the same place;
+  channels on the left, audio, subtitles, favourite and info on the right. Paused, the controls
+  stay up.
+- Down from the Search and Settings buttons goes back to the page (Continue watching on Home).
+- Back while you're along a row goes to the start of that row first.
+- Details pages: IMDb sits in the year, runtime and genre line as text; every score (IMDb, Rotten
+  Tomatoes, audience, Metacritic, Letterboxd) is on the next page with small badges.
+- Rating buttons are just white icons, no circles.
+- Collection pages: the title and story are centred, and the theme tune now plays.
+
 ## 0.38.0
 
 **New**

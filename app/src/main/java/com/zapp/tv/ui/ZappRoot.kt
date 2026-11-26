@@ -463,7 +463,7 @@ fun ZappRoot(vm: AppViewModel) {
                     }
                 }
                 Sidebar(
-                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null || rateAFew,
+                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null || rateAFew || WhatsNewState.notes != null,
                     onRight = { requestContentFocus(0) },
                     dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide && it != Dest.Sports) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
@@ -515,6 +515,13 @@ fun ZappRoot(vm: AppViewModel) {
                 onCancel = { settingsPin = false },
             )
         }
+        WhatsNewState.notes?.let { notes ->
+            WhatsNewScreen(notes) {
+                WhatsNewState.notes = null
+                mvm.settings.lastVersionSeen = com.zapp.tv.BuildConfig.VERSION_NAME
+                requestContentFocus()
+            }
+        }
         // Opening animation (once per launch) while Home loads behind it.
         if (launching) {
             LaunchScreen(
@@ -542,6 +549,15 @@ fun ZappRoot(vm: AppViewModel) {
                     requestContentFocus()
                 },
             )
+        }
+
+        // After an update: what changed, once, as soon as the opening animation is done.
+        val pendingNotes = rememberPendingNotes(mvm.settings)
+        LaunchedEffect(launching) {
+            if (!launching && pendingNotes.isNotEmpty() && WhatsNewState.notes == null) {
+                delay(400)
+                WhatsNewState.notes = pendingNotes
+            }
         }
 
         if (rateAFew) {

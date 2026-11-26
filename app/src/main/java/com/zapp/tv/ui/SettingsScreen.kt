@@ -474,6 +474,12 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
         val u = vm.update
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingRow(
+                title = "What's new",
+                body = "What changed in this version and the few before it.",
+                value = SettingValue.Action,
+                onClick = { WhatsNewState.notes = Changelog.read(context).take(3).ifEmpty { null } },
+            )
+            SettingRow(
                 title = "Check for updates",
                 body = when (u) {
                     UpdateState.Idle -> "Looks for a newer version of Zapp."

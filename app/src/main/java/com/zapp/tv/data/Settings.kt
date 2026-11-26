@@ -394,6 +394,11 @@ class Settings(context: Context) {
         get() = themeVolumeState.intValue
         set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
 
+    /** The version that last ran here (to show "What's new" once after an update). */
+    var lastVersionSeen: String
+        get() = prefs.getString("lastVersionSeen", "") ?: ""
+        set(value) { prefs.edit().putString("lastVersionSeen", value).apply() }
+
     /** New settings you've already looked at (titles, one per line). */
     var seenSettings: String
         get() = prefs.getString("seenSettings", "") ?: ""

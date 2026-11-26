@@ -31,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -690,20 +692,30 @@ fun RatingButtons(current: com.zapp.tv.data.Rating?, size: Dp = 40.dp, first: an
                 modifier = Modifier.size(size),
                 focusRequester = if (i == 0) first else null,
                 shape = RoundedCornerShape(50),
-                focusScale = 1.08f,
-                restColor = if (on) ZappColors.GlassHigh else ZappColors.Glass,
+                focusScale = 1.2f,
+                // Just the icon, white, with a soft shadow; no circle behind it.
+                restColor = Color.Transparent,
+                focusColor = Color.Transparent,
             ) { focused ->
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     RatingGlyph(
                         r,
                         filled = on,
+                        color = Color.Black.copy(alpha = 0.6f),
+                        size = size * 0.55f,
+                        modifier = Modifier
+                            .graphicsLayer { translationY = 1.5.dp.toPx() }
+                            .blur(3.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded),
+                    )
+                    RatingGlyph(
+                        r,
+                        filled = on || focused,
                         color = when {
-                            focused -> ZappColors.OnFocus
                             on && r == com.zapp.tv.data.Rating.Love -> Color(0xFFFF5F8F)
-                            on -> Color.White
-                            else -> ZappColors.Dim
+                            focused || on -> Color.White
+                            else -> Color.White.copy(alpha = 0.72f)
                         },
-                        size = size * 0.5f,
+                        size = size * 0.55f,
                     )
                 }
             }

@@ -40,6 +40,9 @@ jobs:
             echo "::warning::No ZAPP_KEYSTORE_B64 secret: this APK can't update earlier installs."
           fi
 
+      - name: Bundle the changelog (shown in the app after an update)
+        run: cp CHANGELOG.md app/src/main/assets/changelog.md
+
       - name: Run tests
         run: gradle testReleaseUnitTest --no-daemon
 
@@ -65,8 +68,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="build-${{ github.run_number }}"
+          # This version's section of the changelog, then where it was built from.
+          awk '/^## /{n++} n==1' CHANGELOG.md > notes.md
+          echo "" >> notes.md
+          echo "Built from ${GITHUB_SHA::7}. Install on your TV with the Downloader app." >> notes.md
           gh release create "$TAG" zapp-tv.apk \
             --title "Zapp TV build ${{ github.run_number }}" \
-            --notes "Built from ${GITHUB_SHA::7}. Install on your TV with the Downloader app." \
+            --notes-file notes.md \
             --target "$GITHUB_SHA" \
             --latest
