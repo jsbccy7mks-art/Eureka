@@ -3,6 +3,8 @@
 ## 0.41.1
 
 **Fixed**
+- Down between rows on Home, Films, Series and Collections works again (the new card lift was
+  confusing the remote's direction search).
 - Collection pages: the poster you're on is no longer cut off at the top.
 
 ## 0.41.0

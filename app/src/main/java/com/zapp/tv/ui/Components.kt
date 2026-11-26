@@ -244,9 +244,8 @@ fun FocusSurface(
     Box(
         modifier = modifier
             .graphicsLayer {
-                scaleX = scale * (1f + 0.035f * lift)
-                scaleY = scale * (1f + 0.035f * lift)
-                translationY = -5.dp.toPx() * lift
+                scaleX = scale
+                scaleY = scale
             }
             // Always one focusRequester node (ours if none given): adding or removing it would rebuild
             // the focus node below and drop focus.
@@ -288,6 +287,13 @@ fun FocusSurface(
                 }
             }
             .focusable()
+            // The lift is drawn inside the focus area (after it in the chain), so the card's place for
+            // the remote's Up/Down/Left/Right stays where it is laid out.
+            .graphicsLayer {
+                scaleX = 1f + 0.035f * lift
+                scaleY = 1f + 0.035f * lift
+                translationY = -5.dp.toPx() * lift
+            }
             .drawWithContent {
                 // The glow sits behind the card; the ring on top of it.
                 if (ring) drawLiftShadow(corner.toPx(), lift)

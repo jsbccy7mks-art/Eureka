@@ -44,7 +44,7 @@ jobs:
         run: cp CHANGELOG.md app/src/main/assets/changelog.md
 
       - name: Run tests
-        run: gradle testReleaseUnitTest --no-daemon
+        run: gradle testDebugUnitTest --no-daemon
 
       - name: Build APK
         env:
