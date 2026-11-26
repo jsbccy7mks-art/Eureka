@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.40.0
+
+**New**
+- Trailers now play in Zapp's own player instead of a YouTube page: sharper (up to 4K with
+  Trailer quality on Best), sound in step with the picture, no YouTube buttons, and they fade in
+  only once the first frame is ready. Black bars inside a trailer are zoomed away. Trailers are
+  looked up the moment a title is focused, so they're ready when the wait is over. If YouTube
+  won't play along, the old web player takes over.
+- Details pages: the trailer starts while you rest on Play and stops when you press anything;
+  rest on Play again to bring it back. While it plays, Up turns its sound on or off.
+- The Trailer button opens a full-screen trailer with controls: OK pauses, Left and Right go back
+  and forward 10 seconds.
+- Collection theme tunes play through Zapp's player too, so they're more reliable.
+- Collections has its own place in the sidebar, with a large centred header for the collection
+  you're on. It shows once your TMDB key is added (Settings, Home screen to switch it off).
+- Live TV has tabs: Channels, TV guide and Sports (Guide and Sports have left the sidebar).
+  It always opens on Channels.
+- Settings, Home screen: "Rate films and series", to rate more whenever you like.
+
+**Improved**
+- Rows: focus moves along the cards on screen until it's about halfway across, then the row
+  slides, so you always see what's coming. At the ends, focus goes all the way to the first or
+  last card.
+- Library always opens on Films; tabs are Films, Series, All, Loved.
+- For you starts after 5 ratings; Rate films shows how many you've done and a clear Done.
+- Home shows only the IMDb rating; details pages show every score with the sites' logos.
+- Fixed: focus could freeze in Rate films after rating something.
+
 ## 0.39.3
 
 **Fixed**
