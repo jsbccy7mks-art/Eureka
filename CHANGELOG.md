@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.40.1
+
+**Fixed**
+- Back now closes the full-screen trailer.
+- Trailers start sooner: the lookup asks YouTube several ways at once with shorter waits, the
+  trailer is fetched as soon as a details page opens (so Trailer is ready when pressed), and play
+  begins after half a second of video instead of a few seconds.
+- Collection theme tunes are fetched while the collection's card is focused, so they start as the
+  page opens.
+
+**New**
+- Settings, Updates and about: "Test trailers" checks that trailers and theme tunes can play in
+  Zapp's own player, and says what YouTube answered if not.
+
 ## 0.40.0
 
 **New**
