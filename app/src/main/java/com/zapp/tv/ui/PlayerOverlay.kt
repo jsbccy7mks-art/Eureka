@@ -246,6 +246,16 @@ fun PlayerOverlay(
                             infoTick++
                             true
                         }
+                        key == Key.MediaRewind -> {
+                            playback.seekLive(-10_000)
+                            infoTick++
+                            true
+                        }
+                        key == Key.MediaFastForward -> {
+                            playback.seekLive(10_000)
+                            infoTick++
+                            true
+                        }
                         else -> false
                     }
                     KeyEventType.KeyUp -> when {
@@ -428,7 +438,7 @@ private fun ControlsPanel(
             Spacer(Modifier.height(12.dp))
             ErrorBanner("$it Try again, or move to another channel.")
         }
-        SeekBar(playback, focusable)
+        if (playback.timeshiftOn) LiveTimeshiftBar(playback, focusable) else SeekBar(playback, focusable)
         Spacer(Modifier.height(12.dp))
         var caption by remember { mutableStateOf<String?>(null) }
         Box(Modifier.height(18.dp)) {
@@ -448,6 +458,13 @@ private fun ControlsPanel(
                 opt(PlayerIcon.Next, "Next channel", onClick = onNextChannel)
             } else {
                 opt(if (playing) PlayerIcon.Pause else PlayerIcon.Play, if (playing) "Pause" else "Play", requester = first) { playback.togglePause() }
+            }
+            if (playback.timeshiftOn) {
+                opt(PlayerIcon.Back10, "Back 10 seconds") { playback.seekLive(-10_000) }
+                if (playback.behindLive() > 1_000) {
+                    opt(PlayerIcon.Forward10, "Forward 10 seconds") { playback.seekLive(10_000) }
+                    opt(PlayerIcon.Next, "Back to live", accent = true) { playback.goLive() }
+                }
             }
             opt(PlayerIcon.Channels, "Channels", onClick = onChannels)
             onLastChannel?.let { opt(PlayerIcon.LastChannel, "Last channel", onClick = it) }
@@ -802,7 +819,13 @@ private fun InfoBar(
                         StarGlyph(ZappColors.Star, 13.dp)
                     }
                     Spacer(Modifier.width(10.dp))
-                    LivePill()
+                    // Live, or how far behind after pausing or rewinding.
+                    val behindMs = if (playback?.timeshiftOn == true) playback.behindLive() else 0L
+                    if (behindMs >= 1_000) {
+                        Text("−" + formatClock(behindMs), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Color(0x33FFFFFF)).padding(horizontal = 6.dp, vertical = 1.dp))
+                    } else {
+                        LivePill()
+                    }
                     badge?.let {
                         Spacer(Modifier.width(6.dp))
                         QualityPill(it, false)
@@ -1140,6 +1163,70 @@ internal fun SubtitleStylePanel(playback: Playback, settings: com.zapp.tv.data.S
         Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             VodSubtitleText("This is how they look.", vodSubtitleSize(settings.vodSubSize) * 0.75f, settings.vodSubFont, settings.vodSubBold, settings.vodSubStyle)
+        }
+    }
+}
+
+/**
+ * Live TV with rewind: the last five minutes as a bar, with where you are on it. Left and Right
+ * move back and forward (hold for bigger steps); OK pauses; it says "Live" or how far behind.
+ */
+@Composable
+internal fun LiveTimeshiftBar(playback: Playback, active: Boolean) {
+    val state by produceState(Triple(0L, 0L, 0L), active) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            value = Triple(playback.liveOldest(), playback.liveWatching(), now)
+            delay(500)
+        }
+    }
+    val (oldest, watching, now) = state
+    val span = (now - oldest).coerceAtLeast(1)
+    val fraction = ((watching - oldest).toFloat() / span).coerceIn(0f, 1f)
+    val behind = playback.behindLive()
+    var barFocused by remember { mutableStateOf(false) }
+    val thick by androidx.compose.animation.core.animateDpAsState(if (barFocused) 6.dp else 3.dp, androidx.compose.animation.core.tween(160), label = "lbar")
+    Spacer(Modifier.height(14.dp))
+    Column {
+        FocusSurface(
+            onClick = { playback.togglePause() },
+            onFocusChange = { barFocused = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(20.dp)
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    val step = if (e.nativeKeyEvent.repeatCount > 4) 30_000L else 10_000L
+                    when (e.key) {
+                        Key.DirectionRight -> { playback.seekLive(step); true }
+                        Key.DirectionLeft -> { playback.seekLive(-step); true }
+                        else -> false
+                    }
+                },
+            shape = RoundedCornerShape(50),
+            focusScale = 1f,
+            restColor = Color.Transparent,
+            focusColor = Color.Transparent,
+        ) { focused ->
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(thick + 10.dp).align(Alignment.Center)) {
+                val h = thick.toPx()
+                val y = size.height / 2f
+                val w = size.width
+                val r = androidx.compose.ui.geometry.CornerRadius(h / 2f)
+                drawRoundRect(Color.White.copy(alpha = 0.2f), androidx.compose.ui.geometry.Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(w, h), r)
+                drawRoundRect(Brush.horizontalGradient(barColors(), startX = 0f, endX = w), androidx.compose.ui.geometry.Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(w * fraction, h), r)
+                if (focused) drawCircle(Color.White, radius = h * 1.25f, center = androidx.compose.ui.geometry.Offset(w * fraction, y))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            Text("−" + formatClock(now - oldest), color = Color.White.copy(alpha = 0.55f), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (behind < 1_000) "LIVE" else "−" + formatClock(behind),
+                color = if (behind < 1_000) Color(0xFFFF5A5F) else Color.White.copy(alpha = 0.8f),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
     }
 }

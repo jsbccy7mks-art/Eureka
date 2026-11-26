@@ -187,6 +187,12 @@ private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SettingRow(
+            title = "Pause and rewind live TV",
+            body = "Keeps the last 5 minutes of the channel you're watching on this TV, so you can pause, rewind and catch up. Deleted when you change channel or leave. Uses about 100–400 MB while watching (more for 4K).",
+            value = SettingValue.Toggle(vm.settings.liveRewind),
+            onClick = { vm.settings.liveRewind = !vm.settings.liveRewind },
+        )
+        SettingRow(
             title = "Preview channels while browsing",
             body = "Plays the channel you rest on in the corner of Live TV and in the Home hero.",
             value = SettingValue.Toggle(vm.settings.preview),

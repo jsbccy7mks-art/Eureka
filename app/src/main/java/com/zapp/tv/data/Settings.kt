@@ -394,6 +394,12 @@ class Settings(context: Context) {
         get() = themeVolumeState.intValue
         set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
 
+    private val liveRewindState = mutableStateOf(prefs.getBoolean("liveRewind", true))
+    /** Keep the last five minutes of the channel you're watching, to pause and rewind. */
+    var liveRewind: Boolean
+        get() = liveRewindState.value
+        set(value) { liveRewindState.value = value; prefs.edit().putBoolean("liveRewind", value).apply() }
+
     private val matchFrameRateState = mutableStateOf(prefs.getBoolean("matchFrameRate", true))
     /** Switch the TV to the video's frame rate while playing (no judder). */
     var matchFrameRate: Boolean

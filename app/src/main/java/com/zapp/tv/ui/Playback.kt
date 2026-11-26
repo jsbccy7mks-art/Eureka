@@ -83,6 +83,59 @@ class Playback(
 
     val player: ExoPlayer = createPlayer(context, settings.largeBuffer, dataSourceFactory)
 
+    // ---- pause and rewind live TV (see Timeshift)
+    private val timeshift = com.zapp.tv.data.Timeshift((context.applicationContext as com.zapp.tv.ZappApp).sharedHttp, context.cacheDir)
+    /** Live TV is being kept, so it can be paused and rewound. */
+    var timeshiftOn by mutableStateOf(false)
+        private set
+    /** The piece the current playback started from, and when that piece began (wall-clock). */
+    private var tsFromPiece = 0
+
+    /** The live channel's address: through the rolling copy when that's possible. */
+    private fun liveSource(c: Channel): MediaItem {
+        val url = resolve(c)
+        if (settings.liveRewind && timeshift.suits(url)) {
+            timeshiftOn = true
+            tsFromPiece = 0
+            return MediaItem.Builder().setUri(timeshift.start(url, mapOf("User-Agent" to USER_AGENT))).setMimeType(MimeTypes.VIDEO_MP2T).build()
+        }
+        timeshift.stop()
+        timeshiftOn = false
+        return MediaItem.fromUri(url)
+    }
+
+    /** The wall-clock moment now on screen (live TV with rewind). */
+    fun liveWatching(): Long = timeshift.pieceStart(tsFromPiece).takeIf { it > 0 }?.let { it + player.currentPosition } ?: System.currentTimeMillis()
+
+    /** How far behind live the picture is, in ms (0 when live). */
+    fun behindLive(): Long = if (!timeshiftOn) 0 else (System.currentTimeMillis() - liveWatching() - 4_000).coerceAtLeast(0)
+
+    /** The oldest moment that can be rewound to (wall-clock). */
+    fun liveOldest(): Long = timeshift.oldest
+
+    /** Moves through the last five minutes; back to live when it reaches the present. */
+    fun seekLive(deltaMs: Long) {
+        if (!timeshiftOn) return
+        val target = (liveWatching() + deltaMs).coerceAtLeast(timeshift.oldest)
+        if (target >= System.currentTimeMillis() - 5_000) {
+            goLive()
+            return
+        }
+        val piece = timeshift.pieceAt(target)
+        tsFromPiece = piece
+        player.setMediaItem(MediaItem.Builder().setUri(timeshift.liveUrl(piece)).setMimeType(MimeTypes.VIDEO_MP2T).build())
+        player.prepare()
+        player.playWhenReady = true
+    }
+
+    fun goLive() {
+        if (!timeshiftOn) return
+        tsFromPiece = maxOf(0, timeshift.lastPiece)
+        player.setMediaItem(MediaItem.Builder().setUri(timeshift.liveUrl(-1)).setMimeType(MimeTypes.VIDEO_MP2T).build())
+        player.prepare()
+        player.playWhenReady = true
+    }
+
     /** The film or episode playing, or null for live TV. */
     var media by mutableStateOf<MediaInfo?>(null)
         private set
@@ -338,7 +391,7 @@ class Playback(
         cues = emptyList()
         applyPreferences()
         dataSourceFactory.setDefaultRequestProperties(emptyMap())
-        player.setMediaItem(MediaItem.fromUri(resolve(c)))
+        player.setMediaItem(liveSource(c))
         player.prepare()
         player.playWhenReady = true
     }
@@ -351,6 +404,8 @@ class Playback(
         error = null
         buffering = true
         channel = null
+        timeshift.stop()
+        timeshiftOn = false
         media = info
         cues = emptyList()
         cueHistory.clear()
@@ -389,7 +444,7 @@ class Playback(
         error = null
         retries = 0
         buffering = true
-        player.setMediaItem(MediaItem.fromUri(resolve(c)))
+        player.setMediaItem(liveSource(c))
         player.prepare()
         player.playWhenReady = true
     }
@@ -481,6 +536,8 @@ class Playback(
 
     fun stop() {
         retryJob?.cancel()
+        timeshift.stop()
+        timeshiftOn = false
         player.stop()
         player.clearMediaItems()
         channel = null
@@ -496,6 +553,7 @@ class Playback(
         } catch (e: Exception) {
             // Already gone.
         }
+        timeshift.stop()
         player.removeListener(listener)
         player.release()
     }
