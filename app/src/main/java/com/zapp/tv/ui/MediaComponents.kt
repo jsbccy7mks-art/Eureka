@@ -361,7 +361,7 @@ fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: Str
 
 /** A film or series title in poster lettering (Anton), large and tight. */
 @Composable
-fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: Int = 2, modifier: Modifier = Modifier) {
+fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: Int = 2, modifier: Modifier = Modifier, center: Boolean = false) {
     Text(
         name,
         fontFamily = CinemaFont,
@@ -372,7 +372,7 @@ fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: 
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
         color = Color.White,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+        textAlign = if (center) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start,
         modifier = modifier,
     )
 }

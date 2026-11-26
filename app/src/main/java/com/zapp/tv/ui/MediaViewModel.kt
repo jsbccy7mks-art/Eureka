@@ -1339,6 +1339,31 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     /** For "Rate a few": popular films right now. */
     suspend fun popularToRate(): List<MetaPreview> = previewsOf(runCatching { tmdb.popular() }.getOrDefault(emptyList()), 15)
 
+    /**
+     * Things you've definitely watched, to rate: films and series marked or finished as watched,
+     * and series you've seen at least three episodes of. Newest first; ones you've rated stay in.
+     */
+    suspend fun watchedToRate(): List<MetaPreview> = withContext(Dispatchers.IO) {
+        val pid = settings.profileId
+        val dao = zapp.mediaDao
+        val lib = dao.allLibrary(pid).associateBy { it.metaId }
+        val rows = (dao.watchedTitleRows(pid) + dao.seriesWatchedRows(pid, 3)).distinctBy { it.metaId }.take(60)
+        rows.map { r ->
+            async {
+                val l = lib[r.metaId]
+                var name = l?.name?.takeIf { it.isNotBlank() && !it.startsWith("tt") } ?: r.name.takeIf { it.isNotBlank() && !it.startsWith("tt") }
+                var poster = l?.poster ?: r.poster
+                if (name == null || poster == null) {
+                    val m = runCatching { meta(r.type, r.metaId) }.getOrNull()
+                    name = name ?: m?.preview?.name
+                    poster = poster ?: m?.preview?.poster
+                }
+                val n = name ?: return@async null
+                MetaPreview(r.metaId, r.type, n, poster ?: fallbackPoster(r.metaId), "poster", r.background, null, null, null, null, emptyList())
+            }
+        }.awaitAll().filterNotNull()
+    }
+
     // ---- MDBList ratings (optional, with your own key)
     val mdblist get() = zapp.mdblist
     suspend fun ratings(id: String, type: String): List<com.zapp.tv.data.RatingBadge> = runCatching { mdblist.ratings(id, type) }.getOrDefault(emptyList())

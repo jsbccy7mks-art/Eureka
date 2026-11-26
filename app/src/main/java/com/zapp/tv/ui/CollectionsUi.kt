@@ -135,6 +135,9 @@ fun CollectionScreen(
             .trapFocus()
             .background(ZappColors.Bg),
     ) {
+        // The theme tune's player sits underneath everything (a player that's hidden or tiny
+        // isn't allowed to play, so it's full size and simply covered).
+        if (musicAllowed) theme?.let { ThemeMusic(it, mvm.settings.themeVolume) }
         // A blurred wash of the collection's colours, then the focused film's backdrop drifting over it.
         val part = c?.parts?.getOrNull(index)
         BlurredBackdrop(c?.backdrop ?: c?.poster, dim = 0.5f)
@@ -160,7 +163,6 @@ fun CollectionScreen(
             ZappLoader(44.dp, Modifier.align(Alignment.Center))
             return@Box
         }
-        if (musicAllowed) theme?.let { ThemeMusic(it, mvm.settings.themeVolume) }
 
         val watched = WatchedMarks.ids
         val seen = c.parts.count { p -> imdb[p.item.id]?.let { it in watched } == true }
@@ -169,7 +171,7 @@ fun CollectionScreen(
 
         Column(Modifier.fillMaxSize()) {
             // ---- the franchise
-            Column(Modifier.padding(start = 64.dp, end = 64.dp, top = 40.dp)) {
+            Column(Modifier.fillMaxWidth().padding(start = 64.dp, end = 64.dp, top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     listOfNotNull(mvm.collectionLabel(collectionId), "${c.parts.size} FILMS", years, if (imdb.isNotEmpty()) "$seen WATCHED" else null).joinToString("   ·   "),
                     color = ZappColors.Brand2.copy(alpha = 0.95f),
@@ -178,10 +180,10 @@ fun CollectionScreen(
                     letterSpacing = 2.2.sp,
                 )
                 Spacer(Modifier.height(8.dp))
-                MovieTitle(c.name, 44.sp, maxLines = 1)
+                MovieTitle(c.name, 44.sp, maxLines = 1, center = true)
                 c.overview?.let {
                     Spacer(Modifier.height(8.dp))
-                    Text(it, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 640.dp))
+                    Text(it, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
                 }
             }
 
@@ -340,13 +342,13 @@ fun ThemeMusic(youtubeId: String, volume: Int) {
     val vol = volume.coerceIn(5, 80)
     val html = remember(id, vol) {
         """
-        <html><body style="margin:0;background:#000">
+        <html><head><style>html,body,#p{margin:0;width:100%;height:100%;background:#000}</style></head><body>
         <div id="p"></div>
         <script src="https://www.youtube.com/iframe_api"></script>
         <script>
         var P=null;
         function onYouTubeIframeAPIReady(){
-          P=new YT.Player('p',{videoId:'$id',width:'320',height:'180',
+          P=new YT.Player('p',{videoId:'$id',width:'100%',height:'100%',
             playerVars:{autoplay:1,mute:1,controls:0,loop:1,playlist:'$id',playsinline:1,rel:0,iv_load_policy:3,disablekb:1,fs:0},
             events:{
               onReady:function(e){e.target.mute();e.target.playVideo();},
@@ -361,11 +363,13 @@ fun ThemeMusic(youtubeId: String, volume: Int) {
         </script></body></html>
         """.trimIndent()
     }
-    Box(Modifier.size(1.dp).graphicsLayer { alpha = 0f }) {
+    Box(Modifier.size(320.dp, 240.dp)) {
         AndroidView(
+            modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(320, 180)
+                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                    setBackgroundColor(android.graphics.Color.BLACK)
                     isFocusable = false
                     isFocusableInTouchMode = false
                     settings.javaScriptEnabled = true

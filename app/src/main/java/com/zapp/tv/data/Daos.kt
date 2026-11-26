@@ -376,6 +376,14 @@ interface MediaDao {
     @Query("SELECT DISTINCT metaId FROM watch_progress WHERE profileId = :profileId AND watched = 1 AND videoId = metaId")
     fun observeWatchedTitles(profileId: Long): Flow<List<String>>
 
+    /** Titles you've definitely watched: films and series marked watched, newest first. */
+    @Query("SELECT * FROM watch_progress WHERE profileId = :profileId AND watched = 1 AND videoId = metaId ORDER BY updatedAt DESC")
+    suspend fun watchedTitleRows(profileId: Long): List<WatchProgress>
+
+    /** Series you've watched at least [min] episodes of (one row each, the latest), newest first. */
+    @Query("SELECT * FROM watch_progress WHERE id IN (SELECT MAX(id) FROM watch_progress WHERE profileId = :profileId AND watched = 1 AND type = 'series' AND videoId != metaId GROUP BY metaId HAVING COUNT(*) >= :min) ORDER BY updatedAt DESC")
+    suspend fun seriesWatchedRows(profileId: Long, min: Int): List<WatchProgress>
+
     @Query("DELETE FROM watch_progress WHERE profileId = :profileId AND metaId = :metaId AND watched = 1")
     suspend fun deleteWatched(profileId: Long, metaId: String)
 

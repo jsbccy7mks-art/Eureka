@@ -20,6 +20,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -36,7 +38,13 @@ import com.zapp.tv.data.Rating
 @Composable
 fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
     BackHandler(onBack = onDone)
-    val films by produceState<List<com.zapp.tv.addons.MetaPreview>?>(null) { value = mvm.popularToRate() }
+    // What you've watched; popular films only if there's nothing watched yet.
+    var fromWatched by remember { mutableStateOf(true) }
+    val films by produceState<List<com.zapp.tv.addons.MetaPreview>?>(null) {
+        val watched = mvm.watchedToRate()
+        fromWatched = watched.isNotEmpty()
+        value = watched.ifEmpty { mvm.popularToRate() }
+    }
     val first = remember { FocusRequester() }
     LaunchedEffect(films) {
         kotlinx.coroutines.delay(150)
@@ -48,8 +56,12 @@ fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
         Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 34.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Rate a few films", fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Text("OK: like, love, dislike, or clear. The more you rate, the better For you gets.", color = ZappColors.Dim, fontSize = 13.sp)
+                    Text(if (fromWatched) "Rate what you've watched" else "Rate a few films", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (fromWatched) "Films and series you've finished. OK: like, love, dislike, or clear. The more you rate, the better For you gets."
+                        else "Nothing marked watched yet, so here are popular films. OK: like, love, dislike, or clear.",
+                        color = ZappColors.Dim, fontSize = 13.sp,
+                    )
                 }
                 Text("${films.orEmpty().count { rated[it.id] != null }} rated", color = ZappColors.Faint, fontSize = 13.sp)
                 Spacer(Modifier.padding(start = 16.dp))
