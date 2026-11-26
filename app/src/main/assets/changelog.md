@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.39.1
+
+**Improved**
+- Details pages: Like, Love and Dislike moved to the second page, beside Play and Mark as watched
+  (for series, beside Credits).
+- Black is now one of the custom theme colours.
+
 ## 0.39.0
 
 **New**

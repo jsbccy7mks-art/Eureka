@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -1117,7 +1118,12 @@ private fun AppearancePane(vm: AppViewModel) {
                             onClick = { s.customColors = if (firstColour) i to s.customColors.second else s.customColors.first to i },
                             modifier = Modifier
                                 .size(32.dp)
-                                .border(2.dp, if (chosen) Color.White else Color.Transparent, androidx.compose.foundation.shape.CircleShape),
+                                .border(
+                                    if (chosen) 2.dp else 1.dp,
+                                    // Black needs an edge to be seen on the dark page.
+                                    if (chosen) Color.White else if (c.luminance() < 0.05f) Color(0x55FFFFFF) else Color.Transparent,
+                                    androidx.compose.foundation.shape.CircleShape,
+                                ),
                             shape = androidx.compose.foundation.shape.CircleShape,
                             focusScale = 1.15f,
                             focusColor = Color.Transparent,

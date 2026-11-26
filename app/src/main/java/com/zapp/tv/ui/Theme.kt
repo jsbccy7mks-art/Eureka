@@ -42,7 +42,7 @@ object Palettes {
     val Swatches = listOf(
         Color(0xFF4D7CFF), Color(0xFF2FD3F0), Color(0xFF22C58B), Color(0xFFB7F04D), Color(0xFFFFC94A),
         Color(0xFFFF8A3D), Color(0xFFFF4F6A), Color(0xFFFF5FA2), Color(0xFFB45CFF), Color(0xFF7A5CFF),
-        Color(0xFFFFFFFF), Color(0xFF8A8F9C),
+        Color(0xFFFFFFFF), Color(0xFF8A8F9C), Color(0xFF000000),
     )
 
     /** A custom theme from two swatches, on a near-black page. */

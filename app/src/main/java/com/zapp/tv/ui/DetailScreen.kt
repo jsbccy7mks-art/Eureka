@@ -376,8 +376,6 @@ fun DetailScreen(
                                 }
                                 IconAction(if (inLibrary) "✓" else "+", { mvm.toggleLibrary(meta, inLibrary) }, highlight = inLibrary)
                                 Spacer(Modifier.width(8.dp))
-                                RatingButtons(mvm.ratingOf(meta.id), size = 40.dp) { r -> mvm.rate(meta, r) }
-                                Spacer(Modifier.width(8.dp))
                                 if (!isSeries && movieProgress != null) {
                                     IconAction("↺", { onPlay(PlayRequest(meta, null, emptyList(), 0, mvm.settings.autoPlayFirst)) })
                                     Spacer(Modifier.width(8.dp))
@@ -542,6 +540,7 @@ fun DetailScreen(
                         detail = detail,
                         tmdb = tmdb,
                         ratings = ratings,
+                        mvm = mvm,
                         modifier = Modifier
                             .heightIn(min = screenHeight)
                             .onFocusChanged { if (it.hasFocus && section != 2) goTo(2) },
@@ -723,9 +722,11 @@ private fun StorySection(
                     modifier = Modifier.widthIn(max = 640.dp),
                 )
                 Spacer(Modifier.height(22.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     ZButton(playLabel, onPlay, style = ButtonStyle.Primary)
                     ZButton(if (watched) "Mark as unwatched" else "Mark as watched", { mvm.setWatched(meta, !watched) })
+                    Spacer(Modifier.width(10.dp))
+                    RatingButtons(mvm.ratingOf(meta.id), size = 40.dp) { r -> mvm.rate(meta, r) }
                 }
             }
             Spacer(Modifier.width(48.dp))
@@ -787,6 +788,7 @@ private fun CastSection(
     tmdb: com.zapp.tv.data.TmdbDetails?,
     ratings: List<com.zapp.tv.data.RatingBadge> = emptyList(),
     modifier: Modifier = Modifier,
+    mvm: MediaViewModel? = null,
     onPerson: (String) -> Unit = {},
 ) {
     val people = tmdb?.cast?.takeIf { it.isNotEmpty() }?.map { com.zapp.tv.addons.Person(it.name, it.role, it.photo) } ?: detail?.people.orEmpty()
@@ -837,6 +839,15 @@ private fun CastSection(
             }
             Spacer(Modifier.width(36.dp))
             Column(Modifier.weight(1f)) {
+                // Series: rate it here (films have the buttons with the story).
+                if (meta.type == "series" && mvm != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Your rating", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(12.dp))
+                        RatingButtons(mvm.ratingOf(meta.id), size = 38.dp) { r -> mvm.rate(meta, r) }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
                 Text("Credits", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 val creators = tmdb?.createdBy?.takeIf { it.isNotEmpty() } ?: if (meta.type == "series") detail?.writers else null
