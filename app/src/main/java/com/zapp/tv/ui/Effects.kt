@@ -14,6 +14,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -329,4 +330,36 @@ fun DelayedTrailer(youtubeId: String?, key: Any?, modifier: Modifier = Modifier,
         show = true
     }
     if (show && youtubeId != null) TrailerBackground(youtubeId, modifier, sound = FocusStyle.trailerSound)
+}
+
+/**
+ * A soft wash of colour from a picture, filling the screen: the artwork shrunk right down and
+ * stretched back up (so it's blurred on every TV), plus a real blur where Android can, then dimmed.
+ */
+@Composable
+fun BlurredBackdrop(url: String?, modifier: Modifier = Modifier, dim: Float = 0.45f) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Box(modifier.fillMaxSize()) {
+        androidx.compose.animation.Crossfade(targetState = url, animationSpec = tween(800), label = "blurBg") { u ->
+            if (u != null) {
+                coil.compose.AsyncImage(
+                    model = remember(u) {
+                        coil.request.ImageRequest.Builder(context).data(u).size(48, 27).crossfade(false).build()
+                    },
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            // A touch larger so the soft edges stay off screen.
+                            scaleX = 1.15f
+                            scaleY = 1.15f
+                        }
+                        .then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(40.dp) else Modifier),
+                )
+            }
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
+    }
 }

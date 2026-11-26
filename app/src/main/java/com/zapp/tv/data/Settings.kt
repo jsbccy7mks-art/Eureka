@@ -399,6 +399,12 @@ class Settings(context: Context) {
         get() = prefs.getString(acct("sportsTeams"), "") ?: ""
         set(value) { prefs.edit().putString(acct("sportsTeams"), value).apply(); accountTick.intValue++ }
 
+    private val postPlaySuggestState = mutableStateOf(prefs.getBoolean("postPlaySuggest", true))
+    /** When a film (or the latest episode) ends: shrink it and suggest something to watch next. */
+    var postPlaySuggest: Boolean
+        get() = postPlaySuggestState.value
+        set(value) { postPlaySuggestState.value = value; prefs.edit().putBoolean("postPlaySuggest", value).apply() }
+
     private val liveRewindState = mutableStateOf(prefs.getBoolean("liveRewind", true))
     /** Keep the last five minutes of the channel you're watching, to pause and rewind. */
     var liveRewind: Boolean

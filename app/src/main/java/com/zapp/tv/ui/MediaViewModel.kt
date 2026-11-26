@@ -1001,6 +1001,50 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun collectionTheme(id: Long): String? = if (settings.themeMusic) runCatching { zapp.themes.collectionTheme(id) }.getOrNull() else null
 
+    /** Episode ratings for one season (TMDB), by episode number. */
+    suspend fun episodeRatings(seriesId: String, season: Int): Map<Int, Double> {
+        if (!tmdb.enabled || !seriesId.startsWith("tt")) return emptyMap()
+        val id = runCatching { tmdb.details(seriesId, "series")?.tmdbId }.getOrNull() ?: return emptyMap()
+        return runCatching { tmdb.seasonRatings(id, season) }.getOrDefault(emptyMap())
+    }
+
+    /** Something to watch next, with why it's suggested. */
+    data class Suggestion(val meta: MetaPreview, val reason: String, val trailer: String?)
+
+    /**
+     * After a film (or the latest episode of a series): the next film in its collection if you
+     * haven't seen it, then titles people also watched, skipping anything you've watched.
+     */
+    suspend fun suggestionsAfter(finished: MetaPreview): List<Suggestion> {
+        if (!tmdb.enabled || !finished.id.startsWith("tt")) return emptyList()
+        val d = runCatching { tmdb.details(finished.id, finished.type) }.getOrNull() ?: return emptyList()
+        val seen = watchedTitles.value + finished.id
+        val out = ArrayList<Triple<String, String, String>>() // imdb id, reason, type
+        d.collection?.let { ref ->
+            val c = collection(ref.id)
+            if (c != null) {
+                val ids = collectionImdbIds(c)
+                val idx = c.parts.indexOfFirst { ids[it.item.id] == finished.id }
+                c.parts.drop(idx + 1).firstOrNull { p -> ids[p.item.id]?.let { it !in seen } == true }?.let { p ->
+                    out.add(Triple(ids[p.item.id]!!, "Next in the ${c.name} collection", "movie"))
+                }
+            }
+        }
+        for (r in d.recommendations.take(10)) {
+            if (out.size >= 5) break
+            val id = runCatching { tmdb.imdbId(r) }.getOrNull() ?: continue
+            if (id in seen || out.any { it.first == id }) continue
+            out.add(Triple(id, "Because you watched ${finished.name}", r.type))
+        }
+        return kotlinx.coroutines.coroutineScope {
+            out.map { (id, reason, type) ->
+                async {
+                    runCatching { meta(type, id) }.getOrNull()?.let { m -> Suggestion(m.preview, reason, m.trailerYoutube) }
+                }
+            }.awaitAll().filterNotNull()
+        }
+    }
+
     // ---- MDBList ratings (optional, with your own key)
     val mdblist get() = zapp.mdblist
     suspend fun ratings(id: String, type: String): List<com.zapp.tv.data.RatingBadge> = runCatching { mdblist.ratings(id, type) }.getOrDefault(emptyList())

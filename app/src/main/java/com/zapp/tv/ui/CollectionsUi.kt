@@ -130,8 +130,9 @@ fun CollectionScreen(
             .trapFocus()
             .background(ZappColors.Bg),
     ) {
-        // Backdrop: the focused film's, drifting, darkened towards the bottom.
+        // A blurred wash of the collection's colours, then the focused film's backdrop drifting over it.
         val part = c?.parts?.getOrNull(index)
+        BlurredBackdrop(c?.backdrop ?: c?.poster, dim = 0.5f)
         Crossfade(targetState = part?.item?.backdrop ?: c?.backdrop, animationSpec = tween(700), label = "colBg", modifier = Modifier.fillMaxSize()) { u ->
             if (u != null) {
                 AsyncImage(model = hiRes(u), contentDescription = null, contentScale = ContentScale.Crop, alpha = 0.42f, modifier = Modifier.fillMaxSize().drift())

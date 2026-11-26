@@ -322,6 +322,12 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             onClick = { s.skipRecap = (s.skipRecap + 1) % 3 },
         )
         SettingRow(
+            title = "Suggest something when a film ends",
+            body = "At the credits of a film (or the latest episode of a series), it shrinks to a small window with sound and something to watch next fills the screen, with Play and Details. Needs your TMDB key.",
+            value = SettingValue.Toggle(s.postPlaySuggest),
+            onClick = { s.postPlaySuggest = !s.postPlaySuggest },
+        )
+        SettingRow(
             title = "Play the next episode automatically",
             body = "The Up next card always appears at the credits. On: it counts down from 10, then plays the next episode. Off: it waits for you.",
             value = SettingValue.Toggle(s.autoNextEpisode),

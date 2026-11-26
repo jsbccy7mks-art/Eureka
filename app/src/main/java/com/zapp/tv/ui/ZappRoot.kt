@@ -627,6 +627,22 @@ fun ZappRoot(vm: AppViewModel) {
                     vm.showToast("That source stopped working. Trying another…")
                     playRequest = pr.copy(resumeMs = at, autoPlay = true, failed = pr.failed + listOfNotNull(currentSourceKey))
                 },
+                onPlaySuggestion = { m ->
+                    vodOpen = false
+                    playback.stop()
+                    if (m.type == "movie") {
+                        playRequest = PlayRequest(m, null, emptyList(), 0, mvm.settings.autoPlayFirst)
+                    } else {
+                        playRequest = null
+                        detail = DetailRequest(m.type, m.id, m)
+                    }
+                },
+                onSuggestionDetails = { m ->
+                    vodOpen = false
+                    playRequest = null
+                    playback.stop()
+                    detail = DetailRequest(m.type, m.id, m)
+                },
                 onPlayNext = { next ->
                     vodOpen = false
                     playback.stop()

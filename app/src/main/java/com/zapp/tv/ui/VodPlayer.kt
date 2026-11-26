@@ -90,6 +90,9 @@ fun VodPlayer(
     onChooseSource: () -> Unit,
     onFirstFrame: () -> Unit = {},
     onPlayNext: (Video) -> Unit,
+    /** From the end screen: play a suggestion, or open its details. */
+    onPlaySuggestion: (com.zapp.tv.addons.MetaPreview) -> Unit = {},
+    onSuggestionDetails: (com.zapp.tv.addons.MetaPreview) -> Unit = {},
     onClose: () -> Unit,
     onSourceFailed: () -> Unit = {},
 ) {
@@ -206,7 +209,18 @@ fun VodPlayer(
         }
     }
 
+    // ---- the end screen: when a film (or the latest episode) reaches its credits, it shrinks to a
+    // small window and something to watch next fills the screen.
+    var endScreen by remember(info.videoId) { mutableStateOf(false) }
+    var endDismissed by remember(info.videoId) { mutableStateOf(false) }
+
     BackHandler {
+        if (endScreen) {
+            endScreen = false
+            endDismissed = true
+            focus.tryRequest()
+            return@BackHandler
+        }
         panel = when (panel) {
             VodPanel.SubStyle -> VodPanel.Subtitles
             VodPanel.Audio, VodPanel.Subtitles, VodPanel.Details -> VodPanel.Controls
@@ -273,6 +287,33 @@ fun VodPlayer(
     val credits = next != null && !creditsDismissed && segments?.postCredits == null &&
         segments?.outro?.let { positionNow >= it.startMs && player.duration > 0 && it.startMs > player.duration / 2 } == true
 
+    val suggestHere = mvm.settings.postPlaySuggest && (request.video == null || next == null) && !info.videoId.startsWith("catchup:") && request.meta.id.startsWith("tt")
+    val suggestions by produceState<List<MediaViewModel.Suggestion>?>(null, info.videoId, suggestHere) {
+        if (suggestHere) {
+            // Fetched ahead (in the last quarter), so they're ready when the credits start.
+            while (player.duration <= 0 || player.currentPosition < player.duration * 0.75) delay(5_000)
+            value = runCatching { mvm.suggestionsAfter(request.meta) }.getOrDefault(emptyList())
+        }
+    }
+    LaunchedEffect(positionNow, suggestions) {
+        if (!suggestHere || endDismissed || !started || suggestions.isNullOrEmpty()) return@LaunchedEffect
+        val d = player.duration
+        if (d <= 0) return@LaunchedEffect
+        val creditsAt = segments?.outro?.startMs?.takeIf { it > d / 2 } ?: (d * 0.97).toLong()
+        val after = segments?.postCredits
+        if (!endScreen && positionNow >= creditsAt && (after == null || positionNow < after.startMs - 2_000)) {
+            panel = VodPanel.None
+            save()
+            endScreen = true
+        }
+        // A scene after the credits: back to full screen just before it.
+        if (endScreen && after != null && positionNow >= after.startMs - 2_000) {
+            endScreen = false
+            endDismissed = true
+            focus.tryRequest()
+        }
+    }
+
     // Next episode: count down after the episode ends (or when the credits start), if autoplay is on.
     var countdown by remember(info.videoId) { mutableIntStateOf(-1) }
     LaunchedEffect(credits) {
@@ -318,7 +359,7 @@ fun VodPlayer(
                 false
             }
             .onKeyEvent { e ->
-                if (panel != VodPanel.None || e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (endScreen || panel != VodPanel.None || e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val fast = e.nativeKeyEvent.repeatCount > 4
                 when (e.key) {
                     Key.DirectionLeft, Key.MediaRewind -> {
@@ -348,9 +389,29 @@ fun VodPlayer(
         val screen = androidx.compose.ui.platform.LocalConfiguration.current
         val sw = screen.screenWidthDp.toFloat()
         val sh = screen.screenHeightDp.toFloat()
+        androidx.compose.animation.AnimatedVisibility(
+            visible = endScreen,
+            enter = fadeIn(androidx.compose.animation.core.tween(600)),
+            exit = fadeOut(androidx.compose.animation.core.tween(250)),
+        ) {
+            PostPlayPage(
+                mvm = mvm,
+                suggestions = suggestions.orEmpty(),
+                onPlay = { m ->
+                    save()
+                    onPlaySuggestion(m)
+                },
+                onDetails = { m ->
+                    save()
+                    onSuggestionDetails(m)
+                },
+            )
+        }
         FullscreenVideo(
             playback = playback,
-            modifier = when (playback.pictureMode) {
+            modifier = if (endScreen) {
+                Modifier.align(Alignment.BottomEnd).padding(end = 56.dp, bottom = 56.dp).size(352.dp, 198.dp)
+            } else when (playback.pictureMode) {
                 // Fill: cover the screen, cropping the edges (the parts off-screen are simply not seen).
                 1 -> if (playback.aspect > sw / sh) {
                     Modifier.requiredSize((sh * playback.aspect).dp, sh.dp)
@@ -361,7 +422,32 @@ fun VodPlayer(
                 else -> Modifier.aspectRatio(playback.aspect, matchHeightConstraintsFirst = playback.aspect < 16f / 9f + 0.01f)
             },
         )
-        VodSubtitleLayer(playback, mvm.settings, raisedForPanel = panel == VodPanel.Controls)
+        if (!endScreen) VodSubtitleLayer(playback, mvm.settings, raisedForPanel = panel == VodPanel.Controls)
+        // The small window: OK (or Back) makes it full screen again.
+        if (endScreen) {
+            Box(Modifier.align(Alignment.BottomEnd).padding(end = 56.dp, bottom = 56.dp).size(352.dp, 198.dp)) {
+                FocusSurface(
+                    onClick = {
+                        endScreen = false
+                        endDismissed = true
+                        focus.tryRequest()
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(10.dp),
+                    focusScale = 1f,
+                    restColor = Color.Transparent,
+                    focusColor = Color.Transparent,
+                    ring = true,
+                ) {}
+                Text(
+                    if (segments?.postCredits != null) "Credits  ·  a scene after them" else "Credits",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
 
         if (started && playback.buffering && playback.error == null) {
             ZappLoader(36.dp)
@@ -369,7 +455,7 @@ fun VodPlayer(
 
         // Quick progress strip when seeking with the controls hidden.
         AnimatedVisibility(
-            visible = barVisible && panel == VodPanel.None,
+            visible = barVisible && panel == VodPanel.None && !endScreen,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn(),
             exit = fadeOut(),
@@ -423,7 +509,7 @@ fun VodPlayer(
         // Paused for a while with nothing open: the picture dims and the title, its story and
         // what's playing appear above the seek bar. Any button brings the controls back.
         AnimatedVisibility(
-            visible = paused && started && panel == VodPanel.None && !nextCard,
+            visible = paused && started && panel == VodPanel.None && !nextCard && !endScreen,
             enter = fadeIn(androidx.compose.animation.core.tween(600)),
             exit = fadeOut(androidx.compose.animation.core.tween(250)),
         ) {
@@ -484,7 +570,7 @@ fun VodPlayer(
         }
 
         // "Skip intro" / "Skip recap": already selected, so one press of OK skips.
-        val showSkip = skipTarget != null && panel == VodPanel.None && countdown <= 0 &&
+        val showSkip = skipTarget != null && panel == VodPanel.None && countdown <= 0 && !endScreen &&
             !((skipTarget == segments?.intro && mvm.settings.skipIntro == 2) || (skipTarget == segments?.recap && mvm.settings.skipRecap == 2))
         AnimatedVisibility(
             visible = showSkip,

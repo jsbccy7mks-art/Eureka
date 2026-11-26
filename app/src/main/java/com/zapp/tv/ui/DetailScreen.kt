@@ -181,6 +181,8 @@ fun DetailScreen(
             .trapFocus()
             .background(ZappColors.Bg),
     ) {
+        // ---- a blurred wash of the title's colours across the whole page
+        BlurredBackdrop(meta?.background ?: meta?.poster, dim = 0.5f)
         // ---- the picture behind everything: the title, or the episode you're on
         val backdrop = when {
             section == 1 && focusedEpisode?.thumbnail != null -> focusedEpisode?.thumbnail
@@ -404,6 +406,10 @@ fun DetailScreen(
                     // ================================================= 2. episodes
                     if (isSeries) {
                         val episodes = videos.filter { season == null || it.season == season }
+                        // Each episode's rating (TMDB), shown small on its card.
+                        val epRatings by produceState(emptyMap<Int, Double>(), request.id, season) {
+                            value = season?.takeIf { it > 0 }?.let { mvm.episodeRatings(request.id, it) } ?: emptyMap()
+                        }
                         val shown = focusedEpisode?.takeIf { it.season == season } ?: nextUp.first?.takeIf { it.season == season } ?: episodes.firstOrNull()
                         Box(
                             Modifier
@@ -497,6 +503,7 @@ fun DetailScreen(
                                                 Modifier.rememberFocus(memory, v.id),
                                                 upNext = v.id == nextUp.first?.id,
                                                 onFocus = { focusedEpisode = v },
+                                                rating = v.episode?.let { epRatings[it] },
                                                 onLongClick = { episodeMenu = v },
                                             ) { playEpisode(v) }
                                         }
@@ -1091,7 +1098,7 @@ private fun seasonsOf(videos: List<Video>): List<Int> =
 private fun seasonName(s: Int) = if (s == 0) "Specials" else "Season $s"
 
 @Composable
-private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, rating: Double? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     // The card you're on grows; the others stay compact.
     val w by androidx.compose.animation.core.animateDpAsState(if (focused) 290.dp else 190.dp, androidx.compose.animation.core.tween(220), label = "epw")
@@ -1134,6 +1141,17 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
             }
             if (p?.watched == true) {
                 WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
+            }
+            // The episode's rating, tiny, top left.
+            rating?.let { r ->
+                Text(
+                    "★ %.1f".format(java.util.Locale.UK, r),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0xCC000000), androidx.compose.ui.geometry.Offset(0f, 1f), 5f)),
+                    modifier = Modifier.align(Alignment.TopStart).padding(7.dp),
+                )
             }
         }
         if (!focused) {

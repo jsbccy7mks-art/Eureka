@@ -184,6 +184,20 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
         )
     }
 
+    private val seasonRatingsCache = ConcurrentHashMap<String, Map<Int, Double>>()
+
+    /** Each episode's TMDB rating (out of 10) in one season, by episode number. */
+    suspend fun seasonRatings(tvId: Long, season: Int): Map<Int, Double> = withContext(Dispatchers.IO) {
+        val k = "$tvId|$season"
+        seasonRatingsCache[k]?.let { return@withContext it }
+        val o = get("tv/$tvId/season/$season") ?: return@withContext emptyMap()
+        val m = o.optJSONArray("episodes").objects()
+            .filter { it.optInt("vote_count") >= 3 && it.optDouble("vote_average") > 0 }
+            .associate { it.optInt("episode_number") to it.optDouble("vote_average") }
+        seasonRatingsCache[k] = m
+        m
+    }
+
     /** People whose name matches (actors and directors), most popular first. */
     suspend fun searchPeople(query: String): List<TmdbPerson> = withContext(Dispatchers.IO) {
         if (query.length < 3) return@withContext emptyList()
