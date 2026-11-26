@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.34.0
+
+**New**
+- Smarter search:
+  - "Best matches" first: the top results from all your add-ons in one row, ranked by how well
+    the title matches, then what's in your library, what you're watching or have watched, and rating.
+  - People (with TMDB): actors and directors matching your search; pick one to see their films
+    and series.
+- Details page, cast: OK on someone's photo searches for them.
+
 ## 0.33.0
 
 **New**
