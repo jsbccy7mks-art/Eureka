@@ -3,6 +3,8 @@ package com.zapp.tv.ui
 import android.app.Activity
 import android.os.Build
 import android.view.Display
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
