@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.49.1
+
+**Fixed**
+- 0.49.0 wouldn't open: its new start-up buffer for films stopped the player being created. Taken
+  out for now.
+
 ## 0.49.0
 
 **New**

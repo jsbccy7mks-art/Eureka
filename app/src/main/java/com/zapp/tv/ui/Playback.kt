@@ -684,7 +684,7 @@ class Playback(
                 }
                 .build()
             return ExoPlayer.Builder(context)
-                .setLoadControl(FilmStartBuffer(loadControl))
+                .setLoadControl(loadControl)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
                 .build()
         }
