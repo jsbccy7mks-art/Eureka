@@ -138,6 +138,8 @@ fun DetailScreen(
     val tmdb by produceState<com.zapp.tv.data.TmdbDetails?>(null, request.id) { value = runCatching { mvm.tmdbDetails(request.id, request.type) }.getOrNull() }
     val progress by remember(request.id) { mvm.progressFor(request.id) }.collectAsState(initial = emptyList<WatchProgress>())
     val inLibrary by remember(request.id) { mvm.inLibrary(request.id) }.collectAsState(initial = false)
+    // How well it fits your taste (from your ratings).
+    val match by produceState<Int?>(null, request.id, mvm.tasteVersion) { value = mvm.matchPercent(request.id, request.type) }
     // Scores from MDBList (IMDb, Rotten Tomatoes, Metacritic, Letterboxd), when connected.
     val ratings by produceState(emptyList<com.zapp.tv.data.RatingBadge>(), request.id) { value = mvm.ratings(request.id, request.type) }
     val playFocus = remember { FocusRequester() }
@@ -351,9 +353,15 @@ fun DetailScreen(
                                 size = 12.sp,
                             )
                             }
-                            if (ratings.isNotEmpty()) {
+                            if (ratings.isNotEmpty() || match != null) {
                                 Spacer(Modifier.height(8.dp))
-                                RatingBadges(ratings)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    match?.let { m ->
+                                        Text("$m% match", color = if (m >= 70) Color(0xFF7EE2A8) else if (m < 40) Color(0xFFFF8A8A) else ZappColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Spacer(Modifier.width(14.dp))
+                                    }
+                                    RatingBadges(ratings)
+                                }
                             }
                             Spacer(Modifier.height(26.dp))
                             Text(
@@ -372,6 +380,8 @@ fun DetailScreen(
                                     Spacer(Modifier.width(8.dp))
                                 }
                                 IconAction(if (inLibrary) "✓" else "+", { mvm.toggleLibrary(meta, inLibrary) }, highlight = inLibrary)
+                                Spacer(Modifier.width(8.dp))
+                                RatingButtons(mvm.ratingOf(meta.id), size = 40.dp) { r -> mvm.rate(meta, r) }
                                 Spacer(Modifier.width(8.dp))
                                 if (!isSeries && movieProgress != null) {
                                     IconAction("↺", { onPlay(PlayRequest(meta, null, emptyList(), 0, mvm.settings.autoPlayFirst)) })

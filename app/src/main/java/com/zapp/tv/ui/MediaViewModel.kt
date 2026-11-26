@@ -49,6 +49,9 @@ const val NEW_EPISODES_ROW = "newEpisodes"
 const val LIBRARY_ROW = "library"
 const val COLLECTIONS_ROW = "collections"
 const val SPORTS_ROW = "sports"
+const val FOR_YOU_ROW = "forYou"
+const val LOVED_ROW = "loved"
+const val GEMS_ROW = "gems"
 
 data class HomeRowSetting(
     val id: String,
@@ -146,6 +149,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun switchProfile(id: Long) {
         settings.profileId = id
+        ratings.load()
+        recomputeTaste()
         nuvioVersion++
         syncNuvio(quiet = true)
     }
@@ -1018,7 +1023,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun suggestionsAfter(finished: MetaPreview): List<Suggestion> {
         if (!tmdb.enabled || !finished.id.startsWith("tt")) return emptyList()
         val d = runCatching { tmdb.details(finished.id, finished.type) }.getOrNull() ?: return emptyList()
-        val seen = watchedTitles.value + finished.id
+        val seen = watchedTitles.value + finished.id + ratings.all().filter { it.rating == com.zapp.tv.data.Rating.Dislike }.map { it.metaId }
         val out = ArrayList<Triple<String, String, String>>() // imdb id, reason, type
         d.collection?.let { ref ->
             val c = collection(ref.id)
@@ -1044,6 +1049,101 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             }.awaitAll().filterNotNull()
         }
     }
+
+    // ---- your ratings (Dislike / Like / Love) and the taste they add up to
+
+    val ratings get() = zapp.ratings
+    fun ratingOf(id: String): com.zapp.tv.data.Rating? = ratings.get(id)
+
+    /** Bumped when your taste changes, so rows built from it are worked out again. */
+    var tasteVersion by mutableStateOf(0)
+        private set
+    private var taste: Map<String, Double> = emptyMap()
+    private var tasteJob: kotlinx.coroutines.Job? = null
+
+    fun rate(meta: MetaPreview, r: com.zapp.tv.data.Rating?) {
+        ratings.set(meta.id, meta.type, meta.name, meta.poster, r)
+        if (simkl.client.signedIn) viewModelScope.launch { simkl.rate(meta.id, meta.type, r?.simkl) }
+        recomputeTaste()
+    }
+
+    /** Genres, lead cast and directors of a title, as taste features. */
+    private suspend fun features(id: String, type: String): List<String> {
+        val d = runCatching { tmdb.details(id, type) }.getOrNull() ?: return emptyList()
+        return d.genres.map { "g:${it.first}" } + d.cast.take(5).map { "p:${it.name}" } + d.directors.map { "d:$it" }
+    }
+
+    /** Loved counts most, liked a little, disliked against. */
+    fun recomputeTaste() {
+        if (!tmdb.enabled) return
+        tasteJob?.cancel()
+        tasteJob = viewModelScope.launch {
+            delay(400)
+            val t = HashMap<String, Double>()
+            for (r in ratings.all().take(150)) {
+                val w = when (r.rating) {
+                    com.zapp.tv.data.Rating.Love -> 3.0
+                    com.zapp.tv.data.Rating.Like -> 1.0
+                    com.zapp.tv.data.Rating.Dislike -> -2.0
+                }
+                features(r.metaId, r.type).forEach { f -> t[f] = (t[f] ?: 0.0) + w * (if (f.startsWith("g:")) 0.6 else 1.0) }
+            }
+            taste = t
+            tasteVersion++
+        }
+    }
+
+    /** How well a title fits your taste, as a percentage (null until you've rated a few). */
+    suspend fun matchPercent(id: String, type: String): Int? {
+        if (ratings.all().size < 3 || taste.isEmpty()) return null
+        val f = features(id, type)
+        if (f.isEmpty()) return null
+        val s = f.sumOf { taste[it] ?: 0.0 } / kotlin.math.sqrt(f.size.toDouble())
+        return (50 + 49 * kotlin.math.tanh(s / 2.5)).toInt().coerceIn(1, 99)
+    }
+
+    private suspend fun previewsOf(items: List<com.zapp.tv.data.TmdbItem>, limit: Int): List<MetaPreview> {
+        val seen = watchedTitles.value
+        return kotlinx.coroutines.coroutineScope {
+            items.take(limit * 2).map { async { tmdbToPreview(it) } }.awaitAll().filterNotNull()
+                .filter { it.id !in seen && ratingOf(it.id) == null }
+                .distinctBy { it.id }
+                .take(limit)
+        }
+    }
+
+    /** "For you": titles recommended by several things you liked or loved. */
+    suspend fun forYou(): List<MetaPreview> {
+        val liked = ratings.all().filter { it.rating != com.zapp.tv.data.Rating.Dislike }.take(15)
+        if (liked.isEmpty() || !tmdb.enabled) return emptyList()
+        val score = HashMap<Long, Pair<com.zapp.tv.data.TmdbItem, Double>>()
+        for (r in liked) {
+            val w = if (r.rating == com.zapp.tv.data.Rating.Love) 3.0 else 1.0
+            val recs = runCatching { tmdb.details(r.metaId, r.type)?.recommendations }.getOrNull().orEmpty()
+            recs.forEachIndexed { i, item -> score[item.id] = item to ((score[item.id]?.second ?: 0.0) + w * (1.0 - i / 40.0)) }
+        }
+        return previewsOf(score.values.sortedByDescending { it.second }.map { it.first }, 20)
+    }
+
+    /** "Because you loved …": the most recent love and what's like it. */
+    suspend fun becauseYouLoved(): Pair<String, List<MetaPreview>>? {
+        val loved = ratings.all().firstOrNull { it.rating == com.zapp.tv.data.Rating.Love } ?: return null
+        val recs = runCatching { tmdb.details(loved.metaId, loved.type)?.recommendations }.getOrNull().orEmpty()
+        val list = previewsOf(recs, 15)
+        return if (list.size < 3) null else loved.name to list
+    }
+
+    /** "Hidden gems for you": well-rated, less famous titles in your favourite genres. */
+    suspend fun hiddenGems(): List<MetaPreview> {
+        val genres = taste.filterKeys { it.startsWith("g:") }.filterValues { it > 0 }.entries.sortedByDescending { it.value }
+            .mapNotNull { it.key.removePrefix("g:").toIntOrNull() }.take(2)
+        if (genres.isEmpty()) return emptyList()
+        val items = runCatching { tmdb.gems(genres) }.getOrDefault(emptyList())
+        return previewsOf(items.shuffled(java.util.Random(System.currentTimeMillis() / 86_400_000L)), 15)
+    }
+
+    /** For "Rate a few": popular films right now. */
+    suspend fun popularToRate(): List<MetaPreview> = previewsOf(runCatching { tmdb.popular() }.getOrDefault(emptyList()), 15)
 
     // ---- MDBList ratings (optional, with your own key)
     val mdblist get() = zapp.mdblist
@@ -1075,6 +1175,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     // (After watchedTitles, which it needs.) Collections follow your library and what you've watched.
     init {
+        recomputeTaste()
         viewModelScope.launch {
             kotlinx.coroutines.flow.combine(library, watchedTitles) { l, w -> l.size to w.size }
                 .distinctUntilChanged()
@@ -1202,6 +1303,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         available[CONTINUE_ROW] = "Continue watching"
         available[BECAUSE_ROW] = "Because you watched…"
         available[NEW_EPISODES_ROW] = "New episodes"
+        available[FOR_YOU_ROW] = "For you"
+        available[LOVED_ROW] = "Because you loved…"
+        available[GEMS_ROW] = "Hidden gems for you"
         catalogs.forEach { available[it.key] = it.title }
         available[LIBRARY_ROW] = "Your library"
         available[COLLECTIONS_ROW] = "Your collections"
@@ -1218,7 +1322,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                 // Collections start switched off on Home (they live in Library); turn them on in Home layout.
                 val row = HomeRowSetting(id, title, id != COLLECTIONS_ROW, landscape = id == CONTINUE_ROW || id == COLLECTIONS_ROW)
                 // New smart rows go just below Continue watching; everything else at the end.
-                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW) result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row) else result.add(row)
+                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW || id == FOR_YOU_ROW || id == LOVED_ROW || id == GEMS_ROW) {
+                    result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row)
+                } else {
+                    result.add(row)
+                }
             }
         }
         // A first "top" or "trending" catalogue becomes a Top 10 until you choose otherwise.

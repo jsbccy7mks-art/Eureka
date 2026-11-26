@@ -368,6 +368,13 @@ fun RowOptionsDialog(
                 }
             }
             Spacer(Modifier.height(8.dp))
+            if (meta != null) {
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Rate", color = ZappColors.Dim, fontSize = 13.sp, modifier = Modifier.width(54.dp))
+                    RatingButtons(mvm.ratingOf(meta.id), size = 38.dp) { r -> mvm.rate(meta, r) }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
             var firstUsed = false
             fun firstOnce(): FocusRequester? = if (!firstUsed) { firstUsed = true; first } else null
             if (meta != null) {

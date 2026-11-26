@@ -37,6 +37,8 @@ data class TmdbDetails(
     val backdrop: String? = null,
     /** The franchise this film belongs to (Harry Potter, Bond…), if any. */
     val collection: TmdbCollectionRef? = null,
+    val genres: List<Pair<Int, String>> = emptyList(),
+    val directors: List<String> = emptyList(),
 )
 
 data class TmdbCollectionRef(val id: Long, val name: String, val poster: String?, val backdrop: String?)
@@ -156,6 +158,8 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             reviews = reviews,
             recommendations = recs,
             trailerKey = trailer,
+            genres = o.optJSONArray("genres").objects().map { it.optInt("id") to it.optString("name") },
+            directors = crewJob("Director"),
             collection = o.optJSONObject("belongs_to_collection")?.let { c ->
                 TmdbCollectionRef(
                     c.optLong("id"),
@@ -182,6 +186,27 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             backdrop = img(it.optString("backdrop_path"), "w780"),
             year = date.take(4).takeIf { y -> y.length == 4 },
         )
+    }
+
+    /** Popular films right now (for "Rate a few"). */
+    suspend fun popular(): List<TmdbItem> = withContext(Dispatchers.IO) {
+        get("trending/movie/week")?.optJSONArray("results").objects().filter { it.optString("poster_path").isNotBlank() }.map { item(it, "movie") }
+    }
+
+    /** Well rated but less famous titles in these genres ("Hidden gems for you"). */
+    suspend fun gems(genreIds: List<Int>, tv: Boolean = false): List<TmdbItem> = withContext(Dispatchers.IO) {
+        if (genreIds.isEmpty()) return@withContext emptyList()
+        val kind = if (tv) "tv" else "movie"
+        get(
+            "discover/$kind",
+            mapOf(
+                "with_genres" to genreIds.take(2).joinToString("|"),
+                "vote_average.gte" to "7.2",
+                "vote_count.gte" to "250",
+                "vote_count.lte" to "4000",
+                "sort_by" to "vote_average.desc",
+            ),
+        )?.optJSONArray("results").objects().filter { it.optString("poster_path").isNotBlank() }.map { item(it, kind) }
     }
 
     private val seasonRatingsCache = ConcurrentHashMap<String, Map<Int, Double>>()

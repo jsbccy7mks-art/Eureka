@@ -397,6 +397,7 @@ fun VodPlayer(
             PostPlayPage(
                 mvm = mvm,
                 suggestions = suggestions.orEmpty(),
+                finished = request.meta,
                 onPlay = { m ->
                     save()
                     onPlaySuggestion(m)

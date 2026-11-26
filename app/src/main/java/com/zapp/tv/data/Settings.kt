@@ -394,6 +394,11 @@ class Settings(context: Context) {
         get() = themeVolumeState.intValue
         set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
 
+    /** Your Dislike / Like / Love ratings, this profile (JSON). */
+    var ratingsJson: String
+        get() = prefs.getString(acct("ratings"), "") ?: ""
+        set(value) { prefs.edit().putString(acct("ratings"), value).apply() }
+
     /** Teams this profile follows (JSON). */
     var sportsTeamsJson: String
         get() = prefs.getString(acct("sportsTeams"), "") ?: ""

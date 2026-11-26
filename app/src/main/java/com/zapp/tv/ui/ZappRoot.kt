@@ -105,6 +105,7 @@ fun ZappRoot(vm: AppViewModel) {
     // A franchise showcase (Library, Collections), under any details page opened from it.
     var collectionOpen by remember { mutableStateOf<Long?>(null) }
     var collectionTick by remember { mutableIntStateOf(0) }
+    var rateAFew by remember { mutableStateOf(false) }
     var playRequest by remember { mutableStateOf<PlayRequest?>(null) }
     var vodOpen by remember { mutableStateOf(false) }
     val railFocus = remember { FocusRequester() }
@@ -138,6 +139,7 @@ fun ZappRoot(vm: AppViewModel) {
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
     TrailerGate.detailOpen = detail != null || collectionOpen != null
     WatchedMarks.ids = mvm.watchedTitles.collectAsState().value
+    LovedMarks.ids = mvm.ratings.loved()
 
     // ---- profiles
     val profiles by mvm.profiles.collectAsState()
@@ -369,7 +371,7 @@ fun ZappRoot(vm: AppViewModel) {
 
             else -> {
                 // Back from a screen goes to the sidebar; Back on the sidebar twice exits.
-                BackHandler(enabled = !playerOpen && form == null && detail == null && playRequest == null && collectionOpen == null) {
+                BackHandler(enabled = !playerOpen && form == null && detail == null && playRequest == null && collectionOpen == null && !rateAFew) {
                     if (!railFocused) {
                         railIntentAt = System.currentTimeMillis()
                         railFocused = true
@@ -411,6 +413,7 @@ fun ZappRoot(vm: AppViewModel) {
                             },
                             onOpenCollection = { collectionOpen = it },
                             onPlayChannel = { c -> watchChannel(c) },
+                            onRateAFew = { rateAFew = true },
                         )
                         Dest.Movies -> BrowseScreen(mvm, "movie", focusTick, { openTitle(it) }) {
                             settingsSection = "Addons"
@@ -420,7 +423,7 @@ fun ZappRoot(vm: AppViewModel) {
                             settingsSection = "Addons"
                             open(Dest.Settings)
                         }
-                        Dest.Library -> LibraryScreen(mvm, focusTick, onOpenCollection = { collectionOpen = it }) { openTitle(it) }
+                        Dest.Library -> LibraryScreen(mvm, focusTick, onOpenCollection = { collectionOpen = it }, onRateAFew = { rateAFew = true }) { openTitle(it) }
                         Dest.Live -> Column(Modifier.fillMaxSize()) {
                             ScreenHeader("Live TV", vm.guideStatus)
                             LiveScreen(vm, playback, focusTick) { watch(it) }
@@ -456,7 +459,7 @@ fun ZappRoot(vm: AppViewModel) {
                     }
                 }
                 Sidebar(
-                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null,
+                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null || rateAFew,
                     onRight = { requestContentFocus(0) },
                     dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide && it != Dest.Sports) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
@@ -535,6 +538,14 @@ fun ZappRoot(vm: AppViewModel) {
                     requestContentFocus()
                 },
             )
+        }
+
+        if (rateAFew) {
+            RateAFewScreen(mvm) {
+                rateAFew = false
+                lockRail()
+                requestContentFocus()
+            }
         }
 
         // A franchise showcase, with its theme tune (silent while a title, sources or player is on top).

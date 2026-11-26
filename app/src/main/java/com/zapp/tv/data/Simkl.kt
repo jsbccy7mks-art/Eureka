@@ -367,6 +367,20 @@ class SimklSync(private val db: AppDatabase, val client: SimklClient, private va
         }
     }
 
+    /** Sends a rating to Simkl (1-10), or removes it (null). */
+    suspend fun rate(metaId: String, type: String, rating: Int?) {
+        if (!metaId.startsWith("tt")) return
+        val key = if (type == "movie") "movies" else "shows"
+        val item = JSONObject().put("ids", JSONObject().put("imdb", metaId))
+        if (rating != null) item.put("rating", rating)
+        val body = JSONObject().put(key, JSONArray().put(item))
+        try {
+            client.post(if (rating != null) "/sync/ratings" else "/sync/ratings/remove", body)
+        } catch (e: Exception) {
+            // Best-effort.
+        }
+    }
+
     private fun itemBody(videoId: String, type: String, title: String): JSONObject? {
         val parts = videoId.split(':')
         val imdb = parts.firstOrNull()?.takeIf { it.startsWith("tt") } ?: return null

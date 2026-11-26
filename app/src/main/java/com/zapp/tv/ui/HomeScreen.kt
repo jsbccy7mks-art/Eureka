@@ -99,6 +99,7 @@ fun HomeScreen(
     onOpenAddons: () -> Unit,
     onOpenCollection: (Long) -> Unit = {},
     onPlayChannel: (com.zapp.tv.data.Channel) -> Unit = {},
+    onRateAFew: () -> Unit = {},
 ) {
     val addons by mvm.addons.collectAsState()
     val continueItems by mvm.continueWatching.collectAsState()
@@ -109,6 +110,11 @@ fun HomeScreen(
     val libraryItems by mvm.library.collectAsState()
     val seed = continueItems.firstOrNull()?.asPreview() ?: libraryItems.firstOrNull()?.let { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
     val because by produceState<Pair<String, List<MetaPreview>>?>(null, seed?.id) { value = runCatching { mvm.becauseYouWatched(seed) }.getOrNull() }
+    // Rows from your ratings.
+    val forYou by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.forYou() }.getOrDefault(emptyList()) }
+    val loved by produceState<Pair<String, List<MetaPreview>>?>(null, mvm.tasteVersion) { value = runCatching { mvm.becauseYouLoved() }.getOrNull() }
+    val gems by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.hiddenGems() }.getOrDefault(emptyList()) }
+    val noRatings = mvm.ratings.all().isEmpty()
     val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
@@ -120,6 +126,9 @@ fun HomeScreen(
         r.on && when (r.id) {
             CONTINUE_ROW -> continueItems.isNotEmpty()
             BECAUSE_ROW -> because != null
+            FOR_YOU_ROW -> forYou.isNotEmpty() || (noRatings && mvm.tmdb.enabled)
+            LOVED_ROW -> loved != null
+            GEMS_ROW -> gems.size >= 3
             NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
@@ -248,6 +257,60 @@ fun HomeScreen(
                         }
                     }
                 }
+            } else if (row.id == FOR_YOU_ROW && forYou.isEmpty()) {
+                // No ratings yet: a nudge to rate a few, so "For you" can start.
+                Column {
+                    RowHeader("For you")
+                    Box(Modifier.padding(start = RowInset)) {
+                        FocusSurface(
+                            onClick = onRateAFew,
+                            modifier = Modifier.width(cardWidth(1, true) * 1.6f).aspectRatio(WideAspect * 1.6f),
+                            onFocusChange = { if (it) { lastFocus = HomeFocus(row.id, ""); moves++ } },
+                            shape = RoundedCornerShape(12.dp),
+                            focusScale = 1f,
+                            restColor = ZappColors.Glass,
+                            focusColor = ZappColors.Glass,
+                            ring = true,
+                            ringCorner = 12.dp,
+                        ) {
+                            Row(Modifier.fillMaxSize().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                                RatingGlyph(com.zapp.tv.data.Rating.Love, filled = true, color = Color(0xFFFF5F8F), size = 34.dp)
+                                Spacer(Modifier.width(16.dp))
+                                Column {
+                                    Text("Rate a few films", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Like, love or dislike some films and this row fills with picks for you.", color = ZappColors.Dim, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (row.id == FOR_YOU_ROW || row.id == LOVED_ROW || row.id == GEMS_ROW) {
+                val title = when (row.id) {
+                    FOR_YOU_ROW -> "For you"
+                    LOVED_ROW -> "Because you loved ${loved?.first.orEmpty()}"
+                    else -> "Hidden gems for you"
+                }
+                val items = when (row.id) {
+                    FOR_YOU_ROW -> forYou
+                    LOVED_ROW -> loved?.second.orEmpty()
+                    else -> gems
+                }
+                MetaRow(
+                    title = title,
+                    items = items,
+                    badges = emptyMap(),
+                    size = row.size,
+                    landscape = row.landscape,
+                    pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
+                    onPendingDone = { pending = null },
+                    onFocusItem = { meta ->
+                        focused = HeroItem(meta, title)
+                        lastFocus = HomeFocus(row.id, meta.id)
+                        moves++
+                    },
+                    onOpen = onOpenTitle,
+                    onLongPress = { m -> options = RowOptions(row.id, meta = m) },
+                )
             } else if (row.id == BECAUSE_ROW || row.id == NEW_EPISODES_ROW || row.id == LIBRARY_ROW) {
                 val title = when (row.id) {
                     BECAUSE_ROW -> "Because you watched ${because?.first.orEmpty()}"

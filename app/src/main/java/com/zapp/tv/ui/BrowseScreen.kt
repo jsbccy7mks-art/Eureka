@@ -175,6 +175,7 @@ fun LibraryScreen(
     mvm: MediaViewModel,
     focusTick: Int,
     onOpenCollection: (Long) -> Unit = {},
+    onRateAFew: () -> Unit = {},
     onOpen: (MetaPreview) -> Unit,
 ) {
     val library by mvm.library.collectAsState()
@@ -191,8 +192,14 @@ fun LibraryScreen(
         first.tryRequest()
     }
 
-    val shown = remember(library, tab, sort, lastWatched, mvm.libraryYears.toMap()) {
-        val filtered = library.filter { tab == "all" || it.type == tab }
+    val loved = mvm.ratings.all().filter { it.rating == com.zapp.tv.data.Rating.Love }
+    val shown = remember(library, tab, sort, lastWatched, mvm.libraryYears.toMap(), loved) {
+        // Loved: everything you've loved, saved or not.
+        val filtered = if (tab == "loved") {
+            loved.map { com.zapp.tv.data.LibraryItem(metaId = it.metaId, type = it.type, name = it.name, poster = it.poster, addedAt = it.at) }
+        } else {
+            library.filter { tab == "all" || it.type == tab }
+        }
         when (sort) {
             "title" -> filtered.sortedBy { it.name.lowercase().removePrefix("the ") }
             "year" -> filtered.sortedByDescending { mvm.libraryYears[it.metaId] ?: 0 }
@@ -222,7 +229,7 @@ fun LibraryScreen(
         Row(Modifier.padding(start = 40.dp, end = 40.dp), verticalAlignment = Alignment.CenterVertically) {
             val showCollections = mvm.settings.libraryCollections
             Segmented(
-                listOf("all" to "All", "movie" to "Films", "series" to "Series") + if (showCollections) listOf("collections" to "Collections") else emptyList(),
+                listOf("all" to "All", "movie" to "Films", "series" to "Series", "loved" to "Loved") + if (showCollections) listOf("collections" to "Collections") else emptyList(),
                 tab,
             ) {
                 tab = it
@@ -238,6 +245,8 @@ fun LibraryScreen(
                 }
             }
             Spacer(Modifier.weight(1f))
+            ZButton("Rate films", onRateAFew, style = ButtonStyle.Quiet)
+            Spacer(Modifier.width(6.dp))
             // Library settings: Collections on or off.
             ZButton(if (showCollections) "Hide collections" else "Show collections", {
                 mvm.settings.libraryCollections = !showCollections
@@ -277,6 +286,7 @@ fun LibraryScreen(
         if (shown.isEmpty()) {
             Text(
                 if (library.isEmpty()) "Open a film or series and choose Add to library, or hold OK on any title."
+                else if (tab == "loved") "Nothing loved yet. Hold OK on any title and choose the heart."
                 else "No ${if (tab == "movie") "films" else "series"} saved yet.",
                 color = ZappColors.Dim,
                 fontSize = 13.sp,

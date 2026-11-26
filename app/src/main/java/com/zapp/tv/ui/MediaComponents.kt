@@ -151,6 +151,15 @@ fun PosterCard(
             if (meta.id in WatchedMarks.ids) {
                 WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
             }
+            if (meta.id in LovedMarks.ids) {
+                RatingGlyph(
+                    com.zapp.tv.data.Rating.Love,
+                    filled = true,
+                    color = Color(0xFFFF5F8F),
+                    size = 13.dp,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = if (meta.id in WatchedMarks.ids) 26.dp else 8.dp),
+                )
+            }
             if (rank != null) {
                 // Minimal: a small number on the left, with just a soft drop shadow.
                 Text(
@@ -499,7 +508,9 @@ fun CatalogRow(
                         )
                     }
                 }
-                itemsIndexed(if (top10) items.take(10) else items, key = { _, m -> m.id }) { index, meta ->
+                // Things you disliked go to the back of the row.
+                val ordered = items.sortedBy { if (mvm.ratingOf(it.id) == com.zapp.tv.data.Rating.Dislike) 1 else 0 }
+                itemsIndexed(if (top10) ordered.take(10) else ordered, key = { _, m -> m.id }) { index, meta ->
                     val requester = remember { FocusRequester() }
                     // An empty id means "the first card" (first start, nothing remembered yet).
                     if (pendingId == meta.id || (pendingId == "" && index == 0)) {
@@ -570,4 +581,80 @@ fun RowHeader(title: String, subtitle: String? = null) {
             Text(it, fontSize = 11.sp, color = ZappColors.Faint)
         }
     }
+}
+
+/** Thumbs down, thumbs up, and a heart, drawn to match the other line icons. */
+@Composable
+fun RatingGlyph(r: com.zapp.tv.data.Rating, filled: Boolean, color: Color, size: Dp, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier.size(size)) {
+        val w = this.size.width
+        val style = if (filled) androidx.compose.ui.graphics.drawscope.Fill else androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.08f, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+        if (r == com.zapp.tv.data.Rating.Love) {
+            val p = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.5f, w * 0.86f)
+                cubicTo(w * 0.1f, w * 0.6f, w * 0.06f, w * 0.34f, w * 0.18f, w * 0.22f)
+                cubicTo(w * 0.3f, w * 0.1f, w * 0.46f, w * 0.16f, w * 0.5f, w * 0.3f)
+                cubicTo(w * 0.54f, w * 0.16f, w * 0.7f, w * 0.1f, w * 0.82f, w * 0.22f)
+                cubicTo(w * 0.94f, w * 0.34f, w * 0.9f, w * 0.6f, w * 0.5f, w * 0.86f)
+                close()
+            }
+            drawPath(p, color, style = style)
+            return@Canvas
+        }
+        val up = r == com.zapp.tv.data.Rating.Like
+        fun y(v: Float) = if (up) v * w else (1f - v) * w
+        val hand = androidx.compose.ui.graphics.Path().apply {
+            moveTo(w * 0.36f, y(0.86f))
+            lineTo(w * 0.36f, y(0.46f))
+            lineTo(w * 0.5f, y(0.16f))
+            lineTo(w * 0.58f, y(0.12f))
+            lineTo(w * 0.63f, y(0.2f))
+            lineTo(w * 0.58f, y(0.4f))
+            lineTo(w * 0.82f, y(0.4f))
+            lineTo(w * 0.88f, y(0.48f))
+            lineTo(w * 0.8f, y(0.82f))
+            lineTo(w * 0.74f, y(0.86f))
+            close()
+        }
+        drawPath(hand, color, style = style)
+        val palmTop = if (up) w * 0.46f else w * 0.14f
+        drawRoundRect(color, androidx.compose.ui.geometry.Offset(w * 0.12f, palmTop), androidx.compose.ui.geometry.Size(w * 0.16f, w * 0.4f), androidx.compose.ui.geometry.CornerRadius(w * 0.03f), style = style)
+    }
+}
+
+/** Dislike / Like / Love as three small buttons; pressing the current one clears it. */
+@Composable
+fun RatingButtons(current: com.zapp.tv.data.Rating?, size: Dp = 40.dp, first: androidx.compose.ui.focus.FocusRequester? = null, onRate: (com.zapp.tv.data.Rating?) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        listOf(com.zapp.tv.data.Rating.Dislike, com.zapp.tv.data.Rating.Like, com.zapp.tv.data.Rating.Love).forEachIndexed { i, r ->
+            val on = current == r
+            FocusSurface(
+                onClick = { onRate(if (on) null else r) },
+                modifier = Modifier.size(size),
+                focusRequester = if (i == 0) first else null,
+                shape = RoundedCornerShape(50),
+                focusScale = 1.08f,
+                restColor = if (on) ZappColors.GlassHigh else ZappColors.Glass,
+            ) { focused ->
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    RatingGlyph(
+                        r,
+                        filled = on,
+                        color = when {
+                            focused -> ZappColors.OnFocus
+                            on && r == com.zapp.tv.data.Rating.Love -> Color(0xFFFF5F8F)
+                            on -> Color.White
+                            else -> ZappColors.Dim
+                        },
+                        size = size * 0.5f,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Titles you love (for the little heart on cards), kept up to date by the app. */
+object LovedMarks {
+    var ids by androidx.compose.runtime.mutableStateOf<Set<String>>(emptySet())
 }

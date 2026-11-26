@@ -63,6 +63,7 @@ import com.zapp.tv.addons.MetaPreview
 fun PostPlayPage(
     mvm: MediaViewModel,
     suggestions: List<MediaViewModel.Suggestion>,
+    finished: MetaPreview? = null,
     onPlay: (MetaPreview) -> Unit,
     onDetails: (MetaPreview) -> Unit,
 ) {
@@ -110,6 +111,14 @@ fun PostPlayPage(
             if (trailerOn && s.trailer != null) TrailerBackground(s.trailer, Modifier.fillMaxSize(), sound = false)
         }
 
+        // One optional press: how was the film you just watched?
+        if (finished != null) {
+            Row(Modifier.align(Alignment.TopStart).padding(start = 64.dp, top = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("How was ${finished.name}?", color = ZappColors.Dim, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 320.dp))
+                Spacer(Modifier.width(14.dp))
+                RatingButtons(mvm.ratingOf(finished.id), size = 36.dp) { r -> mvm.rate(finished, r) }
+            }
+        }
         AnimatedContent(
             targetState = index,
             transitionSpec = { fadeIn(tween(350)) togetherWith fadeOut(tween(150)) },
