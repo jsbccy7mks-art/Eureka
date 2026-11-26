@@ -229,8 +229,10 @@ fun ZappRoot(vm: AppViewModel) {
     }
 
     /** Replays a past programme (catch-up) in the film player, from its start. */
-    fun playCatchUp(row: ChannelRow, p: com.zapp.tv.data.Programme) {
-        val url = vm.catchupUrl(row.channel, p.start, p.stop)
+    /** Replays a past programme on [channel] from its start (from the guide, or "Watch from the start"). */
+    fun playCatchUpOn(channel: com.zapp.tv.data.Channel, p: com.zapp.tv.data.Programme) {
+        val row = object { val channel = channel }
+        val url = vm.catchupUrl(channel, p.start, p.stop)
         if (url == null) {
             vm.showToast("This programme can't be replayed")
             return
@@ -259,6 +261,8 @@ fun ZappRoot(vm: AppViewModel) {
         )
         vodOpen = true
     }
+
+    fun playCatchUp(row: ChannelRow, p: com.zapp.tv.data.Programme) = playCatchUpOn(row.channel, p)
 
     fun watchChannel(channel: com.zapp.tv.data.Channel) {
         vm.lastChannelUrl = channel.streamUrl
@@ -594,6 +598,10 @@ fun ZappRoot(vm: AppViewModel) {
                 onClose = {
                     playerOpen = false
                     requestContentFocus(60)
+                },
+                onRestart = { c, p ->
+                    playerOpen = false
+                    playCatchUpOn(c, p)
                 },
             )
         }

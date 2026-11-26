@@ -40,7 +40,7 @@ data class CatalogRef(val addon: InstalledAddon, val def: CatalogDef, val genre:
 /** Streams from one add-on, delivered as soon as that add-on answers. */
 data class StreamBatch(val addonName: String, val streams: List<StreamItem>, val error: String?)
 
-class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private val settings: com.zapp.tv.data.Settings) {
+class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private val settings: com.zapp.tv.data.Settings, cacheDir: java.io.File? = null) {
 
     val client = AddonClient(http)
     val nuvio = NuvioImport(http)
@@ -132,16 +132,75 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
                 .map { CatalogRef(a, it) }
         }
 
-    /** One page of a catalogue; pages are cached for 30 minutes. */
-    suspend fun catalogPage(ref: CatalogRef, skip: Int): List<MetaPreview> {
-        val key = "${ref.key}|$skip"
-        catalogCache[key]?.let { (time, items) -> if (System.currentTimeMillis() - time < 30 * 60_000L) return items }
+    // First pages of catalogues are also kept on disk, so Home shows straight away next time
+    // (with what it showed last time) and quietly refreshes in the background.
+    private val diskDir = cacheDir?.let { java.io.File(it, "catalogs").apply { mkdirs() } }
+    private val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+
+    private fun diskFile(key: String) = diskDir?.let { java.io.File(it, Integer.toHexString(key.hashCode()) + "_" + key.length + ".json") }
+
+    private fun saveToDisk(key: String, items: List<MetaPreview>) {
+        val f = diskFile(key) ?: return
+        runCatching {
+            val a = org.json.JSONArray()
+            items.forEach { m ->
+                a.put(
+                    JSONObject().put("id", m.id).put("type", m.type).put("name", m.name).put("poster", m.poster).put("shape", m.posterShape)
+                        .put("bg", m.background).put("logo", m.logo).put("desc", m.description).put("rel", m.releaseInfo)
+                        .put("imdb", m.imdbRating).put("genres", org.json.JSONArray(m.genres)),
+                )
+            }
+            f.writeText(JSONObject().put("key", key).put("items", a).toString())
+        }
+    }
+
+    private fun loadFromDisk(key: String): List<MetaPreview>? {
+        val f = diskFile(key)?.takeIf { it.exists() } ?: return null
+        return runCatching {
+            val o = JSONObject(f.readText())
+            if (o.optString("key") != key) return null
+            val a = o.getJSONArray("items")
+            fun JSONObject.s(n: String) = if (isNull(n)) null else optString(n).takeIf { it.isNotBlank() }
+            (0 until a.length()).map { i ->
+                val m = a.getJSONObject(i)
+                val g = m.optJSONArray("genres")
+                MetaPreview(
+                    m.getString("id"), m.getString("type"), m.optString("name"), m.s("poster"), m.optString("shape", "poster"),
+                    m.s("bg"), m.s("logo"), m.s("desc"), m.s("rel"), m.s("imdb"),
+                    if (g == null) emptyList() else (0 until g.length()).map { g.getString(it) },
+                )
+            }
+        }.getOrNull()?.takeIf { it.isNotEmpty() }
+    }
+
+    private suspend fun fetchPage(ref: CatalogRef, skip: Int): List<MetaPreview> {
         val extra = buildMap {
             ref.genre?.let { put("genre", it) }
             if (skip > 0) put("skip", skip.toString())
         }
-        val items = ref.addon.let { client.catalog(it.base, ref.def, extra) }
+        return client.catalog(ref.addon.base, ref.def, extra)
+    }
+
+    /** One page of a catalogue; pages are cached for 30 minutes (first pages also on disk). */
+    suspend fun catalogPage(ref: CatalogRef, skip: Int): List<MetaPreview> {
+        val key = "${ref.key}|$skip"
+        catalogCache[key]?.let { (time, items) -> if (System.currentTimeMillis() - time < 30 * 60_000L) return items }
+        if (skip == 0) {
+            loadFromDisk(key)?.let { cached ->
+                // Show last time's straight away; fetch fresh for next time.
+                catalogCache[key] = (System.currentTimeMillis() - 25 * 60_000L) to cached
+                background.launch {
+                    runCatching { fetchPage(ref, 0) }.getOrNull()?.takeIf { it.isNotEmpty() }?.let {
+                        catalogCache[key] = System.currentTimeMillis() to it
+                        saveToDisk(key, it)
+                    }
+                }
+                return cached
+            }
+        }
+        val items = fetchPage(ref, skip)
         catalogCache[key] = System.currentTimeMillis() to items
+        if (skip == 0 && items.isNotEmpty()) background.launch { saveToDisk(key, items) }
         return items
     }
 

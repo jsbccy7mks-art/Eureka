@@ -57,6 +57,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
@@ -97,6 +98,7 @@ fun PlayerOverlay(
     playback: Playback,
     rows: LazyPagingItems<ChannelRow>,
     onClose: () -> Unit,
+    onRestart: ((Channel, Programme) -> Unit)? = null,
 ) {
     val channel = playback.channel ?: return
     val view = LocalView.current
@@ -111,6 +113,13 @@ fun PlayerOverlay(
     var idleTick by remember { mutableIntStateOf(0) }
     var zapJob by remember { mutableStateOf<Job?>(null) }
     var favTick by remember { mutableIntStateOf(0) }
+    // The channel you were on before this one (for "Last channel").
+    var previous by remember { mutableStateOf<Channel?>(null) }
+    var lastSeen by remember { mutableStateOf<Channel?>(null) }
+    LaunchedEffect(channel.streamUrl) {
+        if (lastSeen != null && lastSeen?.streamUrl != channel.streamUrl) previous = lastSeen
+        lastSeen = channel
+    }
     val press = remember { BooleanArray(2) } // [0] OK down, [1] long press fired
 
     DisposableEffect(Unit) {
@@ -264,7 +273,7 @@ fun PlayerOverlay(
         SubtitleLayer(playback.cues, vm.settings, raisedForPanel = panel == PlayerPanel.Controls || infoVisible)
 
         if (playback.buffering && playback.error == null) {
-            CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
+            ZappLoader(30.dp)
         }
 
         AnimatedVisibility(
@@ -273,7 +282,7 @@ fun PlayerOverlay(
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
-            BottomScrim { InfoBar(channel, favorite, programmes, now, timeFormat, hints = true) }
+            BottomScrim { InfoBar(channel, favorite, programmes, now, timeFormat, hints = true, playback = playback) }
         }
 
         AnimatedVisibility(
@@ -297,6 +306,19 @@ fun PlayerOverlay(
                     onDetails = { panel = PlayerPanel.Details },
                     onFavorite = { toggleFavorite(channel) },
                     onNextChannel = { zap(true) },
+                    onLastChannel = previous?.let { p ->
+                        {
+                            vm.lastChannelUrl = p.streamUrl
+                            playback.play(p)
+                            panel = PlayerPanel.None
+                            infoTick++
+                        }
+                    },
+                    onRestart = onRestart?.let { restart ->
+                        programmes.firstOrNull { it.start <= now && it.stop > now }
+                            ?.takeIf { vm.canCatchUp(channel, it.start, it.stop) }
+                            ?.let { p -> { restart(channel, p) } }
+                    },
                 )
             }
         }
@@ -386,49 +408,58 @@ private fun ControlsPanel(
     onDetails: () -> Unit,
     onFavorite: () -> Unit,
     onNextChannel: () -> Unit,
+    onLastChannel: (() -> Unit)? = null,
+    onRestart: (() -> Unit)? = null,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
     val audio = playback.choices(C.TRACK_TYPE_AUDIO)
     val subtitles = playback.choices(C.TRACK_TYPE_TEXT)
+    val playing by produceState(playback.player.playWhenReady) {
+        while (true) {
+            value = playback.player.playWhenReady
+            delay(300)
+        }
+    }
 
     Column {
-        InfoBar(channel, favorite, programmes, now, timeFormat, hints = false)
+        InfoBar(channel, favorite, programmes, now, timeFormat, hints = false, playback = playback)
         playback.error?.let {
             Spacer(Modifier.height(12.dp))
             ErrorBanner("$it Try again, or move to another channel.")
         }
         SeekBar(playback, focusable)
-        Spacer(Modifier.height(14.dp))
-        Row(
-            Modifier.focusGroup(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (playback.error != null) {
-                ZButton("Try again", { playback.retry() }, style = ButtonStyle.Primary, focusRequester = first)
-                ZButton("Next channel", onNextChannel)
-            } else {
-                ZButton(
-                    if (playback.player.playWhenReady) "Pause" else "Play",
-                    { playback.togglePause() },
-                    focusRequester = first,
-                )
+        Spacer(Modifier.height(12.dp))
+        var caption by remember { mutableStateOf<String?>(null) }
+        Box(Modifier.height(18.dp)) {
+            caption?.let {
+                Text(it, fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1.5f), 6f)))
             }
-            ZButton("Channels", onChannels)
-            ZButton(
-                if (audio.size > 1) "Audio (${audio.size})" else "Audio",
-                onAudio,
-            )
-            ZButton(
-                when {
-                    subtitles.isEmpty() -> "Subtitles"
-                    playback.subtitlesShowing -> "Subtitles on"
-                    else -> "Subtitles off"
-                },
-                onSubtitles,
-            )
-            ZButton("Stream info", onDetails)
-            ZButton(if (favorite) "Unfavourite" else "Favourite", onFavorite)
+        }
+        Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            @Composable
+            fun opt(icon: PlayerIcon, label: String, value: String? = null, accent: Boolean = false, requester: FocusRequester? = null, onClick: () -> Unit) {
+                Box(Modifier.onFocusChanged { if (it.hasFocus) caption = listOfNotNull(label, value).joinToString("  ·  ") else if (caption?.startsWith(label) == true) caption = null }) {
+                    IconOption(icon, label, value, onClick, requester = requester, accent = accent)
+                }
+            }
+            if (playback.error != null) {
+                opt(PlayerIcon.Restart, "Try again", requester = first) { playback.retry() }
+                opt(PlayerIcon.Next, "Next channel", onClick = onNextChannel)
+            } else {
+                opt(if (playing) PlayerIcon.Pause else PlayerIcon.Play, if (playing) "Pause" else "Play", requester = first) { playback.togglePause() }
+            }
+            opt(PlayerIcon.Channels, "Channels", onClick = onChannels)
+            onLastChannel?.let { opt(PlayerIcon.LastChannel, "Last channel", onClick = it) }
+            onRestart?.let { opt(PlayerIcon.Restart, "Watch from the start", "Catch-up", onClick = it) }
+            opt(PlayerIcon.Audio, "Audio", audio.firstOrNull { it.selected }?.label ?: if (audio.size > 1) "${audio.size} tracks" else null, onClick = onAudio)
+            opt(PlayerIcon.Subtitles, "Subtitles", when {
+                subtitles.isEmpty() -> "None"
+                playback.subtitlesShowing -> "On"
+                else -> "Off"
+            }, onClick = onSubtitles)
+            opt(if (favorite) PlayerIcon.FavouriteOn else PlayerIcon.Favourite, if (favorite) "Remove from favourites" else "Add to favourites", onClick = onFavorite)
+            opt(PlayerIcon.Info, "Stream info", playback.techParts().joinToString(" · ").ifBlank { null }, onClick = onDetails)
         }
     }
 }
@@ -713,8 +744,17 @@ private fun InfoBar(
     now: Long,
     timeFormat: java.text.DateFormat,
     hints: Boolean,
+    playback: Playback? = null,
 ) {
     val current = programmes.firstOrNull { it.start <= now && it.stop > now }
+    // What's actually playing (refreshed every few seconds), and a quality badge from it.
+    val tech by produceState(emptyList<String>(), channel.streamUrl) {
+        while (playback != null) {
+            value = playback.techParts()
+            delay(2_000)
+        }
+    }
+    val badge = playback?.videoHeight?.takeIf { it > 0 }?.let { heightBadge(it) } ?: qualityBadge(channel.name)
     val next = programmes.firstOrNull { it.start > now }
 
     Box(Modifier.fillMaxWidth()) {
@@ -758,6 +798,10 @@ private fun InfoBar(
                     }
                     Spacer(Modifier.width(10.dp))
                     LivePill()
+                    badge?.let {
+                        Spacer(Modifier.width(6.dp))
+                        QualityPill(it, false)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 if (current != null) {
@@ -781,6 +825,10 @@ private fun InfoBar(
                     ProgressLine(progressOf(current.start, current.stop, now), Modifier.width(420.dp))
                 } else {
                     Text("No guide information", color = ZappColors.Dim, fontSize = 13.sp)
+                }
+                tech.filter { it !in setOf("4K", "1080p", "720p", "SD") }.takeIf { it.isNotEmpty() }?.let { t ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(t.joinToString("  ·  "), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
                 }
                 if (next != null) {
                     Spacer(Modifier.height(7.dp))

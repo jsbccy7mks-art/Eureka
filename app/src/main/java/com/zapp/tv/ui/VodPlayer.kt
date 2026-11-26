@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.input.key.Key
@@ -641,10 +642,10 @@ private fun PlayerInfoBlock(playback: Playback, request: PlayRequest, info: Medi
     }
 }
 
-private enum class PlayerIcon { Play, Pause, Back10, Forward10, Audio, Subtitles, Sources, Picture, Boost, Info, Next }
+internal enum class PlayerIcon { Play, Pause, Back10, Forward10, Audio, Subtitles, Sources, Picture, Boost, Info, Next, Channels, Favourite, FavouriteOn, Restart, LastChannel }
 
 @Composable
-private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modifier = Modifier) {
+internal fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modifier = Modifier) {
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = this.size.width
@@ -730,6 +731,55 @@ private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modi
                     )
                     drawRoundRect(color, Offset(w * 0.7f, w * 0.2f), androidx.compose.ui.geometry.Size(w * 0.11f, w * 0.6f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
                 }
+                PlayerIcon.Channels -> {
+                    val sw = w * 0.07f
+                    drawRoundRect(color, Offset(w * 0.1f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.8f, w * 0.52f), androidx.compose.ui.geometry.CornerRadius(w * 0.08f), style = Stroke(sw))
+                    drawLine(color, Offset(w * 0.34f, w * 0.84f), Offset(w * 0.66f, w * 0.84f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.5f, w * 0.7f), Offset(w * 0.5f, w * 0.84f), sw, StrokeCap.Round)
+                }
+                PlayerIcon.Favourite, PlayerIcon.FavouriteOn -> {
+                    val star = Path()
+                    for (i in 0 until 10) {
+                        val rr = if (i % 2 == 0) w * 0.4f else w * 0.17f
+                        val ang = Math.toRadians(-90.0 + i * 36.0)
+                        val x = w / 2 + (rr * Math.cos(ang)).toFloat()
+                        val y = w * 0.53f + (rr * Math.sin(ang)).toFloat()
+                        if (i == 0) star.moveTo(x, y) else star.lineTo(x, y)
+                    }
+                    star.close()
+                    if (icon == PlayerIcon.FavouriteOn) drawPath(star, ZappColors.Star) else drawPath(star, color, style = Stroke(w * 0.065f, join = StrokeJoin.Round))
+                }
+                PlayerIcon.Restart -> {
+                    val r = w * 0.32f
+                    drawArc(color, -60f, 300f, false, Offset(w / 2 - r, w / 2 - r), androidx.compose.ui.geometry.Size(r * 2, r * 2), style = Stroke(w * 0.075f, cap = StrokeCap.Round))
+                    drawPath(
+                        Path().apply {
+                            moveTo(w * 0.62f, w * 0.1f)
+                            lineTo(w * 0.8f, w * 0.24f)
+                            lineTo(w * 0.6f, w * 0.34f)
+                            close()
+                        },
+                        color,
+                    )
+                    drawPath(
+                        Path().apply {
+                            moveTo(w * 0.44f, w * 0.38f)
+                            lineTo(w * 0.62f, w * 0.5f)
+                            lineTo(w * 0.44f, w * 0.62f)
+                            close()
+                        },
+                        color,
+                    )
+                }
+                PlayerIcon.LastChannel -> {
+                    val sw = w * 0.075f
+                    drawLine(color, Offset(w * 0.18f, w * 0.36f), Offset(w * 0.82f, w * 0.36f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.66f, w * 0.22f), Offset(w * 0.82f, w * 0.36f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.66f, w * 0.5f), Offset(w * 0.82f, w * 0.36f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.18f, w * 0.66f), Offset(w * 0.82f, w * 0.66f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.34f, w * 0.52f), Offset(w * 0.18f, w * 0.66f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.34f, w * 0.8f), Offset(w * 0.18f, w * 0.66f), sw, StrokeCap.Round)
+                }
                 PlayerIcon.Back10, PlayerIcon.Forward10 -> {
                     val back = icon == PlayerIcon.Back10
                     val r = w * 0.38f
@@ -765,7 +815,7 @@ private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modi
 
 /** A player icon on its own (no circle): soft shadow at rest; white, larger and underlined on focus. */
 @Composable
-private fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
+internal fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
     val s = if (big) 56.dp else 44.dp
     FocusSurface(
         onClick = onClick,
@@ -787,7 +837,7 @@ private fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequeste
 
 /** A short theme-coloured line under whatever has focus in the player. */
 @Composable
-private fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
+internal fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
     val w by androidx.compose.animation.core.animateDpAsState(if (focused) 18.dp else 0.dp, androidx.compose.animation.core.tween(160), label = "underline")
     Box(
         modifier
@@ -803,7 +853,7 @@ private fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
  * so the row itself stays clean.
  */
 @Composable
-private fun IconOption(icon: PlayerIcon, label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) {
+internal fun IconOption(icon: PlayerIcon, label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) {
     FocusSurface(
         onClick = onClick,
         modifier = Modifier.size(44.dp),

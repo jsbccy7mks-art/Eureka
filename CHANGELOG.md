@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.29.0
+
+**New**
+- Home starts instantly: catalogue rows are kept on the TV and shown straight away, then quietly
+  refreshed in the background for next time.
+- Live TV player:
+  - The quality badge (UHD, FHD, HD, SD, from what's actually playing) sits by the channel name,
+    with a quiet line of what's playing (HDR, audio, frame rate) under the programme.
+  - Controls are small icons like the film player: play/pause, channels, last channel,
+    "Watch from the start" (when the channel has catch-up), audio, subtitles, favourite, info.
+  - The Zapp loader replaces the spinner while a channel buffers.
+
 ## 0.28.0
 
 **New**
