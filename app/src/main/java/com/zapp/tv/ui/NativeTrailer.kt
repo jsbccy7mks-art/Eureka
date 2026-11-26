@@ -82,6 +82,8 @@ fun NativeVideo(
     onPlayer: (ExoPlayer?) -> Unit = {},
     /** The picture (or, for audio, the sound) has actually started. */
     onPlaying: () -> Unit = {},
+    /** Sound only (theme tunes): no picture is decoded or drawn, even from a video stream. */
+    audioOnly: Boolean = false,
 ) {
     val context = LocalContext.current
     val failed by rememberUpdatedState(onFailed)
@@ -93,6 +95,12 @@ fun NativeVideo(
             .setBufferDurationsMs(4_000, 30_000, 500, 1_500)
             .build()
         ExoPlayer.Builder(context).setMediaSourceFactory(factory).setLoadControl(quick).build().apply {
+            if (audioOnly) {
+                trackSelectionParameters = trackSelectionParameters.buildUpon()
+                    .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)
+                    .setMaxVideoSize(256, 144)
+                    .build()
+            }
             val main = source.video ?: source.audio!!
             val item = MediaItem.Builder().setUri(main).apply { if (source.hls) setMimeType(MimeTypes.APPLICATION_M3U8) }.build()
             if (source.video != null && source.audio != null && !source.hls) {
@@ -122,7 +130,7 @@ fun NativeVideo(
             }
             override fun onPlaybackStateChanged(state: Int) {
                 // Audio only (theme tunes): "shown" once it's ready to play.
-                if (state == Player.STATE_READY && source.video == null) shown = true
+                if (state == Player.STATE_READY && (audioOnly || source.video == null)) shown = true
                 if (state == Player.STATE_ENDED) ended()
             }
             override fun onPlayerError(error: PlaybackException) {
@@ -174,7 +182,7 @@ fun NativeVideo(
         }
     }
 
-    if (source.video == null) return // audio only: nothing to draw
+    if (audioOnly || source.video == null) return // sound only: nothing to draw
 
     BoxWithConstraints(modifier.clipToBounds(), contentAlignment = Alignment.Center) {
         // Cover the box (like artwork), keeping the video's shape.
@@ -331,6 +339,6 @@ fun ThemeMusic(youtubeId: String, volume: Int) {
     val s = source
     when {
         web -> WebThemeMusic(youtubeId, volume)
-        s != null -> NativeVideo(s, sound = true, volume = volume.coerceIn(5, 80) / 100f, loop = true, onFailed = { web = true })
+        s != null -> NativeVideo(s, sound = true, volume = volume.coerceIn(5, 80) / 100f, loop = true, onFailed = { web = true }, audioOnly = true)
     }
 }

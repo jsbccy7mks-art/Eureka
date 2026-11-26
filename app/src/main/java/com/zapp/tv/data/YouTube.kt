@@ -115,13 +115,15 @@ class YouTube(private val http: OkHttpClient) {
                     val sd = o.optJSONObject("streamingData")
                     if (sd == null) { notes.add("${c.name}: no streams"); return@Callable null }
                     val expires = System.currentTimeMillis() + (sd.optString("expiresInSeconds").toLongOrNull() ?: 18_000L) * 1000L - 10 * 60_000L
-                    pick(sd, maxHeight, audioOnly, expires).also { if (it == null) notes.add("${c.name}: nothing playable") }
+                    // The iPhone answer's separate files need an extra token to download; its HLS stream doesn't.
+                    pick(sd, maxHeight, audioOnly, expires, hlsOnly = c.name == "IOS").also { if (it == null) notes.add("${c.name}: nothing playable") }
                 })
             }
             for ((i, j) in jobs.withIndex()) {
                 val s = runCatching { j.get(9, TimeUnit.SECONDS) }.getOrNull() ?: continue
                 val secs = "%.1f".format(java.util.Locale.UK, (System.currentTimeMillis() - started) / 1000.0)
-                lastReport = "Zapp's player: " + (if (audioOnly) "audio" else if (s.hls) "HLS stream" else "${s.height}p video and audio") + " from ${callers[i].name} in $secs s."
+                lastReport = "Zapp's player: " + (if (s.hls) "HLS stream" else if (audioOnly) "audio" else "${s.height}p video and audio") + " from ${callers[i].name} in $secs s." +
+                    (if (notes.isNotEmpty()) " (" + notes.joinToString("; ") + ")" else "")
                 return s
             }
             lastReport = "Couldn't get the streams (the web player is used instead). " + notes.joinToString("; ")
@@ -137,10 +139,23 @@ class YouTube(private val http: OkHttpClient) {
         misses.clear()
         quietUntil = 0
         val v = resolve("dQw4w9WgXcQ", 1080)
-        val vr = lastReport
+        val vr = lastReport + (v?.let { " " + reach(it) } ?: "")
         val a = resolve("yB-c85V8Zsg", 0, audioOnly = true)
-        val ar = lastReport
+        val ar = lastReport + (a?.let { " " + reach(it) } ?: "")
         return "Trailer: $vr\nTheme tune: $ar"
+    }
+
+    /** Whether the first bytes of each file actually come down (the player's first step). */
+    private suspend fun reach(s: YtSource): String = withContext(Dispatchers.IO) {
+        fun probe(label: String, url: String?): String? {
+            url ?: return null
+            val u = if (url.contains("googlevideo.com") && !s.hls) "$url&range=0-1023" else url
+            val code = runCatching {
+                client.newCall(Request.Builder().url(u).header("User-Agent", callers[0].userAgent).build()).execute().use { it.code.toString() }
+            }.getOrElse { "error (${it.javaClass.simpleName})" }
+            return "$label $code"
+        }
+        "Download check: " + listOfNotNull(probe(if (s.hls) "stream" else "video", s.video), probe("audio", s.audio)).joinToString(", ") + "."
     }
 
     private fun ask(c: Caller, id: String): JSONObject? {
@@ -169,7 +184,11 @@ class YouTube(private val http: OkHttpClient) {
         }
     }
 
-    private fun pick(sd: JSONObject, maxHeight: Int, audioOnly: Boolean, expires: Long): YtSource? {
+    private fun pick(sd: JSONObject, maxHeight: Int, audioOnly: Boolean, expires: Long, hlsOnly: Boolean = false): YtSource? {
+        if (hlsOnly) {
+            val h = sd.optString("hlsManifestUrl").takeIf { it.startsWith("http") } ?: return null
+            return YtSource(h, null, true, if (audioOnly) 0 else maxHeight, expires)
+        }
         val adaptive = sd.optJSONArray("adaptiveFormats").objects().filter { it.optString("url").startsWith("http") }
         val audio = adaptive
             .filter { it.optString("mimeType").startsWith("audio/") }
