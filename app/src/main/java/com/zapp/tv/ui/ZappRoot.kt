@@ -126,6 +126,8 @@ fun ZappRoot(vm: AppViewModel) {
         coroutineScope.launch {
             delay(waitMs)
             when {
+                // These look after their own focus.
+                rateAFew || WhatsNewState.notes != null -> {}
                 detail != null -> detailTick++
                 collectionOpen != null -> collectionTick++
                 else -> focusTick++
@@ -138,6 +140,7 @@ fun ZappRoot(vm: AppViewModel) {
     // Trailers stop whenever something covers them.
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
     TrailerGate.detailOpen = detail != null || collectionOpen != null
+    OverlayFocus.open = rateAFew || WhatsNewState.notes != null
     WatchedMarks.ids = mvm.watchedTitles.collectAsState().value
     LovedMarks.ids = mvm.ratings.loved()
 

@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,8 +51,16 @@ fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
         kotlinx.coroutines.delay(150)
         first.tryRequest()
     }
+    // Focus never goes missing here: if something takes it away, it comes back to the card you were on.
+    var hasFocus by remember { mutableStateOf(false) }
+    var lastCard by remember { mutableStateOf<FocusRequester?>(null) }
+    LaunchedEffect(hasFocus, films) {
+        if (films == null || hasFocus) return@LaunchedEffect
+        kotlinx.coroutines.delay(250)
+        if (!hasFocus) (lastCard ?: first).tryRequest()
+    }
     val rated = mvm.ratings.byId
-    Box(Modifier.fillMaxSize().trapFocus().background(ZappColors.Bg)) {
+    Box(Modifier.fillMaxSize().trapFocus().onFocusChanged { hasFocus = it.hasFocus }.background(ZappColors.Bg)) {
         AmbientGlow(0.7f)
         Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 34.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -80,11 +89,12 @@ fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
                 ) {
                     itemsIndexed(list, key = { _, m -> m.id }) { i, m ->
                         val r = rated[m.id]?.rating
+                        val me = if (i == 0) first else remember { FocusRequester() }
                         Box {
                             PosterCard(
                                 meta = m,
-                                modifier = if (i == 0) Modifier.focusRequesterSafe(first) else Modifier,
-                                onFocus = {},
+                                modifier = Modifier.focusRequesterSafe(me),
+                                onFocus = { lastCard = me },
                                 onClick = {
                                     val next = when (r) {
                                         null -> Rating.Like

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.39.3
+
+**Fixed**
+- Rate films: focus could freeze after rating something (Home underneath took it). Home now never
+  takes focus while Rate films or What's new is open, and Rate films puts focus back on the card
+  you were on if anything takes it.
+
+**Improved**
+- "For you" waits until you've rated three things; until then Home shows "Rate a few more" with how
+  many you've done.
+
 ## 0.39.2
 
 **Improved**

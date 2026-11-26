@@ -78,6 +78,11 @@ object StartFocus {
     var fresh = true
 }
 
+/** True while something full screen is on top of the page (Rate films, What's new…), so the page underneath never takes focus. */
+object OverlayFocus {
+    var open by androidx.compose.runtime.mutableStateOf(false)
+}
+
 private data class RowOptions(val rowId: String, val progress: WatchProgress? = null, val meta: MetaPreview? = null)
 
 fun WatchProgress.asPreview() =
@@ -114,7 +119,9 @@ fun HomeScreen(
     val forYou by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.forYou() }.getOrDefault(emptyList()) }
     val loved by produceState<Pair<String, List<MetaPreview>>?>(null, mvm.tasteVersion) { value = runCatching { mvm.becauseYouLoved() }.getOrNull() }
     val gems by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.hiddenGems() }.getOrDefault(emptyList()) }
-    val noRatings = mvm.ratings.all().isEmpty()
+    // "For you" starts once there are a few ratings to go on; until then, the nudge to rate.
+    val ratedCount = mvm.ratings.all().size
+    val noRatings = ratedCount < 3
     val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
@@ -126,7 +133,7 @@ fun HomeScreen(
         r.on && when (r.id) {
             CONTINUE_ROW -> continueItems.isNotEmpty()
             BECAUSE_ROW -> because != null
-            FOR_YOU_ROW -> forYou.isNotEmpty() || (noRatings && mvm.tmdb.enabled)
+            FOR_YOU_ROW -> (forYou.isNotEmpty() && !noRatings) || (noRatings && mvm.tmdb.enabled)
             LOVED_ROW -> loved != null
             GEMS_ROW -> gems.size >= 3
             NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
@@ -155,7 +162,7 @@ fun HomeScreen(
     // - back from a title or the player: the card you were on.
     var moves by remember { mutableIntStateOf(0) }
     val firstRowId = rows.firstOrNull()?.id
-    LaunchedEffect(focusTick, firstRowId) {
+    LaunchedEffect(focusTick, firstRowId, OverlayFocus.open) {
         val tickChanged = focusTick != handledTick
         handledTick = focusTick
         val first = rows.firstOrNull()
@@ -170,6 +177,7 @@ fun HomeScreen(
             moves <= 1 -> start
             else -> null
         }
+        if (OverlayFocus.open) return@LaunchedEffect
         if (target != null) pending = target else if (rows.isEmpty()) emptyFocus.tryRequest()
     }
 
@@ -261,7 +269,7 @@ fun HomeScreen(
                         }
                     }
                 }
-            } else if (row.id == FOR_YOU_ROW && forYou.isEmpty()) {
+            } else if (row.id == FOR_YOU_ROW && (forYou.isEmpty() || noRatings)) {
                 // No ratings yet: a nudge to rate a few, so "For you" can start.
                 Column {
                     RowHeader("For you")
@@ -281,8 +289,12 @@ fun HomeScreen(
                                 RatingGlyph(com.zapp.tv.data.Rating.Love, filled = true, color = Color(0xFFFF5F8F), size = 34.dp)
                                 Spacer(Modifier.width(16.dp))
                                 Column {
-                                    Text("Rate a few films", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                    Text("Like, love or dislike some films and this row fills with picks for you.", color = ZappColors.Dim, fontSize = 12.sp)
+                                    Text(if (ratedCount == 0) "Rate a few films" else "Rate a few more", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (ratedCount == 0) "Like, love or dislike a few things you've watched and this row fills with picks for you."
+                                        else "$ratedCount of 3 rated. A couple more and this row fills with picks for you.",
+                                        color = ZappColors.Dim, fontSize = 12.sp,
+                                    )
                                 }
                             }
                         }
