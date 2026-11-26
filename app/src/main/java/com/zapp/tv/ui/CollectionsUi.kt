@@ -567,9 +567,13 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                             RowHeader(shelf.title)
                             val w = cardWidth(1, true)
                             val extra = w + 24.dp
+                            val rowState = androidx.compose.foundation.lazy.rememberLazyListState()
+                            val rowStart = rememberRowStart()
                             RowScrolling(RowInset + extra) {
                                 LazyRow(
-                                    modifier = Modifier.extendLeft(extra).fadeLeftOf(extra + RowInset),
+                                    state = rowState,
+                                    // Back from further along goes to the start of the shelf first.
+                                    modifier = Modifier.extendLeft(extra).fadeLeftOf(extra + RowInset).backToStart(rowStart, rowState),
                                     contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                                 ) {
@@ -578,8 +582,15 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                                         CollectionCard(
                                             c,
                                             w,
-                                            modifier = Modifier.rememberFocus(shelfMemory, shelf.id + ":" + c.id).then(if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier),
-                                            onFocus = { focused = c; mvm.prefetchTheme(c.id, c.name) },
+                                            modifier = Modifier
+                                                .rememberFocus(shelfMemory, shelf.id + ":" + c.id)
+                                                .then(if (j == 0) Modifier.focusRequesterSafe(rowStart.first) else Modifier)
+                                                .then(if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier),
+                                            onFocus = {
+                                                focused = c
+                                                rowStart.index = j
+                                                mvm.prefetchTheme(c.id, c.name)
+                                            },
                                             onLongClick = { menu = c to shelf.id },
                                         ) { onOpen(c.id) }
                                     }

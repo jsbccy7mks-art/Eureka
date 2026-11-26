@@ -306,7 +306,16 @@ fun PlayerOverlay(
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
+            val controlsFocus = androidx.compose.ui.platform.LocalFocusManager.current
             BottomScrim {
+                // Up from the top of the controls puts them away, like Back.
+                Box(
+                    Modifier.onKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown || e.key != Key.DirectionUp || panel != PlayerPanel.Controls) return@onKeyEvent false
+                        if (!controlsFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)) panel = PlayerPanel.None
+                        true
+                    },
+                ) {
                 ControlsPanel(
                     playback = playback,
                     channel = channel,
@@ -335,6 +344,7 @@ fun PlayerOverlay(
                             ?.let { p -> { restart(channel, p) } }
                     },
                 )
+                }
             }
         }
 

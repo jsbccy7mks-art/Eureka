@@ -518,8 +518,16 @@ fun VodPlayer(
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
+            val controlsFocus = androidx.compose.ui.platform.LocalFocusManager.current
             BottomScrim {
-                Column {
+                // Up from the top of the controls puts them away, like Back.
+                Column(
+                    Modifier.onKeyEvent { e ->
+                        if (e.type != KeyEventType.KeyDown || e.key != Key.DirectionUp || panel != VodPanel.Controls) return@onKeyEvent false
+                        if (!controlsFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)) panel = VodPanel.None
+                        true
+                    },
+                ) {
                 PlayerInfoBlock(playback, request, info, synopsis = false)
                 VodControls(
                     playback = playback,

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.50.0
+
+**Improved**
+- Details pages play their trailer like the Home header now: once it's playing, the page steps
+  aside and only the title's logo stays, top left at full brightness, while the trailer moves to
+  the middle with just a slight fade at its edges. Any button brings the page back.
+- The sound on/off hint and Up shortcut are gone from details pages (trailer sound is still in
+  Settings, Appearance).
+- In the player, Up from the top of the controls puts them away, the same as Back (films, episodes
+  and live TV).
+
+**Fixed**
+- On Collections, Back from further along a shelf goes back to its first collection, instead of
+  opening the sidebar.
+
 ## 0.49.0
 
 **New**

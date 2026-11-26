@@ -153,7 +153,18 @@ fun DetailScreen(
     var playFocused by remember(request.id) { mutableStateOf(false) }
     var keyTick by remember(request.id) { mutableIntStateOf(0) }
     var trailerShowing by remember(request.id) { mutableStateOf(false) }
-    var trailerSound by remember(request.id) { mutableStateOf(FocusStyle.trailerSound) }
+    // Like the Home header: once the trailer is really playing, the page steps aside for it.
+    var breathe by remember(request.id) { mutableStateOf(false) }
+    LaunchedEffect(trailerShowing) {
+        breathe = false
+        if (trailerShowing) {
+            kotlinx.coroutines.delay(600)
+            breathe = true
+        }
+    }
+    val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 0f else 1f, androidx.compose.animation.core.tween(if (breathe) 700 else 250), label = "detailText")
+    val logoAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, androidx.compose.animation.core.tween(if (breathe) 700 else 200), label = "detailLogo")
+    val grow by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, androidx.compose.animation.core.tween(if (breathe) 1200 else 300), label = "detailGrow")
     // Have the trailer's streams ready before Trailer is pressed (or Play rested on).
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     LaunchedEffect(detail?.trailerYoutube) {
@@ -197,11 +208,6 @@ fun DetailScreen(
             .trapFocus()
             .onPreviewKeyEvent { e ->
                 if (e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                // Up on Play while the trailer plays: sound on or off, without stopping it.
-                if (trailerShowing && playFocused && e.key == androidx.compose.ui.input.key.Key.DirectionUp) {
-                    trailerSound = !trailerSound
-                    return@onPreviewKeyEvent true
-                }
                 keyTick++
                 false
             }
@@ -217,13 +223,20 @@ fun DetailScreen(
         Box(
             Modifier
                 .align(Alignment.TopEnd)
-                .fillMaxWidth(0.78f)
+                .fillMaxWidth(0.78f + 0.1f * grow)
                 .fillMaxHeight(if (section == 1) 0.72f else 0.9f)
+                // While the trailer plays it moves to the middle of the screen.
+                .graphicsLayer {
+                    val frac = 0.78f + 0.1f * grow
+                    translationX = -(size.width / frac - size.width) / 2f * grow
+                }
                 .clipToBounds()
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.55f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    // A long soft fade on the left at rest; just a slight one on each side while playing.
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.55f - 0.43f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    if (grow > 0f) drawRect(Brush.horizontalGradient(*easedMask(start = 1f, end = 1f - 0.12f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                     drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                 },
         ) {
@@ -239,7 +252,6 @@ fun DetailScreen(
                     Modifier.fillMaxSize(),
                     onDetail = true,
                     enabled = playFocused && !trailerOpen,
-                    sound = trailerSound,
                     onShowing = { trailerShowing = it },
                 )
             }
@@ -316,11 +328,25 @@ fun DetailScreen(
                             .height(screenHeight)
                             .onFocusChanged { if (it.hasFocus && section != 0) goTo(0) },
                     ) {
+                        // While the trailer plays: just the title's logo, top left.
+                        if (logoAlpha > 0f) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(start = 56.dp, top = 34.dp)
+                                    .graphicsLayer { alpha = logoAlpha },
+                            ) {
+                                TitleLogo(meta.id, meta.logo, meta.name, Modifier.height(72.dp).widthIn(max = 340.dp), alignment = Alignment.TopStart) {
+                                    MovieTitle(meta.name, if (meta.name.length > 24) 24.sp else 30.sp, maxLines = 1)
+                                }
+                            }
+                        }
                         Column(
                             Modifier
                                 .align(Alignment.BottomStart)
                                 .fillMaxWidth()
-                                .padding(start = 56.dp, end = 48.dp, bottom = 30.dp),
+                                .padding(start = 56.dp, end = 48.dp, bottom = 30.dp)
+                                .graphicsLayer { alpha = textAlpha },
                         ) {
                             val credit = when {
                                 tmdb?.createdBy?.isNotEmpty() == true -> "CREATED BY " + tmdb!!.createdBy.take(2).joinToString(", ").uppercase()
@@ -410,8 +436,7 @@ fun DetailScreen(
                             }
                             Spacer(Modifier.height(26.dp))
                             Text(
-                                ("↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "STORY, CAST AND MORE") +
-                                    if (trailerShowing && playFocused) "      ↑   " + (if (trailerSound) "SOUND OFF" else "SOUND ON") else "",
+                                "↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "STORY, CAST AND MORE",
                                 color = ZappColors.Faint,
                                 fontSize = TextSize.Tag,
                                 fontWeight = FontWeight.SemiBold,
