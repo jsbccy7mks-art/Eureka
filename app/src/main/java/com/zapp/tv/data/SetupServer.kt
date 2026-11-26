@@ -36,6 +36,8 @@ class SetupServer(private val context: Context, private val handler: Handler) {
         suspend fun playlistsForPhone(): JSONArray
         suspend fun addFromPhone(body: JSONObject): String
         fun crashReport(): String?
+        /** What's connected (no keys or passwords, just whether and as whom), for the phone page. */
+        fun connectionsForPhone(): JSONObject = JSONObject()
     }
 
     val token: String = (1..6).map { ALPHABET.random() }.joinToString("")
@@ -151,6 +153,15 @@ class SetupServer(private val context: Context, private val handler: Handler) {
                             return
                         }
                         respond(out, 200, "text/html; charset=utf-8", crashPage(handler.crashReport()).toByteArray(Charsets.UTF_8))
+                    }
+
+                    path == "/api/status" -> {
+                        if (query["t"]?.trim()?.uppercase() != token) {
+                            respondJson(out, 403, error("That code doesn't match. Check the code on your TV."))
+                            return
+                        }
+                        val status = withContext(Dispatchers.Main) { handler.connectionsForPhone() }
+                        respondJson(out, 200, JSONObject().put("ok", true).put("status", status))
                     }
 
                     path == "/api/playlists" -> {

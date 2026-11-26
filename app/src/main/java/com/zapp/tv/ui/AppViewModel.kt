@@ -516,6 +516,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
 
     override fun crashReport(): String? = lastCrash
 
+    override fun connectionsForPhone(): JSONObject {
+        fun st(on: Boolean, text: String) = JSONObject().put("on", on).put("text", text)
+        val pid = settings.profileId
+        val nuvio = zapp.nuvio
+        val debrid = zapp.debrid.connected.map { it.name }
+        return JSONObject()
+            .put("stremio", if (zapp.stremio.signedIn) st(true, "Connected" + settings.stremioUser.takeIf { it.isNotBlank() }?.let { " as $it" }.orEmpty()) else st(false, "Not connected"))
+            .put("nuvio", if (nuvio.signedIn(pid)) st(true, "Connected" + nuvio.user(pid).takeIf { it.isNotBlank() }?.let { " as $it" }.orEmpty() + nuvio.linkedProfileName(pid).takeIf { it.isNotBlank() }?.let { ", profile $it" }.orEmpty()) else st(false, "Not connected"))
+            .put("simkl", when {
+                zapp.simkl.signedIn -> st(true, "Connected")
+                settings.simklClientId.isNotBlank() -> st(false, "App ID saved. Connect Simkl on the TV (Settings, Accounts and sync).")
+                else -> st(false, "Not connected")
+            })
+            .put("debrid", if (debrid.isNotEmpty()) st(true, "Connected: " + debrid.joinToString(", ")) else st(false, "Not connected"))
+            .put("tmdb", if (zapp.tmdb.enabled) st(true, "Connected") else st(false, "Not connected"))
+            .put("mdblist", if (zapp.mdblist.enabled) st(true, "Connected") else st(false, "Not connected"))
+            .put("sportsdb", if (settings.secret("sportsDbKey").isNotBlank()) st(true, "Using your own key") else st(false, "Using the free shared key"))
+    }
+
     init {
         if (lastCrash != null) {
             viewModelScope.launch {

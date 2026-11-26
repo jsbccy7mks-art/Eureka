@@ -59,6 +59,12 @@
   }
   .primary:disabled { opacity: .55; }
   .ghost { display: block; text-align: center; width: 100%; margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 14px; color: var(--text); text-decoration: none; font-weight: 600; }
+  .conn { display: none; align-items: center; gap: 8px; margin: 0 0 14px; padding: 8px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--panel-2); color: var(--dim); width: fit-content; }
+  .conn.show { display: flex; }
+  .conn::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--dim); opacity: .6; }
+  .conn.on { background: rgba(110, 231, 183, .10); color: var(--ok); }
+  .conn.on::before { background: var(--ok); opacity: 1; }
+  .subs button.on::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 7px; border-radius: 50%; background: var(--ok); vertical-align: middle; }
   .status { margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 15px; display: none; }
   .status.ok { display: block; background: rgba(110, 231, 183, .10); color: var(--ok); }
   .status.err { display: block; background: rgba(255, 79, 106, .12); color: var(--err); }
@@ -111,6 +117,7 @@
   </div>
 
   <form id="form" class="card" autocomplete="off">
+    <div class="conn" id="conn"></div>
     <!-- Xtream -->
     <div data-for="xtream">
       <h2>Xtream login</h2>
@@ -306,6 +313,26 @@
       : 'Leave empty to use the guide link inside the playlist, if it has one.';
     $('crashLink').href = '/crash?t=' + encodeURIComponent(currentToken());
     setStatus('', '');
+    showConn();
+  }
+
+  // What's connected already (asked of the TV; no keys or passwords come back).
+  let conn = {};
+  function showConn() {
+    const c = conn[type];
+    const el = $('conn');
+    el.className = 'conn' + (c ? ' show' : '') + (c && c.on ? ' on' : '');
+    el.textContent = c ? c.text : '';
+    document.querySelectorAll('.subs button').forEach((b) => b.classList.toggle('on', !!(conn[b.dataset.type] && conn[b.dataset.type].on)));
+  }
+  async function loadConn() {
+    const t = currentToken();
+    if (!t) return;
+    try {
+      const r = await fetch('/api/status?t=' + encodeURIComponent(t));
+      const data = await r.json();
+      if (data.ok) { conn = data.status; showConn(); }
+    } catch (e) { /* TV unreachable; ignore */ }
   }
 
   function choose(t) {
@@ -431,6 +458,7 @@
         setStatus('ok', data.message);
         $('form').reset();
         loadList();
+        loadConn();
       } else {
         setStatus('err', data.error);
       }
@@ -441,8 +469,9 @@
     }
   });
 
-  $('code').addEventListener('input', () => { if ($('code').value.trim().length === 6) { loadList(); show(); } });
+  $('code').addEventListener('input', () => { if ($('code').value.trim().length === 6) { loadList(); loadConn(); show(); } });
   loadList();
+  loadConn();
 </script>
 </body>
 </html>
