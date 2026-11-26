@@ -171,7 +171,7 @@ fun Modifier.backToStart(row: RowStart, state: androidx.compose.foundation.lazy.
                 state.scrollToItem(0)
                 repeat(6) {
                     kotlinx.coroutines.delay(30)
-                    if (runCatching { row.first.requestFocus() }.getOrDefault(false)) return@launch
+                    if (runCatching { row.first.requestFocus() }.isSuccess) return@launch
                 }
             }
         }
