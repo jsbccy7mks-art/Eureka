@@ -48,6 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 
 const val UPDATE_LINK = "github.com/jsbccy7mks-art/Eureka/releases/latest/download/zapp-tv.apk"
 
@@ -1273,6 +1276,9 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
     val continueCount = mvm.continueWatching.collectAsState().value.size
 
     fun update(newRows: List<HomeRowSetting>) = mvm.saveLayout(newRows)
+    var moving by remember { mutableStateOf<String?>(null) }
+    var menuFor by remember { mutableStateOf<HomeRowSetting?>(null) }
+    var confirmReset by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1281,7 +1287,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
     ) {
         item(key = "intro") {
             Text(
-                "Choose which catalogues appear on Home and in what order. Continue watching always comes first. On Home, hold OK on any card to change that row's size or shape.",
+                "Rows on Home in order, and the ones you can add. OK on a row to move, rename, resize or remove it. Continue watching always comes first.",
                 color = ZappColors.Dim,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 6.dp),
@@ -1320,20 +1326,161 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
                 }
             }
         }
-        items(rows.size, key = { rows[it].id }) { i ->
-            val r = rows[i]
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)) {
-                    SettingRow(
-                        title = r.title,
-                        body = (if (!r.on) "Hidden" else "Shown, " + listOf("small", "medium", "large")[r.size] + if (r.landscape) " landscape cards" else " posters") +
-                            if (r.id == CONTINUE_ROW) ". ${continueCount.let { if (it == 0) "Nothing in progress yet" else if (it == 1) "1 title in progress" else "$it titles in progress" }}" else "",
-                        value = SettingValue.Toggle(r.on),
-                        onClick = { update(rows.map { if (it.id == r.id) it.copy(on = !it.on) else it }) },
-                    )
+        // ---- On Home, in order
+        val shown = rows.filter { it.on }
+        item(key = "onHead") { LayoutHeading("On Home", "${shown.size} rows  ·  OK for options") }
+        items(shown.size, key = { "on:" + shown[it].id }) { i ->
+            val r = shown[i]
+            LayoutRow(
+                r,
+                moving = moving == r.id,
+                pinned = r.id == CONTINUE_ROW,
+                onClick = { if (moving == r.id) moving = null else menuFor = r },
+                onMove = { by -> mvm.moveShownRow(rows, r.id, by) },
+                onDrop = { moving = null },
+            )
+        }
+        // ---- Not on Home, grouped by where they come from
+        val hidden = rows.filter { !it.on }
+        if (hidden.isNotEmpty()) {
+            item(key = "offHead") { LayoutHeading("Not on Home", "OK to add") }
+            hidden.groupBy { it.source.ifBlank { "Other" } }.forEach { (group, list) ->
+                item(key = "group:$group") {
+                    Text(group.uppercase(), color = ZappColors.Faint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
                 }
-                if (i > 1) ZButton("Up", { mvm.moveRow(rows, r.id, -1) })
-                if (i in 1 until rows.size - 1) ZButton("Down", { mvm.moveRow(rows, r.id, 1) })
+                items(list.size, key = { "off:" + list[it].id }) { i ->
+                    val r = list[i]
+                    LayoutRow(r, moving = false, pinned = false, onClick = { menuFor = r }, onMove = {}, onDrop = {})
+                }
+            }
+        }
+        item(key = "reset") {
+            Box(Modifier.padding(top = 12.dp)) {
+                ZButton("Reset Home to the default", { confirmReset = true }, style = ButtonStyle.Quiet)
+            }
+        }
+    }
+
+    menuFor?.let { r -> LayoutMenu(mvm, rows, r, onMove = { moving = r.id }) { menuFor = null } }
+    if (confirmReset) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { confirmReset = false }) {
+            Column(Modifier.width(420.dp).clip(RoundedCornerShape(20.dp)).background(ZappColors.Panel).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Reset Home?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Every row goes back to its usual place, size and name.", color = ZappColors.Dim, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ZButton("Reset", { mvm.resetLayout(); confirmReset = false }, style = ButtonStyle.Danger)
+                    ZButton("Cancel", { confirmReset = false }, style = ButtonStyle.Quiet)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LayoutHeading(title: String, hint: String) {
+    Row(Modifier.padding(start = 6.dp, top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.Bottom) {
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(10.dp))
+        Text(hint, color = ZappColors.Faint, fontSize = 11.sp)
+    }
+}
+
+/** One slim line per row: its name, where it's from, and its size and shape. Moving: Up/Down move it, OK drops it. */
+@Composable
+private fun LayoutRow(r: HomeRowSetting, moving: Boolean, pinned: Boolean, onClick: () -> Unit, onMove: (Int) -> Unit, onDrop: () -> Unit) {
+    val tags = if (!r.on) emptyList() else listOfNotNull(
+        listOf("S", "M", "L")[r.size.coerceIn(0, 2)],
+        if (r.landscape) "Wide" else "Poster",
+        if (r.top10 == true) "Top 10" else null,
+    )
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .onPreviewKeyEvent { e ->
+                if (!moving || e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.key) {
+                    androidx.compose.ui.input.key.Key.DirectionUp -> { onMove(-1); true }
+                    androidx.compose.ui.input.key.Key.DirectionDown -> { onMove(1); true }
+                    androidx.compose.ui.input.key.Key.Back, androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight -> { onDrop(); true }
+                    else -> false
+                }
+            },
+        shape = RoundedCornerShape(10.dp),
+        focusScale = 1f,
+        restColor = if (moving) ZappColors.GlassHigh else ZappColors.Glass,
+    ) { focused ->
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (moving) {
+                Text("↕", color = if (focused) ZappColors.OnFocus else ZappColors.Brand2, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(r.label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            if (r.name != null) {
+                Spacer(Modifier.width(6.dp))
+                Text("(${r.title})", color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (moving) "Up/Down to move, OK to drop" else if (pinned) "Always first" else r.source,
+                color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                fontSize = 11.sp,
+                maxLines = 1,
+            )
+            tags.forEach { t ->
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    t,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (focused) ZappColors.OnFocus else ZappColors.Dim,
+                    modifier = Modifier
+                        .border(1.dp, if (focused) Color(0x55000000) else Color(0x33FFFFFF), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
+        }
+    }
+}
+
+/** OK on a row in Home layout. */
+@Composable
+private fun LayoutMenu(mvm: MediaViewModel, rows: List<HomeRowSetting>, r: HomeRowSetting, onMove: () -> Unit, onClose: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(60)
+        first.tryRequest()
+    }
+    var renaming by remember { mutableStateOf(false) }
+    if (renaming) {
+        RenameRowDialog(r, onRename = { n -> mvm.updateRow(rows, r.id, { it.copy(name = n) }) }) {
+            renaming = false
+            onClose()
+        }
+        return
+    }
+    fun change(f: (HomeRowSetting) -> HomeRowSetting) = mvm.updateRow(rows, r.id, f)
+    val fixedShape = r.id == CONTINUE_ROW || r.id == NEW_EPISODES_ROW
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier.width(420.dp).clip(RoundedCornerShape(20.dp)).background(ZappColors.Panel).padding(horizontal = 14.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(r.label, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
+            Text(r.source, color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 10.dp, bottom = 8.dp))
+            if (!r.on) {
+                MenuItem("↓", "Add to the bottom of Home", first) { mvm.showRow(rows, r.id, atTop = false); onClose() }
+                MenuItem("↑", "Add to the top (under Continue watching)", null) { mvm.showRow(rows, r.id, atTop = true); onClose() }
+                MenuItem("✎", "Rename", null) { renaming = true }
+            } else {
+                if (r.id != CONTINUE_ROW) MenuItem("↕", "Move", first) { onMove(); onClose() }
+                MenuItem("✎", "Rename", if (r.id == CONTINUE_ROW) first else null) { renaming = true }
+                MenuItem("▣", "Size", null, trailing = listOf("Small", "Medium", "Large")[r.size.coerceIn(0, 2)]) { change { it.copy(size = (it.size + 1) % 3) } }
+                if (!fixedShape) {
+                    MenuItem("▭", "Shape", null, trailing = if (r.landscape) "Wide" else "Poster") { change { it.copy(landscape = !it.landscape) } }
+                    MenuItem("#", "Top 10", null, trailing = if (r.top10 == true) "On" else "Off") { change { it.copy(top10 = it.top10 != true) } }
+                }
+                if (r.id != CONTINUE_ROW) MenuItem("✕", "Remove from Home", null) { change { it.copy(on = false) }; onClose() }
             }
         }
     }

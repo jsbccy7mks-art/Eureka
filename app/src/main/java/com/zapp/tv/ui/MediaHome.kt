@@ -437,7 +437,10 @@ fun RowOptionsDialog(
                                 ) { v -> onChange { it.copy(top10 = v == "on") } }
                             }
                         }
+                        var renaming by remember { mutableStateOf(false) }
+                        if (renaming) RenameRowDialog(row, onRename = { n -> onChange { it.copy(name = n) } }) { renaming = false }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ZButton("Rename", { renaming = true })
                             if (canMoveUp) ZButton("Move up", { onMove(-1) })
                             if (canMoveDown) ZButton("Move down", { onMove(1) })
                             if (canHide) ZButton("Hide row", {
@@ -522,6 +525,43 @@ fun SoftBackdrop(url: String?, strength: Float = 0.55f) {
                         modifier = Modifier.fillMaxSize().drift(),
                     )
                 }
+            }
+        }
+    }
+}
+
+
+/** Rename a Home row: type a new name (OK opens the keyboard), or go back to its own name. */
+@Composable
+fun RenameRowDialog(row: HomeRowSetting, onRename: (String?) -> Unit, onClose: () -> Unit) {
+    var text by remember(row.id) { mutableStateOf(row.label) }
+    val field = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(60)
+        field.tryRequest()
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Column(
+            Modifier
+                .width(440.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(ZappColors.Panel)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Rename row", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Its own name: ${row.title}", color = ZappColors.Faint, fontSize = 12.sp)
+            TvTextField("Name", text, { text = it }, focusRequester = field, last = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton("Save", {
+                    onRename(text.trim().takeIf { it.isNotBlank() && it != row.title })
+                    onClose()
+                }, style = ButtonStyle.Primary)
+                if (row.name != null) ZButton("Use its own name", {
+                    onRename(null)
+                    onClose()
+                })
+                ZButton("Cancel", onClose, style = ButtonStyle.Quiet)
             }
         }
     }

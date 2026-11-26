@@ -82,7 +82,14 @@ data class HomeRowSetting(
     val landscape: Boolean = false,
     /** Shown as a Top 10: big numbers beside the first ten posters. Null means not chosen yet. */
     val top10: Boolean? = null,
-)
+    /** Your own name for the row (null: its usual name). */
+    val name: String? = null,
+    /** Where it comes from, for Home layout: "Smart row", an add-on's name, "Collections"… */
+    val source: String = "",
+) {
+    /** The name shown: yours, else its own. */
+    val label: String get() = name ?: title
+}
 
 class MediaViewModel(app: Application) : AndroidViewModel(app) {
     private val zapp = app as ZappApp
@@ -1650,17 +1657,25 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         COLLECTION_SHELVES.drop(1).forEach { (id, title) -> available["collections:$id"] = "Collections: $title" }
         available[SPORTS_ROW] = "Your teams"
 
+        val sources = HashMap<String, String>()
+        listOf(CONTINUE_ROW, BECAUSE_ROW, NEW_EPISODES_ROW, FOR_YOU_ROW, LOVED_ROW, GEMS_ROW).forEach { sources[it] = "Smart rows" }
+        catalogs.forEach { sources[it.key] = it.addon.manifest.name }
+        sources[LIBRARY_ROW] = "Library"
+        available.keys.filter { it == COLLECTIONS_ROW || it.startsWith("collections:") }.forEach { sources[it] = "Collections" }
+        sources[SPORTS_ROW] = "Sports"
+
         val saved = parseLayout(settings.homeRowsJson)
         val result = ArrayList<HomeRowSetting>()
         for (r in saved) {
             val title = available[r.id] ?: continue
-            result.add(r.copy(title = title))
+            result.add(r.copy(title = title, source = sources[r.id].orEmpty()))
         }
-        for ((id, title) in available) {
+        for ((id, title0) in available) {
+            val title = title0
             if (result.none { it.id == id }) {
                 // Collections start switched off on Home (they live in Library); turn them on in Home layout.
                 val shelfRow = id == COLLECTIONS_ROW || id.startsWith("collections:")
-                val row = HomeRowSetting(id, title, !shelfRow, landscape = id == CONTINUE_ROW || shelfRow)
+                val row = HomeRowSetting(id, title, !shelfRow, landscape = id == CONTINUE_ROW || shelfRow, source = sources[id].orEmpty())
                 // New smart rows go just below Continue watching; everything else at the end.
                 if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW || id == FOR_YOU_ROW || id == LOVED_ROW || id == GEMS_ROW) {
                     result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row)
@@ -1682,7 +1697,10 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun saveLayout(rows: List<HomeRowSetting>) {
         val arr = JSONArray()
         rows.forEach {
-            arr.put(JSONObject().put("id", it.id).put("on", it.on).put("size", it.size).put("landscape", it.landscape).apply { it.top10?.let { t -> put("top10", t) } })
+            arr.put(JSONObject().put("id", it.id).put("on", it.on).put("size", it.size).put("landscape", it.landscape).apply {
+                it.top10?.let { t -> put("top10", t) }
+                it.name?.let { n -> put("name", n) }
+            })
         }
         settings.homeRowsJson = arr.toString()
     }
@@ -1690,6 +1708,35 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     /** Change one row and save. */
     fun updateRow(all: List<HomeRowSetting>, id: String, change: (HomeRowSetting) -> HomeRowSetting) =
         saveLayout(all.map { if (it.id == id) change(it) else it })
+
+    /** Moves a row among the ones on Home (past any hidden ones in between). */
+    fun moveShownRow(all: List<HomeRowSetting>, id: String, by: Int) {
+        val shown = all.filter { it.on }
+        val i = shown.indexOfFirst { it.id == id }
+        val j = i + by
+        if (i < 1 || j < 1 || j >= shown.size) return
+        val other = shown[j].id
+        val m = all.toMutableList()
+        val a = m.indexOfFirst { it.id == id }
+        val b = m.indexOfFirst { it.id == other }
+        val x = m[a]; m[a] = m[b]; m[b] = x
+        saveLayout(m)
+    }
+
+    /** Puts a hidden row on Home: just after Continue watching, or after the last row shown. */
+    fun showRow(all: List<HomeRowSetting>, id: String, atTop: Boolean) {
+        val m = all.toMutableList()
+        val i = m.indexOfFirst { it.id == id }
+        if (i < 0) return
+        val r = m.removeAt(i).copy(on = true)
+        val at = if (atTop) 1 else (m.indexOfLast { it.on } + 1).coerceAtLeast(1)
+        m.add(at.coerceAtMost(m.size), r)
+        saveLayout(m)
+    }
+
+    fun resetLayout() {
+        settings.homeRowsJson = ""
+    }
 
     /** Move a row up (-1) or down (+1) among the catalogue rows; Continue watching stays first. */
     fun moveRow(all: List<HomeRowSetting>, id: String, by: Int) {
@@ -1716,6 +1763,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                         size = it.optInt("size", 1).coerceIn(0, 2),
                         landscape = it.optBoolean("landscape", id == CONTINUE_ROW),
                         top10 = if (it.has("top10")) it.optBoolean("top10") else null,
+                        name = it.optString("name").takeIf { n -> n.isNotBlank() },
                     )
                 }
             }

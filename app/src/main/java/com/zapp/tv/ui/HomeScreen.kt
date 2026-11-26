@@ -207,6 +207,7 @@ fun HomeScreen(
         items(rows, key = { it.id }) { row ->
             if (row.id == CONTINUE_ROW) {
                 ContinueRow(
+                    title = row.name ?: "Continue watching",
                     art = mvm.showArt,
                     items = continueItems,
                     size = row.size,
@@ -226,7 +227,7 @@ fun HomeScreen(
                 )
             } else if (row.id == SPORTS_ROW) {
                 Column {
-                    RowHeader("Your teams", "live and the next 24 hours")
+                    RowHeader(row.name ?: "Your teams", "live and the next 24 hours")
                     val now = System.currentTimeMillis()
                     val tf = rememberTimeFormat()
                     androidx.compose.foundation.lazy.LazyRow(
@@ -253,7 +254,7 @@ fun HomeScreen(
             } else if (row.id == COLLECTIONS_ROW || row.id.startsWith("collections:")) {
                 val shelf = mvm.collectionShelf(if (row.id == COLLECTIONS_ROW) "yours" else row.id.removePrefix("collections:"))
                 val shelfItems = shelf?.items.orEmpty()
-                val shelfTitle = shelf?.title ?: "Your collections"
+                val shelfTitle = row.name ?: shelf?.title ?: "Your collections"
                 Column {
                     RowHeader(shelfTitle)
                     val w = cardWidth(row.size, true)
@@ -279,7 +280,7 @@ fun HomeScreen(
             } else if (row.id == FOR_YOU_ROW && (forYou.isEmpty() || noRatings)) {
                 // No ratings yet: a nudge to rate a few, so "For you" can start.
                 Column {
-                    RowHeader("For you")
+                    RowHeader(row.name ?: "For you")
                     Box(Modifier.padding(start = RowInset)) {
                         FocusSurface(
                             onClick = onRateAFew,
@@ -308,7 +309,7 @@ fun HomeScreen(
                     }
                 }
             } else if (row.id == FOR_YOU_ROW || row.id == LOVED_ROW || row.id == GEMS_ROW) {
-                val title = when (row.id) {
+                val title = row.name ?: when (row.id) {
                     FOR_YOU_ROW -> "For you"
                     LOVED_ROW -> "Because you loved ${loved?.first.orEmpty()}"
                     else -> "Hidden gems for you"
@@ -335,7 +336,7 @@ fun HomeScreen(
                     onLongPress = { m -> options = RowOptions(row.id, meta = m) },
                 )
             } else if (row.id == BECAUSE_ROW || row.id == NEW_EPISODES_ROW || row.id == LIBRARY_ROW) {
-                val title = when (row.id) {
+                val title = row.name ?: when (row.id) {
                     BECAUSE_ROW -> "Because you watched ${because?.first.orEmpty()}"
                     NEW_EPISODES_ROW -> "New episodes"
                     else -> "Your library"
@@ -368,9 +369,9 @@ fun HomeScreen(
                 CatalogRow(
                     mvm = mvm,
                     ref = ref,
-                    title = row.title,
+                    title = row.label,
                     onFocusItem = { meta ->
-                        focused = HeroItem(meta, row.title)
+                        focused = HeroItem(meta, row.label)
                         lastFocus = HomeFocus(row.id, meta.id)
                         moves++
                     },
@@ -436,6 +437,7 @@ private fun EmptyHero(focus: FocusRequester, onOpenAddons: () -> Unit) {
 
 @Composable
 private fun ContinueRow(
+    title: String,
     art: Map<String, MediaViewModel.ShowArt>,
     items: List<WatchProgress>,
     size: Int,
@@ -449,7 +451,7 @@ private fun ContinueRow(
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val rowStart = rememberRowStart()
     Column {
-        RowHeader("Continue watching")
+        RowHeader(title)
         val extra = cardWidth(size, true) + 24.dp
         RowScrolling(RowInset + extra) {
             LazyRow(
