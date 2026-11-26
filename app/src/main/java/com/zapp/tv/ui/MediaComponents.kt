@@ -595,7 +595,7 @@ fun CatalogRow(
                 }
                 // Things you disliked go to the back of the row.
                 val disliked = mvm.ratings.byId.filterValues { it.rating == com.zapp.tv.data.Rating.Dislike }.keys
-                val ordered = remember(items.size, items.firstOrNull()?.id, disliked) { items.sortedBy { if (it.id in disliked) 1 else 0 } }
+                val ordered = if (disliked.isEmpty()) items.toList() else items.sortedBy { if (it.id in disliked) 1 else 0 }
                 itemsIndexed(if (top10) ordered.take(10) else ordered, key = { _, m -> m.id }) { index, meta ->
                     val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
                     // An empty id means "the first card" (first start, nothing remembered yet).
