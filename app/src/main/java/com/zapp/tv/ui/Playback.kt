@@ -620,11 +620,8 @@ class Playback(
 
     fun release() {
         retryJob?.cancel()
-        try {
-            enhancer?.release()
-        } catch (e: Exception) {
-            // Already gone.
-        }
+        runCatching { night?.release() }
+        runCatching { lift?.release() }
         timeshift.stop()
         player.removeListener(listener)
         player.release()
