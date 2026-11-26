@@ -677,12 +677,7 @@ class Playback(
         @OptIn(UnstableApi::class)
         private fun createPlayer(context: Context, largeBuffer: Boolean, dataSourceFactory: DefaultHttpDataSource.Factory): ExoPlayer {
             // Small start-up buffer so channels open quickly when zapping; a larger one for unsteady providers.
-            val loadControl = DefaultLoadControl.Builder()
-                .apply {
-                    if (largeBuffer) setBufferDurationsMs(30_000, 90_000, 2_500, 6_000)
-                    else setBufferDurationsMs(10_000, 30_000, 1_000, 2_500)
-                }
-                .build()
+            val loadControl = if (largeBuffer) FilmStartBuffer(30_000, 90_000, 2_500, 6_000) else FilmStartBuffer(10_000, 30_000, 1_000, 2_500)
             return ExoPlayer.Builder(context)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
@@ -718,11 +713,22 @@ fun FullscreenVideo(playback: Playback, modifier: Modifier = Modifier) {
 /**
  * Films and episodes wait for a little more video before they start (and after a stall) than live
  * channels do, so they don't stop to buffer straight after starting. Channels keep the quick start.
+ * A DefaultLoadControl itself (not a wrapper), so everything else it does stays exactly as it was.
  */
 @OptIn(UnstableApi::class)
-private class FilmStartBuffer(private val inner: DefaultLoadControl) : androidx.media3.exoplayer.LoadControl by inner {
+private class FilmStartBuffer(minMs: Int, maxMs: Int, startMs: Int, rebufferMs: Int) : DefaultLoadControl(
+    androidx.media3.exoplayer.upstream.DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE),
+    minMs,
+    maxMs,
+    startMs,
+    rebufferMs,
+    DefaultLoadControl.DEFAULT_TARGET_BUFFER_BYTES,
+    DefaultLoadControl.DEFAULT_PRIORITIZE_TIME_OVER_SIZE_THRESHOLDS,
+    DefaultLoadControl.DEFAULT_BACK_BUFFER_DURATION_MS,
+    DefaultLoadControl.DEFAULT_RETAIN_BACK_BUFFER_FROM_KEYFRAME,
+) {
     override fun shouldStartPlayback(parameters: androidx.media3.exoplayer.LoadControl.Parameters): Boolean {
-        if (!inner.shouldStartPlayback(parameters)) return false
+        if (!super.shouldStartPlayback(parameters)) return false
         if (!film) return true
         val need = if (parameters.rebuffering) REBUFFER_US else START_US
         return parameters.bufferedDurationUs >= need

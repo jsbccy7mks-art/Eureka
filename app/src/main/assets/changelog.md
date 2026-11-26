@@ -10,6 +10,9 @@
   Settings, Appearance).
 - In the player, Up from the top of the controls puts them away, the same as Back (films, episodes
   and live TV).
+- Films and episodes gather a few more seconds of video before they start (and after a stall), so
+  they don't stop to buffer straight after starting; live channels still start as quickly. (Back,
+  done safely this time, and every build now checks the app opens before it's released.)
 
 **Fixed**
 - On Collections, Back from further along a shelf goes back to its first collection, instead of
