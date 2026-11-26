@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.30.0
+
+**New**
+- Faster Play: a details page starts fetching the sources for what Play would start (the film, or
+  your next episode) while you read it. After a few seconds there, with autoplay on, it also gets
+  the debrid link ready for the source autoplay would choose, so Play goes almost straight to the
+  picture. Links are thrown away after 10 minutes and fetched fresh.
+  Settings, Playback: "Get ready while I browse" (on by default). With Real-Debrid, getting a link
+  ready adds that title to your torrents list.
+
 ## 0.29.0
 
 **New**

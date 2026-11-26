@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -573,14 +576,91 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     var resolving by mutableStateOf<String?>(null)
         private set
 
+    // ------------------------------------------------------------ getting ready before Play
+
+    /** Sources for one film or episode, fetched ahead (from its details page) and shared with the sources screen. */
+    class Prefetch(val type: String, val videoId: String) {
+        val batches = androidx.compose.runtime.mutableStateListOf<StreamBatch>()
+        val finished = mutableStateOf(false)
+        val startedAt = System.currentTimeMillis()
+        var job: kotlinx.coroutines.Job? = null
+        val fresh: Boolean get() = System.currentTimeMillis() - startedAt < 10 * 60_000L
+    }
+    private val prefetches = LinkedHashMap<String, Prefetch>()
+
+    /** Debrid links already fetched, by torrent and file, kept for 10 minutes (links can expire). */
+    private val readyLinks = HashMap<String, Pair<String, Long>>()
+    private fun linkKey(s: com.zapp.tv.addons.StreamItem) = "${s.infoHash?.lowercase()}|${s.fileIdx}|${s.filename}"
+
+    /**
+     * Starts (or reuses) asking the add-ons for a title's sources. Called by the details page, so
+     * the list is usually there already when you press Play.
+     */
+    fun prefetchStreams(type: String, videoId: String): Prefetch {
+        val key = "$type|$videoId"
+        prefetches[key]?.takeIf { p ->
+            p.fresh && p.job?.isCancelled != true && !(p.finished.value && p.batches.all { it.streams.isEmpty() })
+        }?.let { return it }
+        val p = Prefetch(type, videoId)
+        prefetches[key] = p
+        // Keep only the last few.
+        while (prefetches.size > 3) {
+            val oldest = prefetches.keys.first()
+            prefetches.remove(oldest)?.job?.cancel()
+        }
+        prefetchSubtitles(type, videoId)
+        val expected = addons.value.count { it.addon.enabled && it.manifest.supports("stream", type, videoId) }.coerceAtLeast(1)
+        p.job = viewModelScope.launch {
+            kotlinx.coroutines.withTimeoutOrNull(30_000) {
+                repo.streams(type, videoId).take(expected).collect { p.batches.add(it) }
+            }
+            p.finished.value = true
+        }
+        return p
+    }
+
+    /**
+     * Level 2: once the sources are in, picks the one autoplay would choose and, for a torrent,
+     * gets its debrid link ready, so Play goes straight to the picture.
+     */
+    fun prepareLink(type: String, videoId: String, metaId: String, title: String) {
+        if (!settings.autoPlayFirst || !settings.prepareLinks || !debridConnected) return
+        val p = prefetchStreams(type, videoId)
+        viewModelScope.launch {
+            kotlinx.coroutines.withTimeoutOrNull(30_000) { snapshotFlow { p.finished.value }.first { it } }
+            val order = addons.value.map { it.manifest.name }
+            val cap = when (settings.maxQuality) { 1 -> 1080; 2 -> 720; else -> Int.MAX_VALUE }
+            val all = p.batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
+                .flatMap { b ->
+                    val kept = b.streams.filter { it.qualityRank <= cap }
+                    if (settings.bestFirst) kept.sortedByDescending { (if (it.markedReady == true) 10_000 else 0) + it.qualityRank } else kept
+                }
+            fun ok(s: com.zapp.tv.addons.StreamItem) = s.playable || s.infoHash != null
+            val last = if (settings.sameSource) lastSource(metaId) else null
+            val choice = last?.takeIf { it.videoId == videoId && it.key != null }?.let { l -> all.firstOrNull { ok(it) && (it.url ?: it.infoHash) == l.key } }
+                ?: last?.binge?.let { g -> all.firstOrNull { ok(it) && it.bingeGroup == g } }
+                ?: last?.let { l -> all.firstOrNull { ok(it) && it.addonName == l.addon && it.qualityRank == l.quality } }
+                ?: all.firstOrNull { ok(it) }
+                ?: return@launch
+            if (choice.playable || choice.infoHash == null) return@launch // a direct link needs nothing
+            val k = linkKey(choice)
+            if (readyLinks[k]?.let { System.currentTimeMillis() - it.second < 10 * 60_000L } == true) return@launch
+            runCatching { debrid.resolve(com.zapp.tv.data.TorrentRef(choice.infoHash!!.lowercase(), choice.fileIdx, choice.filename, title)) }
+                .getOrNull()?.let { (_, url) -> readyLinks[k] = url to System.currentTimeMillis() }
+        }
+    }
+
     /** Turns a torrent source into a playable link through the connected debrid service(s). */
     fun resolveTorrent(stream: com.zapp.tv.addons.StreamItem, title: String, onReady: (String) -> Unit, onError: (String) -> Unit) {
         val hash = stream.infoHash ?: return onError("This source has no torrent to fetch.")
+        // Got ready earlier (from the details page): straight to the player.
+        readyLinks[linkKey(stream)]?.takeIf { System.currentTimeMillis() - it.second < 10 * 60_000L }?.let { return onReady(it.first) }
         if (resolving != null) return
         resolving = "Getting it from ${debrid.connected.firstOrNull()?.name ?: "your debrid service"}…"
         viewModelScope.launch {
             try {
                 val (_, url) = debrid.resolve(com.zapp.tv.data.TorrentRef(hash.lowercase(), stream.fileIdx, stream.filename, title))
+                readyLinks[linkKey(stream)] = url to System.currentTimeMillis()
                 onReady(url)
             } catch (e: CancellationException) {
                 throw e

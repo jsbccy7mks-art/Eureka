@@ -66,21 +66,14 @@ fun SourcesOverlay(
     BackHandler(onBack = onClose)
     val addons by mvm.addons.collectAsState()
     val order = addons.map { it.manifest.name }
-    val batches = remember(request.videoId) { mutableStateListOf<StreamBatch>() }
-    var finished by remember(request.videoId) { mutableStateOf(false) }
+    // Usually already fetched by the details page; otherwise fetched now.
+    val pre = remember(request.videoId) { mvm.prefetchStreams(request.meta.type, request.videoId) }
+    val batches = pre.batches
+    val finished = pre.finished.value
     var autoPlay by remember(request.videoId) { mutableStateOf(request.autoPlay) }
     val firstFocus = remember { FocusRequester() }
     val expected = addons.count { it.addon.enabled && it.manifest.supports("stream", request.meta.type, request.videoId) }
 
-    LaunchedEffect(request.videoId) {
-        mvm.prefetchSubtitles(request.meta.type, request.videoId)
-        withTimeoutOrNull(30_000) {
-            mvm.streams(request.meta.type, request.videoId)
-                .take(expected.coerceAtLeast(1))
-                .collect { batch -> batches.add(batch) }
-        }
-        finished = true
-    }
 
     val settings = mvm.settings
     val viaDebrid = mvm.debridConnected

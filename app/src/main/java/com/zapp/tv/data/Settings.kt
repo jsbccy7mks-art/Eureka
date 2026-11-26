@@ -324,6 +324,15 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerBest = value
         }
 
+    private val prepareLinksState = mutableStateOf(prefs.getBoolean("prepareLinks", true))
+    /** From a details page, get the autoplay source's debrid link ready in advance. */
+    var prepareLinks: Boolean
+        get() = prepareLinksState.value
+        set(value) {
+            prepareLinksState.value = value
+            prefs.edit().putBoolean("prepareLinks", value).apply()
+        }
+
     private val matchFrameRateState = mutableStateOf(prefs.getBoolean("matchFrameRate", true))
     /** Switch the TV to the video's frame rate while playing (no judder). */
     var matchFrameRate: Boolean

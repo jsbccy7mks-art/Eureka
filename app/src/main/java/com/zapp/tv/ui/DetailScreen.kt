@@ -152,6 +152,18 @@ fun DetailScreen(
     var section by remember(request.id) { mutableIntStateOf(0) } // 0 title, 1 episodes or story, 2 cast, 3 more
     var episodeMenu by remember(request.id) { mutableStateOf<Video?>(null) }
 
+    // Get ready for Play while you read: fetch the sources for what Play would start (the film, or
+    // the next episode), then, after a few seconds here, get its debrid link ready too.
+    val playTarget = if (request.type == "series") nextUp.first?.id else request.id
+    LaunchedEffect(playTarget, done) {
+        val target = playTarget ?: return@LaunchedEffect
+        if (!done) return@LaunchedEffect
+        kotlinx.coroutines.delay(500)
+        mvm.prefetchStreams(request.type, target)
+        kotlinx.coroutines.delay(3_000)
+        mvm.prepareLink(request.type, target, request.id, detail?.preview?.name ?: request.preview?.name.orEmpty())
+    }
+
     fun playEpisode(v: Video) {
         val p = progress.firstOrNull { it.videoId == v.id }
         val resume = if (p != null && !p.watched) p.position else 0L
