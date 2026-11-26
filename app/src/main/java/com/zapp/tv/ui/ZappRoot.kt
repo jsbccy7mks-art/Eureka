@@ -101,6 +101,9 @@ fun ZappRoot(vm: AppViewModel) {
 
     // Films and series: detail page, then source list, then player.
     var detail by remember { mutableStateOf<DetailRequest?>(null) }
+    // A franchise showcase (Library, Collections), under any details page opened from it.
+    var collectionOpen by remember { mutableStateOf<Long?>(null) }
+    var collectionTick by remember { mutableIntStateOf(0) }
     var playRequest by remember { mutableStateOf<PlayRequest?>(null) }
     var vodOpen by remember { mutableStateOf(false) }
     val railFocus = remember { FocusRequester() }
@@ -120,7 +123,11 @@ fun ZappRoot(vm: AppViewModel) {
     fun requestContentFocus(waitMs: Long = 120) {
         coroutineScope.launch {
             delay(waitMs)
-            if (detail != null) detailTick++ else focusTick++
+            when {
+                detail != null -> detailTick++
+                collectionOpen != null -> collectionTick++
+                else -> focusTick++
+            }
         }
     }
 
@@ -128,7 +135,7 @@ fun ZappRoot(vm: AppViewModel) {
     LaunchedEffect(Unit) { vm.onNuvioSignedIn = { mvm.nuvioSignedInFromPhone() } }
     // Trailers stop whenever something covers them.
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
-    TrailerGate.detailOpen = detail != null
+    TrailerGate.detailOpen = detail != null || collectionOpen != null
     WatchedMarks.ids = mvm.watchedTitles.collectAsState().value
 
     // ---- profiles
@@ -361,7 +368,7 @@ fun ZappRoot(vm: AppViewModel) {
 
             else -> {
                 // Back from a screen goes to the sidebar; Back on the sidebar twice exits.
-                BackHandler(enabled = !playerOpen && form == null && detail == null && playRequest == null) {
+                BackHandler(enabled = !playerOpen && form == null && detail == null && playRequest == null && collectionOpen == null) {
                     if (!railFocused) {
                         railIntentAt = System.currentTimeMillis()
                         railFocused = true
@@ -401,6 +408,7 @@ fun ZappRoot(vm: AppViewModel) {
                                 settingsSection = "Addons"
                                 open(Dest.Settings)
                             },
+                            onOpenCollection = { collectionOpen = it },
                         )
                         Dest.Movies -> BrowseScreen(mvm, "movie", focusTick, { openTitle(it) }) {
                             settingsSection = "Addons"
@@ -410,7 +418,7 @@ fun ZappRoot(vm: AppViewModel) {
                             settingsSection = "Addons"
                             open(Dest.Settings)
                         }
-                        Dest.Library -> LibraryScreen(mvm, focusTick) { openTitle(it) }
+                        Dest.Library -> LibraryScreen(mvm, focusTick, onOpenCollection = { collectionOpen = it }) { openTitle(it) }
                         Dest.Live -> Column(Modifier.fillMaxSize()) {
                             ScreenHeader("Live TV", vm.guideStatus)
                             LiveScreen(vm, playback, focusTick) { watch(it) }
@@ -445,7 +453,7 @@ fun ZappRoot(vm: AppViewModel) {
                     }
                 }
                 Sidebar(
-                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null,
+                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null,
                     onRight = { requestContentFocus(0) },
                     dests = Dest.entries.filter { !kids || (it != Dest.Live && it != Dest.Guide) },
                     profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
@@ -521,6 +529,22 @@ fun ZappRoot(vm: AppViewModel) {
                 },
                 onCancel = {
                     form = null
+                    requestContentFocus()
+                },
+            )
+        }
+
+        // A franchise showcase, with its theme tune (silent while a title, sources or player is on top).
+        collectionOpen?.let { cid ->
+            CollectionScreen(
+                mvm = mvm,
+                collectionId = cid,
+                focusTick = collectionTick,
+                musicAllowed = detail == null && playRequest == null && !vodOpen && !playerOpen && TrailerGate.appVisible,
+                onOpen = { m -> openTitle(m) },
+                onClose = {
+                    lockRail()
+                    collectionOpen = null
                     requestContentFocus()
                 },
             )

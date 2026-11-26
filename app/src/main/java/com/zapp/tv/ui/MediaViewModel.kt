@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
@@ -46,6 +47,7 @@ const val CONTINUE_ROW = "continue"
 const val BECAUSE_ROW = "because"
 const val NEW_EPISODES_ROW = "newEpisodes"
 const val LIBRARY_ROW = "library"
+const val COLLECTIONS_ROW = "collections"
 
 data class HomeRowSetting(
     val id: String,
@@ -931,6 +933,43 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         null
     }
 
+    // ---- franchise collections (TMDB)
+
+    /** A franchise you have at least one film of (saved or watched). */
+    data class CollectionSummary(val id: Long, val name: String, val poster: String?, val backdrop: String?, val yours: Int)
+
+    var collections by mutableStateOf<List<CollectionSummary>>(emptyList())
+        private set
+    private var collectionsJob: kotlinx.coroutines.Job? = null
+
+    /** Works out your collections from the films in your library and the ones you've watched. */
+    fun refreshCollections() {
+        if (!tmdb.enabled) return
+        collectionsJob?.cancel()
+        collectionsJob = viewModelScope.launch {
+            delay(1_500)
+            val films = (library.value.filter { it.type == "movie" }.map { it.metaId } + watchedTitles.value)
+                .filter { it.startsWith("tt") }.distinct().take(120)
+            val found = LinkedHashMap<Long, CollectionSummary>()
+            for (id in films) {
+                val c = runCatching { tmdb.details(id, "movie")?.collection }.getOrNull() ?: continue
+                val prev = found[c.id]
+                found[c.id] = CollectionSummary(c.id, c.name, c.poster, c.backdrop, (prev?.yours ?: 0) + 1)
+            }
+            collections = found.values.sortedByDescending { it.yours }
+        }
+    }
+
+    suspend fun collection(id: Long): com.zapp.tv.data.TmdbCollection? = runCatching { tmdb.collection(id) }.getOrNull()
+
+    /** IMDb ids for a collection's films (to open them, and to tick the watched ones). */
+    suspend fun collectionImdbIds(c: com.zapp.tv.data.TmdbCollection): Map<Long, String> = kotlinx.coroutines.coroutineScope {
+        c.parts.map { p -> async { p.item.id to runCatching { tmdb.imdbId(p.item) }.getOrNull() } }
+            .awaitAll().mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
+    }
+
+    suspend fun collectionTheme(id: Long): String? = if (settings.themeMusic) runCatching { zapp.themes.collectionTheme(id) }.getOrNull() else null
+
     // ---- MDBList ratings (optional, with your own key)
     val mdblist get() = zapp.mdblist
     suspend fun ratings(id: String, type: String): List<com.zapp.tv.data.RatingBadge> = runCatching { mdblist.ratings(id, type) }.getOrDefault(emptyList())
@@ -958,6 +997,16 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     /** Films and series you've marked (or finished) as watched, for the little tick on cards. */
     val watchedTitles: StateFlow<Set<String>> =
         repo.watchedTitles.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    // (After watchedTitles, which it needs.) Collections follow your library and what you've watched.
+    init {
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(library, watchedTitles) { l, w -> l.size to w.size }
+                .distinctUntilChanged()
+                .collect { refreshCollections() }
+        }
+    }
+
 
     private fun watchedRow(meta: MetaPreview, videoId: String, label: String?, existing: WatchProgress?, now: Long) = WatchProgress(
         id = existing?.id ?: 0,
@@ -1080,6 +1129,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         available[NEW_EPISODES_ROW] = "New episodes"
         catalogs.forEach { available[it.key] = it.title }
         available[LIBRARY_ROW] = "Your library"
+        available[COLLECTIONS_ROW] = "Your collections"
 
         val saved = parseLayout(settings.homeRowsJson)
         val result = ArrayList<HomeRowSetting>()
@@ -1089,7 +1139,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         }
         for ((id, title) in available) {
             if (result.none { it.id == id }) {
-                val row = HomeRowSetting(id, title, true, landscape = id == CONTINUE_ROW)
+                // Collections start switched off on Home (they live in Library); turn them on in Home layout.
+                val row = HomeRowSetting(id, title, id != COLLECTIONS_ROW, landscape = id == CONTINUE_ROW || id == COLLECTIONS_ROW)
                 // New smart rows go just below Continue watching; everything else at the end.
                 if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW) result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row) else result.add(row)
             }

@@ -377,6 +377,23 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("prepareLinks", value).apply()
         }
 
+    private val libraryCollectionsState = mutableStateOf(prefs.getBoolean("libraryCollections", true))
+    /** Library shows a Collections tab (franchises of films you've saved or watched). */
+    var libraryCollections: Boolean
+        get() = libraryCollectionsState.value
+        set(value) { libraryCollectionsState.value = value; prefs.edit().putBoolean("libraryCollections", value).apply() }
+
+    private val themeMusicState = mutableStateOf(prefs.getBoolean("themeMusic", true))
+    /** Collections play their theme tune quietly. */
+    var themeMusic: Boolean
+        get() = themeMusicState.value
+        set(value) { themeMusicState.value = value; prefs.edit().putBoolean("themeMusic", value).apply() }
+    private val themeVolumeState = mutableIntStateOf(prefs.getInt("themeVolume", 30))
+    /** 10 to 60 (percent). */
+    var themeVolume: Int
+        get() = themeVolumeState.intValue
+        set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
+
     private val matchFrameRateState = mutableStateOf(prefs.getBoolean("matchFrameRate", true))
     /** Switch the TV to the video's frame rate while playing (no judder). */
     var matchFrameRate: Boolean

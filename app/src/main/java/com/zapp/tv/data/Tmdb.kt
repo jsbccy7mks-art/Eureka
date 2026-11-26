@@ -35,6 +35,22 @@ data class TmdbDetails(
     val logo: String? = null,
     /** A backdrop without text, in high resolution. */
     val backdrop: String? = null,
+    /** The franchise this film belongs to (Harry Potter, Bond…), if any. */
+    val collection: TmdbCollectionRef? = null,
+)
+
+data class TmdbCollectionRef(val id: Long, val name: String, val poster: String?, val backdrop: String?)
+
+/** One film in a collection. */
+data class TmdbCollectionPart(val item: TmdbItem, val overview: String?, val released: String?)
+
+data class TmdbCollection(
+    val id: Long,
+    val name: String,
+    val overview: String?,
+    val poster: String?,
+    val backdrop: String?,
+    val parts: List<TmdbCollectionPart>,
 )
 
 /**
@@ -140,6 +156,14 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             reviews = reviews,
             recommendations = recs,
             trailerKey = trailer,
+            collection = o.optJSONObject("belongs_to_collection")?.let { c ->
+                TmdbCollectionRef(
+                    c.optLong("id"),
+                    c.optString("name").removeSuffix(" Collection").removeSuffix(" collection"),
+                    img(c.optString("poster_path"), "w342"),
+                    img(c.optString("backdrop_path"), "w1280"),
+                )
+            },
             logo = img(logo, "w500"),
             backdrop = img(backdrop, "w1280"),
         )
@@ -172,6 +196,34 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             .map { item(it, "movie") }
         credits[personId] = list
         list
+    }
+
+    private val collections = ConcurrentHashMap<Long, TmdbCollection>()
+
+    /** A franchise's films, in release order. */
+    suspend fun collection(id: Long): TmdbCollection? = withContext(Dispatchers.IO) {
+        collections[id]?.let { return@withContext it }
+        val o = get("collection/$id") ?: return@withContext null
+        val parts = o.optJSONArray("parts").objects()
+            .filter { it.optString("release_date").isNotBlank() }
+            .sortedBy { it.optString("release_date") }
+            .map { p ->
+                TmdbCollectionPart(
+                    item(p, "movie").copy(poster = img(p.optString("poster_path"), "w500"), backdrop = img(p.optString("backdrop_path"), "w1280")),
+                    p.optString("overview").takeIf { it.isNotBlank() },
+                    p.optString("release_date").takeIf { it.isNotBlank() },
+                )
+            }
+        val c = TmdbCollection(
+            id = id,
+            name = o.optString("name").removeSuffix(" Collection").removeSuffix(" collection"),
+            overview = o.optString("overview").takeIf { it.isNotBlank() },
+            poster = img(o.optString("poster_path"), "w500"),
+            backdrop = img(o.optString("backdrop_path"), "original"),
+            parts = parts,
+        )
+        collections[id] = c
+        c
     }
 
     /** The IMDb id for a TMDB title, so it can open in Zapp. */

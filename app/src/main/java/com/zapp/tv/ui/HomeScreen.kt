@@ -94,6 +94,7 @@ fun HomeScreen(
     onOpenTitle: (MetaPreview) -> Unit,
     onResume: (WatchProgress) -> Unit,
     onOpenAddons: () -> Unit,
+    onOpenCollection: (Long) -> Unit = {},
 ) {
     val addons by mvm.addons.collectAsState()
     val continueItems by mvm.continueWatching.collectAsState()
@@ -113,6 +114,7 @@ fun HomeScreen(
             BECAUSE_ROW -> because != null
             NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
+            COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
             else -> catalogs.any { it.key == r.id }
         }
     }
@@ -190,6 +192,27 @@ fun HomeScreen(
                         options = RowOptions(row.id, p, p.asPreview().copy(name = a?.name?.takeIf { p.name.startsWith("tt") || p.name.isBlank() } ?: p.name))
                     },
                 )
+            } else if (row.id == COLLECTIONS_ROW) {
+                Column {
+                    RowHeader("Your collections")
+                    val w = cardWidth(row.size, true)
+                    val extra = w + 24.dp
+                    PivotScrolling(RowInset + extra) {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            modifier = Modifier.extendLeft(extra).fadeLeftOf(extra + RowInset),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
+                        ) {
+                            items(mvm.collections, key = { it.id }) { c ->
+                                CollectionCard(c, w, onFocus = {
+                                    focused = HeroItem(MetaPreview("collection:${c.id}", "collection", c.name, c.poster, "poster", c.backdrop, null, "${c.yours} of yours in this collection", null, null, emptyList()), "Your collections")
+                                    lastFocus = HomeFocus(row.id, c.id.toString())
+                                    moves++
+                                }) { onOpenCollection(c.id) }
+                            }
+                        }
+                    }
+                }
             } else if (row.id == BECAUSE_ROW || row.id == NEW_EPISODES_ROW || row.id == LIBRARY_ROW) {
                 val title = when (row.id) {
                     BECAUSE_ROW -> "Because you watched ${because?.first.orEmpty()}"

@@ -174,6 +174,7 @@ fun BrowseScreen(
 fun LibraryScreen(
     mvm: MediaViewModel,
     focusTick: Int,
+    onOpenCollection: (Long) -> Unit = {},
     onOpen: (MetaPreview) -> Unit,
 ) {
     val library by mvm.library.collectAsState()
@@ -219,19 +220,60 @@ fun LibraryScreen(
         }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.padding(start = 40.dp, end = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-            Segmented(listOf("all" to "All", "movie" to "Films", "series" to "Series"), tab) {
+            val showCollections = mvm.settings.libraryCollections
+            Segmented(
+                listOf("all" to "All", "movie" to "Films", "series" to "Series") + if (showCollections) listOf("collections" to "Collections") else emptyList(),
+                tab,
+            ) {
                 tab = it
                 mvm.settings.libraryTab = it
             }
-            Spacer(Modifier.width(18.dp))
-            Text("Sort", color = ZappColors.Faint, fontSize = 12.sp)
-            Spacer(Modifier.width(8.dp))
-            Segmented(listOf("added" to "Date added", "title" to "A–Z", "year" to "Year", "watched" to "Recently watched"), sort) {
-                sort = it
-                mvm.settings.librarySort = it
+            if (tab != "collections") {
+                Spacer(Modifier.width(18.dp))
+                Text("Sort", color = ZappColors.Faint, fontSize = 12.sp)
+                Spacer(Modifier.width(8.dp))
+                Segmented(listOf("added" to "Date added", "title" to "A–Z", "year" to "Year", "watched" to "Recently watched"), sort) {
+                    sort = it
+                    mvm.settings.librarySort = it
+                }
             }
+            Spacer(Modifier.weight(1f))
+            // Library settings: Collections on or off.
+            ZButton(if (showCollections) "Hide collections" else "Show collections", {
+                mvm.settings.libraryCollections = !showCollections
+                if (showCollections && tab == "collections") {
+                    tab = "all"
+                    mvm.settings.libraryTab = "all"
+                }
+            }, style = ButtonStyle.Quiet)
         }
         Spacer(Modifier.height(18.dp))
+        if (tab == "collections" && mvm.settings.libraryCollections) {
+            val list = mvm.collections
+            if (list.isEmpty()) {
+                Text(
+                    if (mvm.tmdb.enabled) "Franchises of the films you save or watch appear here (Harry Potter, Bond…)." else "Collections need your TMDB key (Settings, Accounts and sync).",
+                    color = ZappColors.Dim,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 40.dp),
+                )
+            }
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(cardWidth(1, true) + 12.dp),
+                contentPadding = PaddingValues(start = 40.dp, end = 40.dp, bottom = 40.dp, top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                items(list, key = { it.id }) { c ->
+                    CollectionCard(
+                        c,
+                        cardWidth(1, true),
+                        modifier = if (c == list.firstOrNull()) Modifier.focusRequesterSafe(first) else Modifier,
+                    ) { onOpenCollection(c.id) }
+                }
+            }
+            return@Column
+        }
         if (shown.isEmpty()) {
             Text(
                 if (library.isEmpty()) "Open a film or series and choose Add to library, or hold OK on any title."

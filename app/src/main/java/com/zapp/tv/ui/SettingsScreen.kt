@@ -1164,6 +1164,23 @@ private fun AppearancePane(vm: AppViewModel) {
                 onClick = { s.trailerBest = !s.trailerBest },
             )
             SettingRow(
+                title = "Collection theme music",
+                body = "Opening a collection (Harry Potter, Bond…) plays its theme tune softly, when ThemerrDB has one.",
+                value = SettingValue.Toggle(s.themeMusic),
+                onClick = { s.themeMusic = !s.themeMusic },
+            )
+            if (s.themeMusic) {
+                SettingRow(
+                    title = "Theme music volume",
+                    body = "How loud the theme plays behind a collection.",
+                    value = SettingValue.Choice("${s.themeVolume}%"),
+                    onClick = {
+                        val options = listOf(15, 30, 45, 60)
+                        s.themeVolume = options[(options.indexOf(s.themeVolume) + 1).mod(options.size)]
+                    },
+                )
+            }
+            SettingRow(
                 title = "Startup sound",
                 body = "A short chime as Zapp opens.",
                 value = SettingValue.Toggle(s.startupSound),
