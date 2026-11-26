@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.33.0
+
+**New**
+- Pause and rewind live TV, up to 5 minutes (Settings, Live TV; on by default). Zapp keeps a rolling
+  copy of the channel you're watching on the TV, so you can pause, go back 10 seconds (hold for 30),
+  move forward again, or jump back to live. The controls show a bar of the last 5 minutes, and the
+  channel shows how far behind live you are. The remote's rewind and fast-forward keys work too.
+  The copy is deleted when you change channel or leave the player. Channels sent as HLS playlists,
+  or that won't play this way, play directly as before (without rewind).
+
 ## 0.32.0
 
 **New**

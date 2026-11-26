@@ -90,14 +90,33 @@ class Playback(
         private set
     /** The piece the current playback started from, and when that piece began (wall-clock). */
     private var tsFromPiece = 0
+    private var tsWatch: Job? = null
+    /** Channels that wouldn't play through the rolling copy: played directly from then on. */
+    private val directOnly = HashSet<String>()
 
     /** The live channel's address: through the rolling copy when that's possible. */
     private fun liveSource(c: Channel): MediaItem {
         val url = resolve(c)
-        if (settings.liveRewind && timeshift.suits(url)) {
+        if (settings.liveRewind && timeshift.suits(url) && !directOnly.contains(url)) {
             timeshiftOn = true
             tsFromPiece = 0
-            return MediaItem.Builder().setUri(timeshift.start(url, mapOf("User-Agent" to USER_AGENT))).setMimeType(MimeTypes.VIDEO_MP2T).build()
+            val local = timeshift.start(url, mapOf("User-Agent" to USER_AGENT))
+            // Safety net: if keeping the channel doesn't work (the provider won't send it this way),
+            // play it directly as before, without rewind.
+            tsWatch?.cancel()
+            tsWatch = scope.launch {
+                delay(9_000)
+                if (channel == c && timeshiftOn && (timeshift.failed || timeshift.lastPiece < 0 || (player.playbackState == Player.STATE_IDLE && player.playerError != null))) {
+                    directOnly.add(url)
+                    timeshift.stop()
+                    timeshiftOn = false
+                    error = null
+                    player.setMediaItem(MediaItem.fromUri(url))
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+            }
+            return MediaItem.Builder().setUri(local).setMimeType(MimeTypes.VIDEO_MP2T).build()
         }
         timeshift.stop()
         timeshiftOn = false
