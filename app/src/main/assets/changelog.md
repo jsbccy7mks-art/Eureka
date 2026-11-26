@@ -6,6 +6,8 @@
 - Details pages play their trailer like the Home header now: once it's playing, the page steps
   aside and only the title's logo stays, top left at full brightness, while the trailer moves to
   the middle with just a slight fade at its edges. Any button brings the page back.
+- The trailer's move to the middle is smoother (a slow, gentle glide that only moves and scales the
+  picture) and its edges fade more softly on every side, on Home and details pages.
 - The sound on/off hint and Up shortcut are gone from details pages (trailer sound is still in
   Settings, Appearance).
 - In the player, Up from the top of the controls puts them away, the same as Back (films, episodes

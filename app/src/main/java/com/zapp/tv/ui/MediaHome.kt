@@ -132,7 +132,7 @@ fun ImmersiveLayout(
         // Playing: the details go completely, leaving just the title's logo, top left.
         val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 0f else 1f, tween(if (breathe) 700 else 250), label = "breathe")
         val logoAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, tween(if (breathe) 700 else 200), label = "logo")
-        val grow by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, tween(if (breathe) 1200 else 300), label = "grow")
+        val grow by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, tween(if (breathe) 1600 else 450, easing = TrailerGlide), label = "grow")
         Backdrop(
             backdropUrl,
             trailer = detail?.takeIf { it.preview.id == hero?.meta?.id }?.trailerYoutube,
@@ -226,21 +226,29 @@ private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = n
                 .align(Alignment.TopEnd)
                 // A whole 16:9 picture sitting higher up, so the rows cover only its faded edge
                 // and the picture (and trailer) isn't cut off behind the cards.
-                .fillMaxHeight(0.66f + 0.2f * grow)
+                .fillMaxHeight(0.66f)
                 .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true)
-                // While the trailer plays it moves to the middle of the screen.
+                // While the trailer plays it glides to the middle of the screen and grows. Only moved
+                // and scaled (never re-laid out), so it stays smooth.
                 .graphicsLayer {
-                    val w = fullH * (0.66f + 0.2f * grow) * 16f / 9f
+                    val w = fullH * 0.66f * 16f / 9f
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                    val k = 1f + 0.3f * grow
+                    scaleX = k
+                    scaleY = k
                     translationX = -((fullW - w) / 2f).coerceAtLeast(0f) * grow
                 }
                 .clipToBounds()
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    // A long soft fade on the left at rest; just a slight one on each side while playing.
-                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f - 0.38f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-                    if (grow > 0f) drawRect(Brush.horizontalGradient(*easedMask(start = 1f, end = 1f - 0.12f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.62f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    // A long soft fade on the left at rest; while playing, gentle fades on every edge.
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f - 0.28f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    if (grow > 0f) {
+                        drawRect(Brush.horizontalGradient(*easedMask(start = 1f, end = 1f - 0.22f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                        drawRect(Brush.verticalGradient(*easedMask(start = 0f, end = 0.1f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    }
+                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.62f - 0.08f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                 },
         ) {
             Crossfade(
@@ -598,3 +606,7 @@ fun RenameRowDialog(row: HomeRowSetting, onRename: (String?) -> Unit, onClose: (
         }
     }
 }
+
+
+/** The trailer's glide to the middle: eases in gently and settles slowly. */
+val TrailerGlide = androidx.compose.animation.core.CubicBezierEasing(0.45f, 0f, 0.15f, 1f)
