@@ -38,7 +38,6 @@ class ScreensTest {
     @get:Rule val rule = createComposeRule()
 
     private fun save(name: String) {
-        rule.waitForIdle()
         val bmp = rule.onRoot().captureToImage().asAndroidBitmap()
         val dir = File("build/screens").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -50,6 +49,8 @@ class ScreensTest {
         val vm = AppViewModel(app)
         val mvm = MediaViewModel(app)
         val tick = androidx.compose.runtime.mutableIntStateOf(0)
+        // Endless animations (glows) would never let the screen settle; time moves only when told.
+        rule.mainClock.autoAdvance = false
         rule.setContent {
             ZappTheme {
                 val scope = rememberCoroutineScope()
