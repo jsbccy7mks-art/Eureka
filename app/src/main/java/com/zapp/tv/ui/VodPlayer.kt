@@ -38,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -134,12 +136,27 @@ fun VodPlayer(
         onPlayNext(v)
     }
 
+    val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
     DisposableEffect(Unit) {
         playback.fullscreen = true
         view.keepScreenOn = true
+        // Frame rate / resolution matching: once per video, from its first known format.
+        var matchedFor: String? = null
+        fun matchDisplay() {
+            val a = activity ?: return
+            val f = player.videoFormat ?: return
+            if (matchedFor == currentInfo.videoId) return
+            if (f.frameRate <= 0f && f.height <= 0) return
+            matchedFor = currentInfo.videoId
+            DisplayMatch.apply(a, f.frameRate, f.height, mvm.settings.matchFrameRate, mvm.settings.matchResolution)
+        }
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
                 started = true
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                matchDisplay()
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -160,8 +177,10 @@ fun VodPlayer(
             }
         }
         player.addListener(listener)
+        matchDisplay()
         onDispose {
             save()
+            activity?.let { DisplayMatch.reset(it) }
             player.removeListener(listener)
             playback.fullscreen = false
             view.keepScreenOn = false
@@ -207,7 +226,7 @@ fun VodPlayer(
     }
     LaunchedEffect(idleTick, panel) {
         if (panel == VodPanel.Controls && playback.error == null && player.isPlaying) {
-            delay(8_000)
+            delay(5_000)
             panel = VodPanel.None
         }
     }
@@ -499,21 +518,32 @@ private fun VodTopBar(playback: Playback, info: MediaInfo) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(ZappColors.Bg.copy(alpha = 0.90f), Color.Transparent)))
-            .padding(start = 48.dp, end = 48.dp, top = 30.dp, bottom = 60.dp),
+            .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.62f), Color.Transparent)))
+            .padding(start = 56.dp, end = 56.dp, top = 34.dp, bottom = 70.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(info.title, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             info.episodeLabel?.let {
+                Text(
+                    it.substringBefore(",").uppercase(),
+                    color = ZappColors.Brand2.copy(alpha = 0.95f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 2.2.sp,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+            MovieTitle(info.title, 30.sp, maxLines = 1)
+            info.episodeLabel?.substringAfter(", ", "")?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(2.dp))
-                Text(it, color = ZappColors.Dim, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(timeFormat.format(now), fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(timeFormat.format(now), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             if (remaining > 0) {
-                Text("Ends at ${timeFormat.format(now + remaining)}", color = ZappColors.Dim, fontSize = 12.sp)
+                Text("Ends at ${timeFormat.format(now + remaining)}", color = ZappColors.Dim, fontSize = 11.5.sp)
             }
         }
     }
@@ -522,8 +552,8 @@ private fun VodTopBar(playback: Playback, info: MediaInfo) {
 private enum class PlayerIcon { Play, Pause, Back10, Forward10 }
 
 @Composable
-private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp) {
-    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modifier = Modifier) {
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = this.size.width
             when (icon) {
@@ -573,37 +603,71 @@ private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp) {
     }
 }
 
+/** A player icon on its own (no circle): soft shadow at rest; white, larger and underlined on focus. */
 @Composable
 private fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
-    val s = if (big) 60.dp else 48.dp
+    val s = if (big) 56.dp else 44.dp
     FocusSurface(
         onClick = onClick,
         modifier = Modifier.size(s),
         focusRequester = requester,
         shape = CircleShape,
-        focusScale = 1.08f,
-        restColor = if (big) Color(0x33FFFFFF) else Color(0x1FFFFFFF),
+        focusScale = 1.16f,
+        restColor = Color.Transparent,
+        focusColor = Color.Transparent,
     ) { focused ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            PlayerGlyph(icon, if (focused) ZappColors.OnFocus else Color.White, if (big) 28.dp else 26.dp)
+            val g = if (big) 32.dp else 26.dp
+            PlayerGlyph(icon, Color.Black.copy(alpha = 0.55f), g, Modifier.graphicsLayer { translationY = 1.5.dp.toPx() }.blur(3.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
+            PlayerGlyph(icon, if (focused) Color.White else Color.White.copy(alpha = 0.8f), g)
+            FocusUnderline(focused, Modifier.align(Alignment.BottomCenter))
         }
     }
 }
 
-/** A labelled option in the player, showing its current value ("Audio" / "English, 5.1"). */
+/** A short theme-coloured line under whatever has focus in the player. */
+@Composable
+private fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
+    val w by androidx.compose.animation.core.animateDpAsState(if (focused) 18.dp else 0.dp, androidx.compose.animation.core.tween(160), label = "underline")
+    Box(
+        modifier
+            .width(w)
+            .height(2.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
+    )
+}
+
+/** A player option as quiet text; its current value appears beneath it while it has focus. */
 @Composable
 private fun ChipButton(label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) {
     FocusSurface(
         onClick = onClick,
         focusRequester = requester,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(10.dp),
         focusScale = 1.04f,
-        restColor = if (accent) ZappColors.Brand1.copy(alpha = 0.45f) else Color(0x1FFFFFFF),
+        restColor = Color.Transparent,
+        focusColor = Color.Transparent,
     ) { focused ->
-        Column(Modifier.padding(horizontal = 16.dp, vertical = if (value != null) 8.dp else 14.dp).widthIn(max = 220.dp)) {
-            Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else Color.White, maxLines = 1)
-            value?.let {
-                Text(it, fontSize = 11.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp).widthIn(max = 200.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                label,
+                fontSize = 13.5.sp,
+                fontWeight = if (focused || accent) FontWeight.SemiBold else FontWeight.Medium,
+                color = when {
+                    focused -> Color.White
+                    accent -> ZappColors.Brand2
+                    else -> Color.White.copy(alpha = 0.72f)
+                },
+                maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), Offset(0f, 1.5f), 6f)),
+            )
+            Spacer(Modifier.height(4.dp))
+            FocusUnderline(focused)
+            Box(Modifier.height(16.dp)) {
+                if (focused && value != null) {
+                    Text(value, fontSize = 10.5.sp, color = ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                }
             }
         }
     }
@@ -650,7 +714,7 @@ private fun VodControls(
             ErrorBanner("This source isn't playing. Try again, or choose another source.")
         }
         SeekBar(playback, active = focusable, markers = markers)
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(10.dp))
         Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
             if (playback.error != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -658,14 +722,14 @@ private fun VodControls(
                     ChipButton("Try again", null, { playback.retry() })
                 }
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     RoundButton(PlayerIcon.Back10, false, null) { seekBy(-10_000) }
                     RoundButton(if (playing) PlayerIcon.Pause else PlayerIcon.Play, true, first) { playback.togglePause() }
                     RoundButton(PlayerIcon.Forward10, false, null) { seekBy(10_000) }
                 }
             }
             Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Top) {
                 ChipButton("Audio", audioNow ?: "Default", onAudio)
                 ChipButton("Subtitles", subsNow, onSubtitles)
                 ChipButton("Sources", null, onSources)

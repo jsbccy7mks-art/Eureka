@@ -241,6 +241,20 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        SettingsGroup("Display matching", "Frame rate and resolution switching") {
+            SettingRow(
+                title = "Match frame rate",
+                body = "Switches your TV to the film's frame rate (24, 25, 50, 60) while it plays, so motion is smooth. The screen may go dark for a moment as it switches.",
+                value = SettingValue.Toggle(s.matchFrameRate),
+                onClick = { s.matchFrameRate = !s.matchFrameRate },
+            )
+            SettingRow(
+                title = "Match resolution",
+                body = "Also switches to the video's resolution (1080p, 4K). Off lets your TV upscale, which is often better and quicker.",
+                value = SettingValue.Toggle(s.matchResolution),
+                onClick = { s.matchResolution = !s.matchResolution },
+            )
+        }
         SettingsGroup("Starting films and series", "Autoplay, which sources, quality", startOpen = true) {
         SettingRow(
             title = "Autoplay",

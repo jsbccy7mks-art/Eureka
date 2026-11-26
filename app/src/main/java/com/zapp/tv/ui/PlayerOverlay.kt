@@ -35,6 +35,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -361,8 +363,9 @@ internal fun BottomScrim(content: @Composable () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, ZappColors.Bg.copy(alpha = 0.85f), ZappColors.Bg.copy(alpha = 0.95f))))
-            .padding(start = 48.dp, end = 48.dp, top = 70.dp, bottom = 28.dp),
+            // A soft fade from the bottom, no panel: the picture stays visible behind the controls.
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.82f))))
+            .padding(start = 56.dp, end = 56.dp, top = 90.dp, bottom = 26.dp),
     ) {
         content()
     }
@@ -444,13 +447,35 @@ internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp
     if (!seekable || duration <= 0 || duration == C.TIME_UNSET) return
 
     Spacer(Modifier.height(14.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(formatClock(position), color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.width(64.dp))
+    var barFocused by remember { mutableStateOf(false) }
+    val thick by androidx.compose.animation.core.animateDpAsState(if (barFocused) 6.dp else 3.dp, androidx.compose.animation.core.tween(160), label = "bar")
+    val fraction = (position.toFloat() / duration).coerceIn(0f, 1f)
+    Column {
+        // Time bubble that follows the playhead while the bar has focus.
+        BoxWithConstraints(Modifier.fillMaxWidth().height(24.dp)) {
+            if (barFocused) {
+                val x = (maxWidth - 60.dp) * fraction
+                Text(
+                    formatClock(position),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .offset(x = x)
+                        .width(60.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .padding(vertical = 3.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
         FocusSurface(
             onClick = { playback.togglePause() },
+            onFocusChange = { barFocused = it },
             modifier = Modifier
-                .weight(1f)
-                .height(22.dp)
+                .fillMaxWidth()
+                .height(20.dp)
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     val step = if (e.nativeKeyEvent.repeatCount > 4) 60_000L else 10_000L
@@ -468,29 +493,37 @@ internal fun SeekBar(playback: Playback, active: Boolean, markers: List<com.zapp
                 },
             shape = RoundedCornerShape(50),
             focusScale = 1f,
-            focusColor = Color(0x33FFFFFF),
+            restColor = Color.Transparent,
+            focusColor = Color.Transparent,
         ) { focused ->
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-                ProgressLine(
-                    (position.toFloat() / duration).coerceIn(0f, 1f),
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 6.dp),
-                    fill = Color.Unspecified,
-                )
-                // Intro, recap and credits marked on the bar.
-                if (markers.isNotEmpty()) {
-                    androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 6.dp)) {
-                        for (m in markers) {
-                            val a = (m.startMs.toFloat() / duration).coerceIn(0f, 1f) * size.width
-                            val b = (m.endMs.toFloat() / duration).coerceIn(0f, 1f) * size.width
-                            drawRect(Color(0x99FFC94A), androidx.compose.ui.geometry.Offset(a, 0f), androidx.compose.ui.geometry.Size((b - a).coerceAtLeast(2f), size.height))
-                        }
+                androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(thick + 10.dp)) {
+                    val h = thick.toPx()
+                    val y = size.height / 2f
+                    val w = size.width
+                    val r = androidx.compose.ui.geometry.CornerRadius(h / 2f)
+                    drawRoundRect(Color.White.copy(alpha = 0.22f), androidx.compose.ui.geometry.Offset(0f, y - h / 2f), androidx.compose.ui.geometry.Size(w, h), r)
+                    // Intro, recap and credits marked on the bar.
+                    for (m in markers) {
+                        val a = (m.startMs.toFloat() / duration).coerceIn(0f, 1f) * w
+                        val b = (m.endMs.toFloat() / duration).coerceIn(0f, 1f) * w
+                        drawRect(Color.White.copy(alpha = 0.45f), androidx.compose.ui.geometry.Offset(a, y - h / 2f), androidx.compose.ui.geometry.Size((b - a).coerceAtLeast(2f), h))
                     }
+                    drawRoundRect(
+                        Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2), startX = 0f, endX = w),
+                        androidx.compose.ui.geometry.Offset(0f, y - h / 2f),
+                        androidx.compose.ui.geometry.Size(w * fraction, h),
+                        r,
+                    )
+                    if (focused) drawCircle(Color.White, radius = h * 1.25f, center = androidx.compose.ui.geometry.Offset(w * fraction, y))
                 }
             }
         }
-        Text(formatClock(duration), color = ZappColors.Dim, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp))
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            Text(formatClock(position), color = Color.White.copy(alpha = 0.75f), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.weight(1f))
+            Text("-" + formatClock(duration - position), color = Color.White.copy(alpha = 0.55f), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+        }
     }
 }
 

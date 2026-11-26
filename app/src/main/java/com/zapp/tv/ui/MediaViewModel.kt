@@ -100,6 +100,32 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     val library: StateFlow<List<LibraryItem>> =
         repo.library.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** When each title was last played (library sort). */
+    val lastWatched: StateFlow<Map<String, Long>> =
+        repo.lastWatched.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** Release years for library titles (library sort), filled in as details arrive. */
+    val libraryYears = androidx.compose.runtime.mutableStateMapOf<String, Int>()
+    private val libraryTried = HashSet<String>()
+
+    init {
+        // Synced library titles often arrive without a poster: fill them in once from your add-ons
+        // (or TMDB) and save them. The year comes along for sorting.
+        viewModelScope.launch {
+            library.collect { list ->
+                for (item in list) {
+                    if (!libraryTried.add(item.metaId)) continue
+                    val d = runCatching { meta(item.type, item.metaId) }.getOrNull() ?: continue
+                    d.preview.releaseInfo?.let { Regex("\\d{4}").find(it)?.value?.toIntOrNull() }?.let { libraryYears[item.metaId] = it }
+                    val badName = item.name.isBlank() || Regex("^tt\\d+").containsMatchIn(item.name)
+                    if (item.poster == null || badName) {
+                        repo.updateLibraryItem(item.copy(poster = item.poster ?: d.preview.poster, name = if (badName) d.preview.name else item.name))
+                    }
+                }
+            }
+        }
+    }
+
     // ------------------------------------------------------------ profiles
 
     val profileStore = zapp.profiles

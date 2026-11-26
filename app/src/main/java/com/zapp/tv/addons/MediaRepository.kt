@@ -252,6 +252,10 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
 
     suspend fun hideFromContinue(metaId: String) = dao.hideFromContinue(profile, metaId)
 
+    val lastWatched: Flow<Map<String, Long>> = perProfile { dao.observeLastWatched(it) }.map { l -> l.associate { it.metaId to it.at } }
+
+    suspend fun updateLibraryItem(item: LibraryItem) = dao.addToLibrary(item)
+
     val watchedTitles: Flow<Set<String>> = perProfile { dao.observeWatchedTitles(it) }.map { it.toSet() }
 
     val library: Flow<List<LibraryItem>> = perProfile { dao.observeLibrary(it) }

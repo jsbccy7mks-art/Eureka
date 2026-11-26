@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.27.0
+
+**New**
+- Frame rate matching (on by default) and resolution matching (off by default): Settings, Playback,
+  Display matching. The TV switches to the film's frame rate (and, if you want, its resolution)
+  while it plays, and back afterwards.
+- Library: All, Films and Series tabs, and sorting by Date added, A–Z, Year or Recently watched
+  (both remembered). Missing posters and "tt…" names are filled in from your add-ons or TMDB.
+
+**Changed**
+- Sleeker player controls: no panels or circles, just icons and words with a soft shadow over a
+  gentle fade; a theme-coloured underline shows focus; the title in poster lettering at the top.
+- New seek bar: thin theme gradient that thickens when selected, with a time bubble that follows
+  it and time left on the right. Controls hide after 5 seconds.
+
 ## 0.26.2
 
 **Changed**

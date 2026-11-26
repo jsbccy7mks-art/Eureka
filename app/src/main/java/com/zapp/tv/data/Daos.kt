@@ -379,6 +379,10 @@ interface MediaDao {
     @Query("DELETE FROM watch_progress WHERE profileId = :profileId AND metaId = :metaId AND watched = 1")
     suspend fun deleteWatched(profileId: Long, metaId: String)
 
+    /** When each title was last played (for sorting the library by "Recently watched"). */
+    @Query("SELECT metaId, MAX(updatedAt) AS at FROM watch_progress WHERE profileId = :profileId AND (percent IS NULL OR percent >= 0) GROUP BY metaId")
+    fun observeLastWatched(profileId: Long): Flow<List<LastWatched>>
+
     @Query("SELECT * FROM library WHERE profileId = :profileId")
     suspend fun allLibrary(profileId: Long): List<LibraryItem>
 
@@ -404,6 +408,9 @@ interface MediaDao {
     @Query("DELETE FROM library WHERE profileId = :profileId AND metaId = :metaId")
     suspend fun removeFromLibrary(profileId: Long, metaId: String)
 }
+
+/** A title and when it was last played. */
+data class LastWatched(val metaId: String, val at: Long)
 
 @Dao
 interface ProfileDao {

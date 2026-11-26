@@ -220,6 +220,14 @@ class Settings(context: Context) {
         get() = prefs.getLong(acct("stremioLastSync"), 0)
         set(value) = prefs.edit().putLong(acct("stremioLastSync"), value).apply()
 
+    /** Library: "all", "movie" or "series", and the sort ("added", "title", "year", "watched"). */
+    var libraryTab: String
+        get() = prefs.getString(acct("libraryTab"), "all") ?: "all"
+        set(value) = prefs.edit().putString(acct("libraryTab"), value).apply()
+    var librarySort: String
+        get() = prefs.getString(acct("librarySort"), "added") ?: "added"
+        set(value) = prefs.edit().putString(acct("librarySort"), value).apply()
+
     var recentSearches: List<String>
         get() = (prefs.getString(acct("recentSearches"), "") ?: "").split('\n').filter { it.isNotBlank() }
         set(value) = prefs.edit().putString(acct("recentSearches"), value.joinToString("\n")).apply()
@@ -314,6 +322,24 @@ class Settings(context: Context) {
             trailerBestState.value = value
             prefs.edit().putBoolean("trailerBest", value).apply()
             com.zapp.tv.ui.FocusStyle.trailerBest = value
+        }
+
+    private val matchFrameRateState = mutableStateOf(prefs.getBoolean("matchFrameRate", true))
+    /** Switch the TV to the video's frame rate while playing (no judder). */
+    var matchFrameRate: Boolean
+        get() = matchFrameRateState.value
+        set(value) {
+            matchFrameRateState.value = value
+            prefs.edit().putBoolean("matchFrameRate", value).apply()
+        }
+
+    private val matchResolutionState = mutableStateOf(prefs.getBoolean("matchResolution", false))
+    /** Switch the TV to the video's resolution while playing. */
+    var matchResolution: Boolean
+        get() = matchResolutionState.value
+        set(value) {
+            matchResolutionState.value = value
+            prefs.edit().putBoolean("matchResolution", value).apply()
         }
 
     private val startupSoundState = mutableStateOf(prefs.getBoolean("startupSound", true))
