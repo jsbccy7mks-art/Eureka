@@ -497,6 +497,12 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
                 },
             )
             SettingRow(
+                title = "Show frame rate",
+                body = "A small counter at the top of the screen: frames per second, and how many were slow. For checking how smoothly things scroll.",
+                value = SettingValue.Toggle(vm.settings.showFps),
+                onClick = { vm.settings.showFps = !vm.settings.showFps },
+            )
+            SettingRow(
                 title = "What's new",
                 body = "What changed in this version and the few before it.",
                 value = SettingValue.Action,

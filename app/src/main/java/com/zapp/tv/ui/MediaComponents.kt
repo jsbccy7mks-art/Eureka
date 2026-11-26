@@ -205,8 +205,11 @@ fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentSca
         if (!src.isNullOrBlank()) {
             // If the picture won't load, try the fallback (a poster that always exists for IMDb titles).
             var failed by remember(src) { mutableStateOf(false) }
+            // No fade-in on cards (they appear as you scroll; a fade on each costs frames).
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val pic = if (failed && fallback != null && fallback != src) fallback else src
             AsyncImage(
-                model = if (failed && fallback != null && fallback != src) fallback else src,
+                model = remember(pic) { coil.request.ImageRequest.Builder(ctx).data(pic).crossfade(false).build() },
                 contentDescription = null,
                 contentScale = contentScale,
                 onError = { failed = true },
@@ -591,7 +594,8 @@ fun CatalogRow(
                     }
                 }
                 // Things you disliked go to the back of the row.
-                val ordered = items.sortedBy { if (mvm.ratingOf(it.id) == com.zapp.tv.data.Rating.Dislike) 1 else 0 }
+                val disliked = mvm.ratings.byId.filterValues { it.rating == com.zapp.tv.data.Rating.Dislike }.keys
+                val ordered = remember(items.size, items.firstOrNull()?.id, disliked) { items.sortedBy { if (it.id in disliked) 1 else 0 } }
                 itemsIndexed(if (top10) ordered.take(10) else ordered, key = { _, m -> m.id }) { index, meta ->
                     val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
                     // An empty id means "the first card" (first start, nothing remembered yet).

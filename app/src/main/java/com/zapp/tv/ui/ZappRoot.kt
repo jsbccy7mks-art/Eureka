@@ -354,6 +354,8 @@ fun ZappRoot(vm: AppViewModel) {
         if (!playerOpen && !vodOpen && dest != Dest.Live && dest != Dest.Home) playback.stop()
     }
 
+    LaunchedEffect(Unit) { Motion.settle() }
+
     LaunchedEffect(exitArmed) {
         if (exitArmed) {
             delay(2_500)
@@ -377,6 +379,11 @@ fun ZappRoot(vm: AppViewModel) {
             .onPreviewKeyEvent { e ->
                 if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionLeft) {
                     railIntentAt = System.currentTimeMillis()
+                }
+                if (e.key == androidx.compose.ui.input.key.Key.DirectionLeft || e.key == androidx.compose.ui.input.key.Key.DirectionRight ||
+                    e.key == androidx.compose.ui.input.key.Key.DirectionUp || e.key == androidx.compose.ui.input.key.Key.DirectionDown
+                ) {
+                    Motion.onArrow(e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown, e.nativeKeyEvent.repeatCount)
                 }
                 false
             },
@@ -549,6 +556,8 @@ fun ZappRoot(vm: AppViewModel) {
                 onCancel = { settingsPin = false },
             )
         }
+        if (mvm.settings.showFps) FrameCounter(Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+
         WhatsNewState.notes?.let { notes ->
             WhatsNewScreen(notes) {
                 WhatsNewState.notes = null

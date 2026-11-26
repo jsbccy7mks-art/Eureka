@@ -113,7 +113,8 @@ fun ZappTheme(content: @Composable () -> Unit) {
         ),
     ) {
         // Only animate while the glow is switched on.
-        val pulse = if (!FocusStyle.glow) androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0.5f) } else androidx.compose.animation.core.rememberInfiniteTransition(label = "focusPulse").animateFloat(
+        // Holds steady while you're moving around (smoother scrolling), pulses when you rest.
+        val pulse = if (!FocusStyle.glow || Motion.moving) androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0.5f) } else androidx.compose.animation.core.rememberInfiniteTransition(label = "focusPulse").animateFloat(
             0f,
             1f,
             androidx.compose.animation.core.infiniteRepeatable(

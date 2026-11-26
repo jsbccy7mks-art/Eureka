@@ -40,7 +40,8 @@ private val TvEasing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
  * focus moves on by itself, as on Google TV.
  */
 private class PivotSpec(private val pivotPx: Float) : BringIntoViewSpec {
-    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 230, easing = TvEasing)
+    override val scrollAnimationSpec: AnimationSpec<Float>
+        get() = if (Motion.held) tween(durationMillis = 130, easing = androidx.compose.animation.core.LinearEasing) else tween(durationMillis = 230, easing = TvEasing)
 
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         // Things bigger than the window (or nearly) just line up with the pivot.
@@ -62,7 +63,8 @@ fun PivotScrolling(pivot: Dp, content: @Composable () -> Unit) {
  * At either end the row stops, so focus walks the rest of the way to the first or last card.
  */
 private class RowSpec(private val startPx: Float, private val middle: Float) : BringIntoViewSpec {
-    override val scrollAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 220, easing = TvEasing)
+    override val scrollAnimationSpec: AnimationSpec<Float>
+        get() = if (Motion.held) tween(durationMillis = 130, easing = androidx.compose.animation.core.LinearEasing) else tween(durationMillis = 220, easing = TvEasing)
 
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
         val farthest = maxOf(startPx, containerSize * middle - size / 2f)

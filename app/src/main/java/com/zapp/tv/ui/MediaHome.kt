@@ -100,7 +100,11 @@ fun ImmersiveLayout(
     var hero by remember { mutableStateOf<HeroItem?>(null) }
     // The header follows focus after a short pause, so scrolling quickly along a row stays smooth.
     LaunchedEffect(focused) {
-        if (hero != null) delay(220)
+        if (hero != null) {
+            delay(220)
+            // Holding a direction: the header waits until you let go.
+            while (Motion.held) delay(60)
+        }
         hero = focused
     }
     val detail by produceState<com.zapp.tv.addons.MetaDetail?>(null, hero?.meta?.id) {

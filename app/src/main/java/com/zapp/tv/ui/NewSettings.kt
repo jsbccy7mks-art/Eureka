@@ -43,6 +43,7 @@ object NewSettings {
         Entry("Collections in the sidebar", "HomeLayout"),
         Entry("group:Collections layout", "HomeLayout", "Collections layout"),
         Entry("Test trailers", "About"),
+        Entry("Show frame rate", "About"),
         Entry("group:Nuvio", "Accounts", "Nuvio"),
         Entry("group:MDBList", "Accounts", "MDBList"),
     )

@@ -107,8 +107,24 @@ fun rememberArtColor(url: String?): Color? {
 /** A slow, gentle zoom and pan, so still artwork feels alive (off with "Moving artwork"). */
 fun Modifier.drift(): Modifier = composed {
     if (!FocusStyle.drift) return@composed this
-    val t = rememberInfiniteTransition(label = "drift")
-    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse), label = "p")
+    // Back and forth over 26 s; it holds still while you're moving around (smoother scrolling).
+    var p by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var dir = 1f
+        var last = 0L
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { t ->
+                if (last != 0L && !Motion.moving) {
+                    val step = (t - last) / 26_000_000_000f
+                    var next = p + dir * step
+                    if (next >= 1f) { next = 1f; dir = -1f }
+                    if (next <= 0f) { next = 0f; dir = 1f }
+                    p = next
+                }
+                last = t
+            }
+        }
+    }
     graphicsLayer {
         val s = 1.04f + 0.07f * p
         scaleX = s

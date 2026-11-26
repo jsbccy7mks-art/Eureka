@@ -414,6 +414,12 @@ class Settings(context: Context) {
         get() = prefs.getString(acct("removedCollections"), "") ?: ""
         set(value) { prefs.edit().putString(acct("removedCollections"), value).apply() }
 
+    private val showFpsState = mutableStateOf(prefs.getBoolean("showFps", false))
+    /** A small frames-per-second counter at the top of the screen. */
+    var showFps: Boolean
+        get() = showFpsState.value
+        set(value) { showFpsState.value = value; prefs.edit().putBoolean("showFps", value).apply() }
+
     /** New settings you've already looked at (titles, one per line). */
     var seenSettings: String
         get() = prefs.getString("seenSettings", "") ?: ""
