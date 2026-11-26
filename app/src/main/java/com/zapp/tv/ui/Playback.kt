@@ -443,6 +443,7 @@ class Playback(
     }
 
     fun play(c: Channel) {
+        FilmStartBuffer.film = false
         if (isOn(c) && error == null && player.playbackState != Player.STATE_IDLE) {
             channel = c
             return
@@ -463,6 +464,7 @@ class Playback(
 
     /** Plays a film or episode, optionally from where it was left. */
     fun playMedia(info: MediaInfo, startMs: Long, startPercent: Double? = null) {
+        FilmStartBuffer.film = true
         pendingPercent = if (startMs <= 0 && startPercent != null && startPercent > 1 && startPercent < 95) startPercent else null
         retryJob?.cancel()
         retries = 0
@@ -682,7 +684,7 @@ class Playback(
                 }
                 .build()
             return ExoPlayer.Builder(context)
-                .setLoadControl(loadControl)
+                .setLoadControl(FilmStartBuffer(loadControl))
                 .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
                 .build()
         }
@@ -710,4 +712,25 @@ fun FullscreenVideo(playback: Playback, modifier: Modifier = Modifier) {
         onRelease = { view -> playback.player.clearVideoSurfaceView(view) },
         modifier = modifier,
     )
+}
+
+
+/**
+ * Films and episodes wait for a little more video before they start (and after a stall) than live
+ * channels do, so they don't stop to buffer straight after starting. Channels keep the quick start.
+ */
+@OptIn(UnstableApi::class)
+private class FilmStartBuffer(private val inner: DefaultLoadControl) : androidx.media3.exoplayer.LoadControl by inner {
+    override fun shouldStartPlayback(parameters: androidx.media3.exoplayer.LoadControl.Parameters): Boolean {
+        if (!inner.shouldStartPlayback(parameters)) return false
+        if (!film) return true
+        val need = if (parameters.rebuffering) REBUFFER_US else START_US
+        return parameters.bufferedDurationUs >= need
+    }
+
+    companion object {
+        @Volatile var film = false
+        private const val START_US = 3_000_000L
+        private const val REBUFFER_US = 5_000_000L
+    }
 }

@@ -1268,9 +1268,9 @@ private fun AppearancePane(vm: AppViewModel) {
             SettingRow(
                 title = "Start after",
                 body = "How long you rest on a title before its trailer begins.",
-                value = SettingValue.Choice("${s.trailerDelay} seconds"),
+                value = SettingValue.Choice(if (s.trailerDelay == 0) "Straight away" else "${s.trailerDelay} seconds"),
                 onClick = {
-                    val options = listOf(2, 4, 8, 15)
+                    val options = listOf(0, 2, 4, 8, 15)
                     s.trailerDelay = options[(options.indexOf(s.trailerDelay) + 1).mod(options.size)]
                 },
             )

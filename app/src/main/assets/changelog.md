@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.49.0
+
+**New**
+- Trailers can start straight away: Settings, Appearance, Start after, "Straight away".
+
+**Improved**
+- When a trailer plays in the Home header, the details disappear completely and only the title's
+  logo stays, at full brightness in the top left. The trailer moves to the middle of the screen,
+  larger, with just a slight fade at its edges.
+- Films and episodes gather a few more seconds of video before they start (and after a stall), so
+  they don't stop to buffer straight after starting. Live channels still start as quickly.
+
 ## 0.48.0
 
 **New**

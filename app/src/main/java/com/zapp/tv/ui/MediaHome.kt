@@ -125,11 +125,13 @@ fun ImmersiveLayout(
         LaunchedEffect(trailerOn, hero?.meta?.id) {
             breathe = false
             if (trailerOn) {
-                delay(1_200)
+                delay(600)
                 breathe = true
             }
         }
-        val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 0.12f else 1f, tween(if (breathe) 900 else 250), label = "breathe")
+        // Playing: the details go completely, leaving just the title's logo, top left.
+        val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 0f else 1f, tween(if (breathe) 700 else 250), label = "breathe")
+        val logoAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, tween(if (breathe) 700 else 200), label = "logo")
         val grow by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, tween(if (breathe) 1200 else 300), label = "grow")
         Backdrop(
             backdropUrl,
@@ -171,6 +173,23 @@ fun ImmersiveLayout(
                 else -> HeroInfo(hero, detail, heroRatings)
             }
         }
+        val shownHero = hero
+        if (header == null && shownHero != null && logoAlpha > 0f) {
+            val m = shownHero.meta
+            val d = detail?.takeIf { it.preview.id == m.id }
+            Box(
+                Modifier
+                    .padding(start = 64.dp, top = 30.dp)
+                    .height(64.dp)
+                    .widthIn(max = 320.dp)
+                    .graphicsLayer { alpha = logoAlpha },
+                contentAlignment = Alignment.TopStart,
+            ) {
+                TitleLogo(m.id, m.logo ?: d?.preview?.logo, m.name, Modifier.height(64.dp).widthIn(max = 320.dp), alignment = Alignment.TopStart) {
+                    MovieTitle(m.name, if (m.name.length > 24) 22.sp else 28.sp, maxLines = 1)
+                }
+            }
+        }
         if (topRight != null) {
             Box(Modifier.align(Alignment.TopEnd).padding(top = 26.dp, end = 40.dp)) { topRight() }
         }
@@ -197,7 +216,9 @@ fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
 /** Artwork of the title you're on, filling the top right and fading into the page. */
 @Composable
 private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = null, grow: Float = 0f, onTrailer: (Boolean) -> Unit = {}) {
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val fullW = constraints.maxWidth.toFloat()
+        val fullH = constraints.maxHeight.toFloat()
         // The picture itself fades out (rather than being covered with page colour), so whatever is
         // behind it, the glow included, shows through evenly right up to the sidebar.
         Box(
@@ -205,13 +226,20 @@ private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = n
                 .align(Alignment.TopEnd)
                 // A whole 16:9 picture sitting higher up, so the rows cover only its faded edge
                 // and the picture (and trailer) isn't cut off behind the cards.
-                .fillMaxHeight(0.66f + 0.16f * grow)
+                .fillMaxHeight(0.66f + 0.2f * grow)
                 .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true)
+                // While the trailer plays it moves to the middle of the screen.
+                .graphicsLayer {
+                    val w = fullH * (0.66f + 0.2f * grow) * 16f / 9f
+                    translationX = -((fullW - w) / 2f).coerceAtLeast(0f) * grow
+                }
                 .clipToBounds()
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f - 0.3f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    // A long soft fade on the left at rest; just a slight one on each side while playing.
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f - 0.38f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    if (grow > 0f) drawRect(Brush.horizontalGradient(*easedMask(start = 1f, end = 1f - 0.12f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                     drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.62f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                 },
         ) {
