@@ -175,6 +175,17 @@ fun SourcesPane(
         vm.error?.let { message ->
             item(key = "error") { ErrorBanner(message) }
         }
+        item(key = "head") {
+            SettingsCaption(if (playlists.isEmpty()) "No playlists yet" else "Your playlists")
+            if (playlists.isEmpty()) {
+                Text(
+                    "Add an Xtream login or an M3U link for live TV. Typing on your phone is quickest.",
+                    color = ZappColors.Faint,
+                    fontSize = TextSize.Small,
+                    modifier = Modifier.padding(start = 16.dp),
+                )
+            }
+        }
         items(playlists, key = { it.playlist.id }) { item ->
             PlaylistCard(
                 item = item,

@@ -84,6 +84,39 @@ class ScreensTest {
         save("settings-$section")
     }
 
+    @Test fun profiles() = settings("Profiles", 1)
+
+    @Test fun whatsNew() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        val app = RuntimeEnvironment.getApplication() as ZappApp
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            ZappTheme {
+                Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
+                    AmbientBackground()
+                    WhatsNewScreen(Changelog.read(app).take(3)) {}
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(2000)
+        save("whats-new")
+    }
+
+    @Test fun app() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        val app = RuntimeEnvironment.getApplication() as ZappApp
+        val vm = AppViewModel(app)
+        rule.mainClock.autoAdvance = false
+        rule.setContent { ZappTheme { ZappRoot(vm) } }
+        rule.mainClock.advanceTimeBy(600)
+        save("app-opening")
+        rule.mainClock.advanceTimeBy(9000)
+        save("app-home")
+        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        rule.mainClock.advanceTimeBy(600)
+        save("app-sidebar")
+    }
+
     @Test fun playback() = settings("Playback", 4)
     @Test fun appearance() = settings("Appearance", 2)
     @Test fun accounts() = settings("Accounts", 1)

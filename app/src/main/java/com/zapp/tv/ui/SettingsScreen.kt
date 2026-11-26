@@ -743,6 +743,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 else -> "Not connected"
             },
             collapsible = true,
+            help = "Keeps watched, progress and your library in step with Simkl (and Nuvio through it).",
         ) {
         Text(
             "Keeps what you've watched, where you got to, and your library in step with Simkl, and with Nuvio " +
@@ -826,16 +827,16 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
         }
 
         }
-        SettingsGroup("Stremio", if (mvm.stremio.signedIn) mvm.settings.stremioUser.ifBlank { "Signed in" } else "Not connected", collapsible = true) {
+        SettingsGroup("Stremio", if (mvm.stremio.signedIn) mvm.settings.stremioUser.ifBlank { "Signed in" } else "Not connected", collapsible = true, help = "Brings over your Stremio library and Continue watching.") {
             StremioSection(vm, mvm) { onPhone("stremio") }
         }
-        SettingsGroup("Nuvio", nuvioSummary(mvm), collapsible = true) {
+        SettingsGroup("Nuvio", nuvioSummary(mvm), collapsible = true, help = "Syncs Continue watching, watched and library with Nuvio, and imports its add-ons.") {
             NuvioSyncSection(mvm) { onPhone("nuvio") }
             Spacer(Modifier.height(6.dp))
             NuvioSection(mvm)
         }
         SettingsCaption("Extras")
-        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected" else "Not set up", collapsible = true) {
+        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected" else "Not set up", collapsible = true, help = "Your free TMDB key: cast photos, reviews, recommendations and the Collections page.") {
             Text(
                 "With your own free TMDB key, details pages show cast photos, age ratings, reviews, \"More with…\" and \"People also watched\".",
                 color = ZappColors.Dim,
@@ -847,7 +848,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 if (mvm.tmdb.enabled) ZButton("Remove key", { mvm.settings.setSecret("tmdbKey", "") }, style = ButtonStyle.Quiet)
             }
         }
-        SettingsGroup("MDBList", if (mvm.mdblist.enabled) "Connected" else "Not set up", collapsible = true) {
+        SettingsGroup("MDBList", if (mvm.mdblist.enabled) "Connected" else "Not set up", collapsible = true, help = "Your free MDBList key: IMDb, Rotten Tomatoes, Metacritic and Letterboxd scores.") {
             Text(
                 "With your own free MDBList key (and TMDB above), details pages show IMDb, Rotten Tomatoes critics and audience, Metacritic and Letterboxd scores, and Home shows Rotten Tomatoes beside the year.",
                 color = ZappColors.Dim,
@@ -860,7 +861,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
             }
         }
         SettingsCaption("Streaming")
-        SettingsGroup("Debrid", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Not connected", collapsible = true) {
+        SettingsGroup("Debrid", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Not connected", collapsible = true, help = "Real-Debrid, AllDebrid, Premiumize or TorBox, so torrent sources can play.") {
             DebridSection(vm, mvm)
         }
     }
@@ -1454,12 +1455,14 @@ private fun LayoutRow(r: HomeRowSetting, moving: Boolean, pinned: Boolean, onCli
                 Text("↕", color = if (focused) ZappColors.OnFocus else ZappColors.Brand2, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(10.dp))
             }
-            Text(r.label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (r.name != null) {
-                Spacer(Modifier.width(6.dp))
-                Text("(${r.title})", color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Text(r.label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (r.name != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("(${r.title})", color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                }
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
             Text(
                 if (moving) "Up/Down to move, OK to drop" else if (pinned) "Always first" else r.source,
                 color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
@@ -1650,7 +1653,7 @@ private fun Switch(checked: Boolean, focused: Boolean) {
  * them (for long blocks such as accounts); otherwise it's a small capitals caption, always open.
  */
 @Composable
-fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, collapsible: Boolean = false, content: @Composable () -> Unit) {
+fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, collapsible: Boolean = false, help: String = summary, content: @Composable () -> Unit) {
     if (!collapsible) {
         Column(Modifier.fillMaxWidth()) {
             SettingsCaption(title)
@@ -1664,12 +1667,17 @@ fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, co
     Column(Modifier.fillMaxWidth()) {
         FocusSurface(
             onClick = { open = !open },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    val y = size.height + 1.dp.toPx()
+                    drawLine(Color(0x12FFFFFF), androidx.compose.ui.geometry.Offset(14.dp.toPx(), y), androidx.compose.ui.geometry.Offset(size.width - 14.dp.toPx(), y), 1f)
+                },
             onFocusChange = { if (!it) NewSettings.markSeen("group:$title") },
             shape = Shapes.Row,
             focusScale = 1.01f,
         ) { focused ->
-            if (focused && atFoot) androidx.compose.runtime.SideEffect { SettingsHelp.show(title, summary) }
+            if (focused && atFoot) androidx.compose.runtime.SideEffect { SettingsHelp.show(title, help) }
             Row(Modifier.heightIn(min = 46.dp).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
                 if (NewSettings.groupHasNew(title)) {
