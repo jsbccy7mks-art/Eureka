@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.0
+
+**New**
+- Sports (in the sidebar, under TV guide): follow any teams, in any sport (Your teams, then search).
+  See their matches live now, coming up and recent results, with badges and scores, from
+  TheSportsDB. OK on a match finds it in your TV guide and plays the channel it's on (or tells you
+  when and where it starts; if several channels show it, you choose).
+- Home: a "Your teams" row with matches live now or in the next 24 hours (Home layout to move or
+  hide it).
+- Works with TheSportsDB's free key; your own key (Patreon) can be added on the phone page's
+  Sports tab for fuller data. Not shown on Kids profiles.
+
 ## 0.34.0
 
 **New**
