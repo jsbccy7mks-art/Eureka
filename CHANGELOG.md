@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.36.0
+
+**New**
+- When a film's credits start (or the latest episode of a series), it shrinks to a small window
+  bottom right, still with sound, and something to watch next fills the screen:
+  - The next film in its collection first (if you haven't seen it), then titles people also
+    watched, skipping anything you've watched. Left and Right move between them.
+  - Its colours and backdrop, then its trailer (muted) after a moment; why it's suggested, logo,
+    scores and story, with Play and Details. Its sources are fetched while you look.
+  - OK on the small window (or Back) goes back to full screen. If there's a scene after the
+    credits, it goes full screen just before it. When the credits end, you're back on the details page.
+  - Settings, Playback: "Suggest something when a film ends" (on). Needs your TMDB key.
+- Blurred colour backgrounds: details pages, collections and the end screen sit on a soft wash of
+  the title's own colours.
+- Episode ratings: each episode card shows its rating (TMDB) as a tiny number in the corner.
+
 ## 0.35.0
 
 **New**
