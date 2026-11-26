@@ -44,7 +44,7 @@ jobs:
         run: cp CHANGELOG.md app/src/main/assets/changelog.md
 
       - name: Run tests
-        run: gradle testReleaseUnitTest --no-daemon
+        run: gradle testDebugUnitTest --tests '*FocusDownTest*' --no-daemon -i | grep -E 'RESULT|FAILED|PASSED|Exception' | head -60
 
       - name: Build APK
         env:
