@@ -392,13 +392,54 @@ fun FactsLine(year: String?, rating: String?, runtime: String?, genres: List<Str
         append(parts.joinToString("   ·   "))
         if (rating != null) {
             if (parts.isNotEmpty()) append("   ·   ")
-            pushStyle(androidx.compose.ui.text.SpanStyle(color = ZappColors.Star))
-            append("★ ")
-            pop()
+            append("IMDb ")
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = ZappColors.Text, fontWeight = FontWeight.SemiBold))
             append(rating)
+            pop()
         }
     }
     Text(text, color = ZappColors.Dim, fontSize = size, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+}
+
+/**
+ * Every score as a small card: a little mark for where it's from (Zapp's own simple badges, not the
+ * sites' logos) and the number. IMDb comes from the add-on when MDBList isn't connected.
+ */
+@Composable
+fun ScoreCards(list: List<com.zapp.tv.data.RatingBadge>, imdb: String?, modifier: Modifier = Modifier) {
+    val all = if (list.none { it.source == "IMDb" } && imdb != null) listOf(com.zapp.tv.data.RatingBadge("IMDb", imdb)) + list else list
+    if (all.isEmpty()) return
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        all.forEach { r ->
+            val (mark, bg, fg) = when (r.source) {
+                "IMDb" -> Triple("IMDb", Color(0xFFF5C518), Color.Black)
+                "RT" -> Triple("RT", Color(0xFFE2362B), Color.White)
+                "Audience" -> Triple("AUD", Color(0xFFF2A33A), Color.Black)
+                "Metacritic" -> Triple("MC", Color(0xFF3A3A3A), Color.White)
+                "Letterboxd" -> Triple("LB", Color(0xFF2C3440), Color.White)
+                else -> Triple(r.source.take(3).uppercase(), ZappColors.GlassHigh, ZappColors.Text)
+            }
+            Row(
+                Modifier.clip(RoundedCornerShape(8.dp)).background(ZappColors.Glass).padding(start = 5.dp, end = 10.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.clip(RoundedCornerShape(4.dp)).background(bg).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                    Text(mark, color = fg, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.3.sp)
+                }
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    r.value,
+                    color = when (r.good) {
+                        true -> Color(0xFF7EE2A8)
+                        false -> Color(0xFFFF8A8A)
+                        null -> ZappColors.Text
+                    },
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
 }
 
 /** Scores from MDBList, quietly: a tiny label and the number (green or red where it means something). */

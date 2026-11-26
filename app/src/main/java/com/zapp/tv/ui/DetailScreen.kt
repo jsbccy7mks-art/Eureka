@@ -353,15 +353,10 @@ fun DetailScreen(
                                 size = 12.sp,
                             )
                             }
-                            if (ratings.isNotEmpty() || match != null) {
+                            // Just IMDb up here (in the line above); every score is on the next page.
+                            match?.let { m ->
                                 Spacer(Modifier.height(8.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    match?.let { m ->
-                                        Text("$m% match", color = if (m >= 70) Color(0xFF7EE2A8) else if (m < 40) Color(0xFFFF8A8A) else ZappColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        Spacer(Modifier.width(14.dp))
-                                    }
-                                    RatingBadges(ratings)
-                                }
+                                Text("$m% match", color = if (m >= 70) Color(0xFF7EE2A8) else if (m < 40) Color(0xFFFF8A8A) else ZappColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.height(26.dp))
                             Text(
@@ -530,6 +525,7 @@ fun DetailScreen(
                             meta = meta,
                             detail = detail,
                             tmdb = tmdb,
+                            ratings = ratings,
                             watched = meta.id in WatchedMarks.ids,
                             playLabel = playLabel,
                             onPlay = { playMain() },
@@ -545,6 +541,7 @@ fun DetailScreen(
                         meta = meta,
                         detail = detail,
                         tmdb = tmdb,
+                        ratings = ratings,
                         modifier = Modifier
                             .heightIn(min = screenHeight)
                             .onFocusChanged { if (it.hasFocus && section != 2) goTo(2) },
@@ -695,6 +692,7 @@ private fun StorySection(
     meta: MetaPreview,
     detail: MetaDetail?,
     tmdb: com.zapp.tv.data.TmdbDetails?,
+    ratings: List<com.zapp.tv.data.RatingBadge>,
     watched: Boolean,
     playLabel: String,
     onPlay: () -> Unit,
@@ -738,7 +736,10 @@ private fun StorySection(
                 CreditLine("Released", detail?.released?.take(10) ?: meta.releaseInfo)
                 CreditLine("Runtime", prettyRuntime(detail?.runtime))
                 CreditLine("Rated", tmdb?.certification)
-                CreditLine("IMDb", meta.imdbRating?.let { "★ $it / 10" })
+                if (ratings.isNotEmpty() || meta.imdbRating != null) {
+                    Spacer(Modifier.height(10.dp))
+                    ScoreCards(ratings, meta.imdbRating)
+                }
             }
         }
     }
@@ -784,6 +785,7 @@ private fun CastSection(
     meta: MetaPreview,
     detail: MetaDetail?,
     tmdb: com.zapp.tv.data.TmdbDetails?,
+    ratings: List<com.zapp.tv.data.RatingBadge> = emptyList(),
     modifier: Modifier = Modifier,
     onPerson: (String) -> Unit = {},
 ) {
@@ -847,8 +849,12 @@ private fun CastSection(
                 CreditLine("Runtime", prettyRuntime(detail?.runtime))
                 CreditLine("Rated", tmdb?.certification)
                 CreditLine("Country", detail?.country)
-                CreditLine("IMDb", meta.imdbRating?.let { "★ $it / 10" })
                 CreditLine("Awards", detail?.awards)
+                // Series show every score here (films have them with the story).
+                if (meta.type == "series" && (ratings.isNotEmpty() || meta.imdbRating != null)) {
+                    Spacer(Modifier.height(10.dp))
+                    ScoreCards(ratings, meta.imdbRating)
+                }
             }
         }
 
