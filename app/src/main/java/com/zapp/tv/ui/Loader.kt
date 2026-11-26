@@ -114,7 +114,7 @@ fun RotatingLine(modifier: Modifier = Modifier, everyMs: Long = 3_600) {
         label = "line",
         modifier = modifier,
     ) { text ->
-        Text(text, color = ZappColors.Dim, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 1)
+        Text(text, color = ZappColors.Dim, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
 
@@ -158,7 +158,7 @@ fun StartingScreen(background: String?, title: String, subtitle: String? = null,
             Spacer(Modifier.height(6.dp))
             Text(
                 title,
-                fontSize = 21.sp,
+                fontSize = TextSize.Title,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
@@ -167,13 +167,13 @@ fun StartingScreen(background: String?, title: String, subtitle: String? = null,
             )
             subtitle?.let {
                 Spacer(Modifier.height(4.dp))
-                Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 1)
+                Text(it, color = ZappColors.Dim, fontSize = TextSize.Body, maxLines = 1)
             }
             Spacer(Modifier.height(18.dp))
             RotatingLine()
             status?.let {
                 Spacer(Modifier.height(14.dp))
-                Text(it, color = ZappColors.Faint, fontSize = 10.5.sp, maxLines = 1)
+                Text(it, color = ZappColors.Faint, fontSize = TextSize.Label, maxLines = 1)
             }
         }
     }

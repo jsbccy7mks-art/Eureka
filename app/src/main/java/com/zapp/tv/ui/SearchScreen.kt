@@ -161,7 +161,7 @@ fun SearchScreen(
                 .fillMaxHeight()
                 .padding(start = 36.dp),
         ) {
-            Text("Search", color = ZappColors.Faint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+            Text("Search", color = ZappColors.Faint, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
             Spacer(Modifier.height(6.dp))
             // What you've typed, with a blinking caret.
             val blink = androidx.compose.animation.core.rememberInfiniteTransition(label = "caret")
@@ -211,7 +211,7 @@ fun SearchScreen(
                 Text(
                     if (query.isBlank()) "RECENT" else "SUGGESTIONS",
                     color = ZappColors.Faint,
-                    fontSize = 10.sp,
+                    fontSize = TextSize.Label,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.6.sp,
                 )
@@ -229,7 +229,7 @@ fun SearchScreen(
                         ) { focused ->
                             Text(
                                 sug,
-                                fontSize = 13.sp,
+                                fontSize = TextSize.Body,
                                 color = if (focused) ZappColors.OnFocus else ZappColors.Dim,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -306,8 +306,8 @@ fun SearchScreen(
                                                 coil.compose.AsyncImage(model = p.photo, contentDescription = p.name, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                             }
                                             Spacer(Modifier.height(6.dp))
-                                            Text(p.name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            p.role?.let { Text(it, fontSize = 10.sp, color = ZappColors.Faint, maxLines = 1) }
+                                            Text(p.name, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            p.role?.let { Text(it, fontSize = TextSize.Label, color = ZappColors.Faint, maxLines = 1) }
                                         }
                                     }
                                 }
@@ -471,14 +471,14 @@ private fun Key(label: String, modifier: Modifier, requester: FocusRequester?, o
 
 @Composable
 private fun Hint(text: String) {
-    Text(text, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp, modifier = Modifier.padding(start = 10.dp, top = 60.dp, end = 40.dp))
+    Text(text, color = ZappColors.Dim, fontSize = TextSize.Body, lineHeight = 19.sp, modifier = Modifier.padding(start = 10.dp, top = 60.dp, end = 40.dp))
 }
 
 @Composable
 private fun SectionTitle(text: String) {
     Text(
         text,
-        fontSize = 15.sp,
+        fontSize = TextSize.Heading,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(start = 10.dp, bottom = 10.dp),
     )
@@ -524,7 +524,7 @@ private fun ProgrammeHitRow(hit: ProgrammeHit, now: Long, timeFormat: java.text.
                 Text(
                     hit.title,
                     color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                    fontSize = 14.sp,
+                    fontSize = TextSize.Body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -532,7 +532,7 @@ private fun ProgrammeHitRow(hit: ProgrammeHit, now: Long, timeFormat: java.text.
                 Text(
                     "${hit.channelName}, ${timeFormat.format(hit.start)} – ${timeFormat.format(hit.stop)}",
                     color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

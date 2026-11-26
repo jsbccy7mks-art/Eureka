@@ -779,19 +779,19 @@ private fun LiveTabsHeader(tab: String, guideStatus: String?, onTab: (String) ->
             .padding(start = 28.dp, end = 32.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Live TV", fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
+        Text("Live TV", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
         Spacer(Modifier.width(20.dp))
         Segmented(listOf("channels" to "Channels", "guide" to "TV guide", "sports" to "Sports"), tab, onTab)
         Spacer(Modifier.weight(1f))
         if (guideStatus != null) {
             CircularProgressIndicator(color = ZappColors.Dim, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp))
             Spacer(Modifier.width(8.dp))
-            Text(guideStatus, color = ZappColors.Dim, fontSize = 12.sp)
+            Text(guideStatus, color = ZappColors.Dim, fontSize = TextSize.Small)
             Spacer(Modifier.width(20.dp))
         }
         HeaderShortcuts()
         Spacer(Modifier.width(14.dp))
-        Text(timeFormat.format(now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(timeFormat.format(now), fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -897,8 +897,8 @@ private fun Sidebar(
                         Avatar(profile, 28.dp)
                         AnimatedVisibility(visible = open, enter = fadeIn(tween(200)), exit = fadeOut(tween(80))) {
                             Column(Modifier.padding(start = 12.dp)) {
-                                Text(profile.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text, maxLines = 1)
-                                Text("Switch profile", fontSize = 10.5.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, maxLines = 1)
+                                Text(profile.name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text, maxLines = 1)
+                                Text("Switch profile", fontSize = TextSize.Label, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, maxLines = 1)
                             }
                         }
                     }
@@ -960,7 +960,7 @@ private fun Sidebar(
                                         selected -> ZappColors.Text
                                         else -> ZappColors.Dim
                                     },
-                                    fontSize = 14.sp,
+                                    fontSize = TextSize.Body,
                                     fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Normal,
                                     maxLines = 1,
                                     modifier = Modifier.padding(start = 14.dp),

@@ -65,11 +65,11 @@ fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
         Column(Modifier.fillMaxSize().padding(start = 56.dp, end = 56.dp, top = 34.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(if (fromWatched) "Rate what you've watched" else "Rate a few films", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(if (fromWatched) "Rate what you've watched" else "Rate a few films", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (fromWatched) "Films and series you've finished. OK: like, love, dislike, or clear. The more you rate, the better For you gets."
                         else "Nothing marked watched yet, so here are popular films. OK: like, love, dislike, or clear.",
-                        color = ZappColors.Dim, fontSize = 13.sp,
+                        color = ZappColors.Dim, fontSize = TextSize.Body,
                     )
                 }
                 // How far along For you is, and a clear way out.
@@ -78,10 +78,10 @@ fun RateAFewScreen(mvm: MediaViewModel, onDone: () -> Unit) {
                     Text(
                         if (total >= 5) "$total rated" else "$total of 5 rated",
                         color = if (total >= 5) Color(0xFF7EE2A8) else ZappColors.Text,
-                        fontSize = 14.sp,
+                        fontSize = TextSize.Body,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    Text(if (total >= 5) "For you is ready on Home" else "For you starts at 5", color = ZappColors.Faint, fontSize = 11.sp)
+                    Text(if (total >= 5) "For you is ready on Home" else "For you starts at 5", color = ZappColors.Faint, fontSize = TextSize.Small)
                 }
                 Spacer(Modifier.padding(start = 16.dp))
                 ZButton(if (total >= 5) "Done, see my picks" else "Done", onDone, style = ButtonStyle.Primary)

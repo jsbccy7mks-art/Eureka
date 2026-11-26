@@ -93,7 +93,7 @@ fun FrameCounter(modifier: Modifier = Modifier) {
             slow < 4 -> Color(0xFFFFC94A)
             else -> Color(0xFFFF8A8A)
         },
-        fontSize = 11.sp,
+        fontSize = TextSize.Small,
         fontWeight = FontWeight.SemiBold,
         modifier = modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 10.dp, vertical = 4.dp),
     )

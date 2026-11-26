@@ -70,12 +70,12 @@ fun PhoneSetupCard(
         if (address != null) {
             QrCode("http://$address$path?t=${vm.setupServer.token}" + (tab?.let { "&tab=$it" } ?: ""), qrSize.dp)
             Spacer(Modifier.height(14.dp))
-            Text(caption, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(caption, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text(
                 if (path == "/") "Or open $address and enter code ${vm.setupServer.token}" else "Same Wi-Fi as the TV",
                 color = ZappColors.Dim,
-                fontSize = 11.5.sp,
+                fontSize = TextSize.Small,
             )
         } else {
             Box(
@@ -88,14 +88,14 @@ fun PhoneSetupCard(
                 Text(
                     if (port == 0) "Starting…" else "No network",
                     color = ZappColors.Faint,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                 )
             }
             Spacer(Modifier.height(14.dp))
             Text(
                 "Connect your TV to Wi-Fi or Ethernet to set up from your phone.",
                 color = ZappColors.Dim,
-                fontSize = 11.5.sp,
+                fontSize = TextSize.Small,
             )
         }
     }
@@ -117,17 +117,17 @@ fun WelcomeScreen(vm: AppViewModel, onForm: (xtream: Boolean) -> Unit, onSkip: (
         Column(Modifier.weight(1f)) {
             ZappLogo(30.dp)
             Spacer(Modifier.height(36.dp))
-            Text("Add your first playlist", fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+            Text("Add your first playlist", fontSize = TextSize.Hero, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp)
             Spacer(Modifier.height(10.dp))
             Text(
                 "Scan the code and type your provider's details on your phone. It's much quicker than the remote.",
                 color = ZappColors.Dim,
-                fontSize = 14.sp,
+                fontSize = TextSize.Body,
                 lineHeight = 20.sp,
                 modifier = Modifier.widthIn(max = 380.dp),
             )
             Spacer(Modifier.height(28.dp))
-            Text("Or use the remote", color = ZappColors.Faint, fontSize = 12.sp)
+            Text("Or use the remote", color = ZappColors.Faint, fontSize = TextSize.Small)
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZButton("Xtream login", { onForm(true) }, style = ButtonStyle.Secondary, focusRequester = firstButton)
@@ -206,12 +206,12 @@ private fun GuideLinkDialog(vm: AppViewModel, item: PlaylistItem, onClose: () ->
         Column(
             Modifier
                 .width(480.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("TV guide link", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("TV guide link", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
             Text(
                 if (item.playlist.type == TYPE_XTREAM) {
                     "Leave empty to use your provider's own guide."
@@ -219,7 +219,7 @@ private fun GuideLinkDialog(vm: AppViewModel, item: PlaylistItem, onClose: () ->
                     "An XMLTV link (.xml or .xml.gz). Leave empty to use the link inside the playlist, if it has one."
                 },
                 color = ZappColors.Dim,
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
             )
             if (loaded) {
                 TvTextField(
@@ -274,14 +274,14 @@ private fun PlaylistCard(
                         .background(ZappColors.GlassHigh),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(p.name.trim().take(1).uppercase(), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text(p.name.trim().take(1).uppercase(), fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             p.name,
-                            fontSize = 15.sp,
+                            fontSize = TextSize.Heading,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -295,7 +295,7 @@ private fun PlaylistCard(
                                     .background(ZappColors.GlassHigh)
                                     .padding(horizontal = 8.dp, vertical = 2.dp),
                             ) {
-                                Text("Watching", fontSize = 10.sp, color = ZappColors.Text, fontWeight = FontWeight.SemiBold)
+                                Text("Watching", fontSize = TextSize.Label, color = ZappColors.Text, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -303,12 +303,12 @@ private fun PlaylistCard(
                     Text(
                         "${if (p.type == TYPE_XTREAM) "Xtream login" else "M3U link"}, ${formatCount(item.channelCount)} channels",
                         color = ZappColors.Dim,
-                        fontSize = 12.sp,
+                        fontSize = TextSize.Small,
                     )
                     Text(
                         if (p.epgUpdated > 0) "Guide updated ${ago(p.epgUpdated, now)}" else "No guide yet",
                         color = ZappColors.Faint,
-                        fontSize = 11.sp,
+                        fontSize = TextSize.Small,
                     )
                 }
             }
@@ -385,7 +385,7 @@ fun PlaylistForm(
                 .width(520.dp)
                 .fillMaxHeight()
                 .padding(vertical = 28.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel),
         ) {
             Column(
@@ -396,9 +396,9 @@ fun PlaylistForm(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Column {
-                    Text(if (xtream) "Xtream login" else "M3U link", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(if (xtream) "Xtream login" else "M3U link", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
-                    Text("Press OK on a field to type. Up and down move between fields.", color = ZappColors.Dim, fontSize = 12.sp)
+                    Text("Press OK on a field to type. Up and down move between fields.", color = ZappColors.Dim, fontSize = TextSize.Small)
                 }
                 TvTextField("Name (optional)", name, { name = it }, placeholder = "My provider", focusRequester = first)
                 if (xtream) {
@@ -406,7 +406,7 @@ fun PlaylistForm(
                     TvTextField("Username", user, { user = it }, keyboardType = KeyboardType.Ascii)
                     TvTextField("Password", pass, { pass = it }, password = true, keyboardType = KeyboardType.Ascii)
                     Column {
-                        Text("Stream type", color = ZappColors.Dim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text("Stream type", color = ZappColors.Dim, fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.height(6.dp))
                         Segmented(listOf("ts" to "TS", "m3u8" to "HLS"), format) { format = it }
                     }

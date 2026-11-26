@@ -493,8 +493,8 @@ fun ZButton(
                 style == ButtonStyle.Quiet -> ZappColors.Dim
                 else -> ZappColors.Text
             },
-            fontSize = 12.5.sp,
-            fontWeight = if (style == ButtonStyle.Primary || focused) FontWeight.SemiBold else FontWeight.Medium,
+            fontSize = TextSize.Small,
+            fontWeight = FontWeight.Medium,
             letterSpacing = 0.1.sp,
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -566,7 +566,7 @@ fun LivePill() {
             .padding(horizontal = 8.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Live", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text("Live", color = Color.White, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -643,10 +643,10 @@ fun KeyHint(key: String, label: String) {
                 .border(1.dp, ZappColors.Line, RoundedCornerShape(5.dp))
                 .padding(horizontal = 6.dp, vertical = 1.dp),
         ) {
-            Text(key, color = ZappColors.Dim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(key, color = ZappColors.Dim, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.width(6.dp))
-        Text(label, color = ZappColors.Faint, fontSize = 11.sp)
+        Text(label, color = ZappColors.Faint, fontSize = TextSize.Small)
     }
 }
 
@@ -654,9 +654,9 @@ fun KeyHint(key: String, label: String) {
 fun Panel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(Shapes.Panel)
             .background(ZappColors.Glass)
-            .border(1.dp, Color(0x0FFFFFFF), RoundedCornerShape(18.dp)),
+            .border(1.dp, Color(0x0FFFFFFF), Shapes.Panel),
     ) {
         content()
     }
@@ -790,7 +790,7 @@ fun TvTextField(
     BackHandler(enabled = editing) { finish(null) }
 
     Column(modifier.fillMaxWidth()) {
-        Text(label, color = ZappColors.Dim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(label, color = ZappColors.Dim, fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(6.dp))
         if (!editing) {
             FocusSurface(
@@ -816,7 +816,7 @@ fun TvTextField(
                         value.isEmpty() -> ZappColors.Faint
                         else -> ZappColors.Text
                     },
-                    fontSize = 14.sp,
+                    fontSize = TextSize.Body,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
@@ -839,7 +839,7 @@ fun TvTextField(
                     value = value,
                     onValueChange = onValueChange,
                     singleLine = true,
-                    textStyle = TextStyle(fontFamily = Inter, fontSize = 14.sp, color = ZappColors.Text),
+                    textStyle = TextStyle(fontFamily = Inter, fontSize = TextSize.Body, color = ZappColors.Text),
                     cursorBrush = SolidColor(ZappColors.Brand2),
                     visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
                     keyboardOptions = KeyboardOptions(
@@ -897,7 +897,7 @@ fun Segmented(options: List<Pair<String, String>>, value: String, onChange: (Str
                         key == value -> ZappColors.Text
                         else -> ZappColors.Dim
                     },
-                    fontSize = 13.sp,
+                    fontSize = TextSize.Body,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
                 )
@@ -915,7 +915,7 @@ fun ErrorBanner(text: String, modifier: Modifier = Modifier) {
             .background(Color(0x24FF4F6A))
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        Text(text, color = ZappColors.Error, fontSize = 13.sp)
+        Text(text, color = ZappColors.Error, fontSize = TextSize.Body)
     }
 }
 
@@ -937,14 +937,14 @@ fun BusyOverlay(message: String) {
     ) {
         Row(
             modifier = Modifier
-                .clip(RoundedCornerShape(18.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(horizontal = 26.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CircularProgressIndicator(color = ZappColors.Brand2, strokeWidth = 3.dp, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(14.dp))
-            Text(message, color = ZappColors.Text, fontSize = 15.sp)
+            Text(message, color = ZappColors.Text, fontSize = TextSize.Heading)
         }
     }
 }
@@ -974,7 +974,7 @@ fun ToastHost(message: ToastMessage?, modifier: Modifier = Modifier) {
                 .background(ZappColors.Focus)
                 .padding(horizontal = 18.dp, vertical = 9.dp),
         ) {
-            Text(shown?.text.orEmpty(), color = ZappColors.OnFocus, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(shown?.text.orEmpty(), color = ZappColors.OnFocus, fontSize = TextSize.Body, fontWeight = FontWeight.Medium)
         }
     }
 }

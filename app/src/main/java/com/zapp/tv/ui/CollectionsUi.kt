@@ -96,11 +96,11 @@ fun CollectionCard(
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
             Text(
                 when (c.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; else -> "COLLECTION" },
-                color = ZappColors.Brand2, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp,
+                color = ZappColors.Brand2, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp,
             )
             Spacer(Modifier.height(2.dp))
             MovieTitle(c.name, 17.sp, maxLines = 1)
-            c.note?.let { Text(it, color = ZappColors.Dim, fontSize = 10.sp, maxLines = 1) }
+            c.note?.let { Text(it, color = ZappColors.Dim, fontSize = TextSize.Label, maxLines = 1) }
         }
     }
 }
@@ -213,7 +213,7 @@ fun CollectionScreen(
                 Text(
                     listOfNotNull(mvm.collectionLabel(collectionId), "${c.parts.size} FILMS", years, if (imdb.isNotEmpty()) "$seen WATCHED" else null).joinToString("   ·   "),
                     color = ZappColors.Brand2.copy(alpha = 0.95f),
-                    fontSize = 10.sp,
+                    fontSize = TextSize.Label,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 2.2.sp,
                 )
@@ -221,7 +221,7 @@ fun CollectionScreen(
                 MovieTitle(c.name, 44.sp, maxLines = 1, center = true)
                 c.overview?.let {
                     Spacer(Modifier.height(8.dp))
-                    Text(it, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
+                    Text(it, color = ZappColors.Dim, fontSize = TextSize.Body, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
                 }
             }
 
@@ -340,12 +340,12 @@ fun CollectionScreen(
                     if (p != null) {
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("${i + 1}", color = ZappColors.Brand2, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text("${i + 1}", color = ZappColors.Brand2, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                                 Spacer(Modifier.width(10.dp))
-                                Text(p.item.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(p.item.name, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 p.item.year?.let {
                                     Spacer(Modifier.width(10.dp))
-                                    Text(it, color = ZappColors.Dim, fontSize = 13.sp)
+                                    Text(it, color = ZappColors.Dim, fontSize = TextSize.Body)
                                 }
                                 if (i == nextIndex && imdb.isNotEmpty()) {
                                     Spacer(Modifier.width(10.dp))
@@ -354,7 +354,7 @@ fun CollectionScreen(
                             }
                             p.overview?.let {
                                 Spacer(Modifier.height(4.dp))
-                                Text(it, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 760.dp))
+                                Text(it, color = ZappColors.Dim, fontSize = TextSize.Small, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 760.dp))
                             }
                         }
                     }
@@ -516,7 +516,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                         Text(
                             c?.let { when (it.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; else -> "COLLECTION" } } ?: "COLLECTIONS",
                             color = ZappColors.Brand2.copy(alpha = 0.95f),
-                            fontSize = 11.sp,
+                            fontSize = TextSize.Small,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 3.sp,
                         )
@@ -527,7 +527,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                             c?.note ?: c?.takeIf { it.yours > 0 }?.let { "${it.yours} of yours in this collection" }
                                 ?: if (c == null) "Franchises, studios, decades and themes" else "Press OK to open",
                             color = ZappColors.Dim,
-                            fontSize = 13.sp,
+                            fontSize = TextSize.Body,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                     }
@@ -612,13 +612,13 @@ private fun TunePicker(
         Column(
             Modifier
                 .width(480.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text("Theme tune", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp))
-            Text("Move onto one to hear it; OK keeps it for this collection.", color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp))
+            Text("Theme tune", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 10.dp))
+            Text("Move onto one to hear it; OK keeps it for this collection.", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp))
             candidates.forEachIndexed { i, t ->
                 Box(Modifier.onFocusChanged { if (it.hasFocus) onPreview(t) }) {
                     MenuItem(if (t.url == current?.url) "♪" else "", t.title + if (t.artist.isNotBlank()) "  ·  " + t.artist else "", if (i == 0) first else null, trailing = t.source) { onChoose(t) }
@@ -646,12 +646,12 @@ private fun CollectionMenu(mvm: MediaViewModel, c: MediaViewModel.CollectionSumm
         Column(
             Modifier
                 .width(440.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(c.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
+            Text(c.name, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
             Spacer(Modifier.height(8.dp))
             MenuItem(if (pinned) "★" else "☆", if (pinned) "Unpin from Your collections" else "Pin to the front of Your collections", first) {
                 mvm.pinCollection(c, !pinned)
@@ -664,7 +664,7 @@ private fun CollectionMenu(mvm: MediaViewModel, c: MediaViewModel.CollectionSumm
                 }
             }
             Spacer(Modifier.height(6.dp))
-            Text(title.uppercase(), color = ZappColors.Faint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 2.dp))
+            Text(title.uppercase(), color = ZappColors.Faint, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 2.dp))
             if (pos > 0) MenuItem("↑", "Move this shelf up", null) { mvm.moveCollectionShelf(shelfId, -1); onClose() }
             if (pos in 0 until shownShelves.size - 1) MenuItem("↓", "Move this shelf down", null) { mvm.moveCollectionShelf(shelfId, 1); onClose() }
             MenuItem("⌂", "Add this shelf to Home", null) {

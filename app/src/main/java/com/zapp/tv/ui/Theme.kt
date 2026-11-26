@@ -89,7 +89,7 @@ val TitleFont = FontFamily(Font(R.font.anton, FontWeight.Normal))
 /** Film titles: Cinzel (OFL), the engraved, classic look of film posters and trailers. */
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
 val CinemaFont = FontFamily(
-    Font(R.font.cinzel, FontWeight.Bold, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(700))),
+    Font(R.font.cinzel, FontWeight.SemiBold, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(700))),
     Font(R.font.cinzel, FontWeight.Black, variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(androidx.compose.ui.text.font.FontVariation.weight(900))),
 )
 
@@ -97,7 +97,7 @@ val Inter = FontFamily(
     Font(R.font.inter_regular, FontWeight.Normal),
     Font(R.font.inter_medium, FontWeight.Medium),
     Font(R.font.inter_semibold, FontWeight.SemiBold),
-    Font(R.font.inter_bold, FontWeight.Bold),
+    Font(R.font.inter_bold, FontWeight.SemiBold),
 )
 
 @Composable

@@ -46,6 +46,22 @@ jobs:
       - name: Run tests
         run: gradle testDebugUnitTest --no-daemon
 
+      # Pictures of screens for checking the look (never stops a build).
+      - name: Screens
+        if: github.ref != 'refs/heads/main'
+        continue-on-error: true
+        env:
+          SCREENS: "1"
+        run: gradle testDebugUnitTest --no-daemon --rerun --tests '*ScreensTest*'
+
+      - uses: actions/upload-artifact@v4
+        if: github.ref != 'refs/heads/main'
+        continue-on-error: true
+        with:
+          name: screens
+          path: app/build/screens
+          if-no-files-found: ignore
+
       - name: Build APK
         env:
           SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
@@ -73,7 +89,7 @@ jobs:
           echo "" >> notes.md
           echo "Built from ${GITHUB_SHA::7}. Install on your TV with the Downloader app." >> notes.md
           gh release create "$TAG" zapp-tv.apk \
-            --title "Zapp TV build ${{ github.run_number }}" \
+            --title "Axon build ${{ github.run_number }}" \
             --notes-file notes.md \
             --target "$GITHUB_SHA" \
             --latest

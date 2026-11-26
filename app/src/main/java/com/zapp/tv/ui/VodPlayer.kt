@@ -476,7 +476,7 @@ fun VodPlayer(
                 ) {}
                 Text(
                     if (segments?.postCredits != null) "Credits  ·  a scene after them" else "Credits",
-                    fontSize = 10.5.sp,
+                    fontSize = TextSize.Label,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp),
@@ -645,7 +645,7 @@ fun VodPlayer(
             Text(
                 "TV  ·  " + (note ?: ""),
                 color = Color.White,
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 5.dp),
             )
@@ -683,7 +683,7 @@ fun VodPlayer(
                 Modifier
                     .align(Alignment.BottomEnd)
                     .padding(40.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(Shapes.Panel)
                     .background(ZappColors.Panel.copy(alpha = 0.94f))
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -709,12 +709,12 @@ fun VodPlayer(
                     Text(
                         if (countdown > 0) "NEXT EPISODE IN $countdown" else "UP NEXT",
                         color = ZappColors.Brand2,
-                        fontSize = 10.sp,
+                        fontSize = TextSize.Label,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.8.sp,
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(episodeLabel(next), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(episodeLabel(next), fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(10.dp))
                     val playNow = remember { FocusRequester() }
                     LaunchedEffect(Unit) { playNow.tryRequest() }
@@ -757,9 +757,9 @@ private fun VodTopBar(playback: Playback) {
         horizontalArrangement = Arrangement.End,
     ) {
         Column(horizontalAlignment = Alignment.End) {
-            Text(timeFormat.format(now), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(timeFormat.format(now), fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
             if (remaining > 0) {
-                Text("Ends at ${timeFormat.format(now + remaining)}", color = ZappColors.Dim, fontSize = 11.5.sp)
+                Text("Ends at ${timeFormat.format(now + remaining)}", color = ZappColors.Dim, fontSize = TextSize.Small)
             }
         }
     }
@@ -788,7 +788,7 @@ private fun PlayerInfoBlock(playback: Playback, request: PlayRequest, info: Medi
             Spacer(Modifier.height(8.dp))
             Text(
                 listOfNotNull(ep.season?.let { "S$it" }, ep.episode?.let { "E$it" }, ep.title.takeIf { it.isNotBlank() }).joinToString("  ·  "),
-                fontSize = 13.sp,
+                fontSize = TextSize.Body,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White.copy(alpha = 0.9f),
                 maxLines = 1,
@@ -798,12 +798,12 @@ private fun PlayerInfoBlock(playback: Playback, request: PlayRequest, info: Medi
         if (synopsis) {
             (ep?.overview ?: request.meta.description)?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(8.dp))
-                Text(it, fontSize = 13.sp, lineHeight = 19.sp, color = Color.White.copy(alpha = 0.78f), maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(it, fontSize = TextSize.Body, lineHeight = 19.sp, color = Color.White.copy(alpha = 0.78f), maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
         if (tech.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
-            Text(tech.joinToString("  ·  "), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+            Text(tech.joinToString("  ·  "), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
         }
     }
 }
@@ -984,7 +984,7 @@ internal fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Mod
             }
         }
         if (icon == PlayerIcon.Back10 || icon == PlayerIcon.Forward10) {
-            Text("10", color = color, fontSize = (size.value * 0.27f).sp, fontWeight = FontWeight.Bold)
+            Text("10", color = color, fontSize = (size.value * 0.27f).sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -1069,7 +1069,7 @@ private fun ChipButton(label: String, value: String?, onClick: () -> Unit, reque
         Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp).widthIn(max = 200.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 label,
-                fontSize = 13.5.sp,
+                fontSize = TextSize.Body,
                 fontWeight = if (focused || accent) FontWeight.SemiBold else FontWeight.Medium,
                 color = when {
                     focused -> Color.White
@@ -1083,7 +1083,7 @@ private fun ChipButton(label: String, value: String?, onClick: () -> Unit, reque
             FocusUnderline(focused)
             Box(Modifier.height(16.dp)) {
                 if (focused && value != null) {
-                    Text(value, fontSize = 10.5.sp, color = ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                    Text(value, fontSize = TextSize.Label, color = ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
                 }
             }
         }
@@ -1152,7 +1152,7 @@ private fun VodControls(
             var caption by remember { mutableStateOf<String?>(null) }
             Column(horizontalAlignment = Alignment.End) {
                 Box(Modifier.height(18.dp)) {
-                    caption?.let { Text(it, fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), Offset(0f, 1.5f), 6f))) }
+                    caption?.let { Text(it, fontSize = TextSize.Small, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), Offset(0f, 1.5f), 6f))) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     @Composable
@@ -1206,7 +1206,7 @@ private fun SkipPill(label: String, remaining: Float, requester: FocusRequester,
                 PlayerGlyph(PlayerIcon.Next, fg, 12.dp)
             }
             Spacer(Modifier.width(10.dp))
-            Text(label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(label, color = fg, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -1247,7 +1247,7 @@ private fun ScenePanel(
             .padding(start = 56.dp, end = 56.dp, top = 80.dp, bottom = 30.dp),
     ) {
         Column(Modifier.focusGroup()) {
-            Text("PARTS", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+            Text("PARTS", color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 parts.forEachIndexed { i, (label, at) ->
@@ -1255,7 +1255,7 @@ private fun ScenePanel(
                 }
             }
             Spacer(Modifier.height(18.dp))
-            Text("SOUND AND SUBTITLES", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+            Text("SOUND AND SUBTITLES", color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ZButton("Audio: $audio", onAudio, style = ButtonStyle.Quiet)
@@ -1264,7 +1264,7 @@ private fun ScenePanel(
             val cast = tmdb?.cast.orEmpty().take(10)
             if (cast.isNotEmpty()) {
                 Spacer(Modifier.height(18.dp))
-                Text("IN IT", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+                Text("IN IT", color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     cast.forEach { p ->
@@ -1278,14 +1278,14 @@ private fun ScenePanel(
                                 }
                             }
                             Spacer(Modifier.height(5.dp))
-                            Text(p.name, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                            p.role?.let { Text(it, fontSize = 9.5.sp, color = ZappColors.Dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+                            Text(p.name, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            p.role?.let { Text(it, fontSize = TextSize.Tag, color = ZappColors.Dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                         }
                     }
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text("Back to close", color = ZappColors.Faint, fontSize = 11.sp)
+            Text("Back to close", color = ZappColors.Faint, fontSize = TextSize.Small)
         }
     }
 }

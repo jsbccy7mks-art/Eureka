@@ -315,9 +315,9 @@ fun FullTrailer(youtubeId: String, onClose: () -> Unit) {
         if (!web && barVisible) {
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 56.dp, vertical = 30.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (paused) "Paused" else "Trailer", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (paused) "Paused" else "Trailer", color = Color.White, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
-                    Text("${formatClock(pos)} / ${formatClock(dur)}   ·   OK pause   ·   ◀ ▶ 10 s   ·   Back close", color = Color(0xB3FFFFFF), fontSize = 11.5.sp)
+                    Text("${formatClock(pos)} / ${formatClock(dur)}   ·   OK pause   ·   ◀ ▶ 10 s   ·   Back close", color = Color(0xB3FFFFFF), fontSize = TextSize.Small)
                 }
                 Spacer(Modifier.height(8.dp))
                 ProgressLine(if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f, Modifier.fillMaxWidth(), track = Color(0x33FFFFFF), fill = Color.White)

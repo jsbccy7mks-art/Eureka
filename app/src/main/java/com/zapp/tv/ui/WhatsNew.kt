@@ -141,16 +141,16 @@ fun WhatsNewScreen(notes: List<ReleaseNotes>, onDone: () -> Unit) {
                 LogoMark(40.dp)
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("WHAT'S NEW", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+                    Text("WHAT'S NEW", color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                     MovieTitle("Axon ${notes.firstOrNull()?.version.orEmpty()}", 34.sp, maxLines = 1)
                 }
                 Spacer(Modifier.weight(1f))
-                Text("OK to close   ·   ↑ ↓ to scroll", color = ZappColors.Faint, fontSize = 12.sp)
+                Text("OK to close   ·   ↑ ↓ to scroll", color = ZappColors.Faint, fontSize = TextSize.Small)
             }
             notes.forEachIndexed { i, n ->
                 Spacer(Modifier.height(if (i == 0) 26.dp else 34.dp))
                 if (notes.size > 1) {
-                    Text("Version ${n.version}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = ZappColors.Text)
+                    Text("Version ${n.version}", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, color = ZappColors.Text)
                     Spacer(Modifier.height(8.dp))
                 }
                 Column(Modifier.widthIn(max = 900.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -158,14 +158,14 @@ fun WhatsNewScreen(notes: List<ReleaseNotes>, onDone: () -> Unit) {
                         when {
                             l.startsWith("**") -> {
                                 Spacer(Modifier.height(6.dp))
-                                Text(l.trim('*'), color = ZappColors.Brand2, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                                Text(l.trim('*'), color = ZappColors.Brand2, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
                             }
                             else -> {
                                 val sub = l.startsWith("  ")
                                 Row(Modifier.padding(start = if (sub) 22.dp else 0.dp)) {
-                                    Text("•", color = ZappColors.Brand2, fontSize = 14.sp)
+                                    Text("•", color = ZappColors.Brand2, fontSize = TextSize.Body)
                                     Spacer(Modifier.width(10.dp))
-                                    Text(l.trim().removePrefix("- "), color = Color(0xFFD6D9E2), fontSize = 14.sp, lineHeight = 21.sp)
+                                    Text(l.trim().removePrefix("- "), color = Color(0xFFD6D9E2), fontSize = TextSize.Body, lineHeight = 21.sp)
                                 }
                             }
                         }

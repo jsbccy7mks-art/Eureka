@@ -269,7 +269,7 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ra
                 Text(
                     (if (m.type == "series") "SERIES" else if (m.type == "movie") "FILM" else m.type.uppercase()) + "  ·  " + h.rowTitle.uppercase(),
                     color = ZappColors.Faint,
-                    fontSize = 9.5.sp,
+                    fontSize = TextSize.Tag,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = 1.5.sp,
                     maxLines = 1,
@@ -302,7 +302,7 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ra
                             fill = Color.White,
                         )
                         Spacer(Modifier.width(10.dp))
-                        Text(listOfNotNull(p.episodeLabel, minutesLeft(p)).joinToString("  ·  "), color = ZappColors.Dim, fontSize = 11.5.sp, maxLines = 1)
+                        Text(listOfNotNull(p.episodeLabel, minutesLeft(p)).joinToString("  ·  "), color = ZappColors.Dim, fontSize = TextSize.Small, maxLines = 1)
                     }
                 } else {
                     Row(Modifier.height(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -321,7 +321,7 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ra
                 Text(
                     description.orEmpty(),
                     color = ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     lineHeight = 17.5.sp,
                     minLines = 3,
                     maxLines = 3,
@@ -364,23 +364,23 @@ fun RowOptionsDialog(
         Column(
             Modifier
                 .width(440.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(horizontal = 14.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Column(Modifier.padding(horizontal = 10.dp)) {
-                Text(meta?.name ?: row?.title.orEmpty(), fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(meta?.name ?: row?.title.orEmpty(), fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val sub = listOfNotNull(progress?.episodeLabel?.substringBefore(","), row?.title?.takeIf { meta != null }).joinToString("  ·  ")
                 if (sub.isNotBlank()) {
                     Spacer(Modifier.height(3.dp))
-                    Text(sub, color = ZappColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(sub, color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Spacer(Modifier.height(8.dp))
             if (meta != null) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Rate", color = ZappColors.Dim, fontSize = 13.sp, modifier = Modifier.width(54.dp))
+                    Text("Rate", color = ZappColors.Dim, fontSize = TextSize.Body, modifier = Modifier.width(54.dp))
                     RatingButtons(mvm.ratingOf(meta.id), size = 38.dp) { r -> mvm.rate(meta, r) }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -453,7 +453,7 @@ fun RowOptionsDialog(
                             }, style = ButtonStyle.Quiet)
                         }
                         if (canHide) {
-                            Text("Hidden rows can be switched back on in Settings, Home layout.", color = ZappColors.Faint, fontSize = 11.sp)
+                            Text("Hidden rows can be switched back on in Settings, Home layout.", color = ZappColors.Faint, fontSize = TextSize.Small)
                         }
                     }
                 }
@@ -478,9 +478,9 @@ fun MenuItem(symbol: String, label: String, requester: FocusRequester?, trailing
         focusScale = 1f,
     ) { focused ->
         Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(symbol, fontSize = 14.sp, color = if (focused) ZappColors.OnFocus else ZappColors.Dim, modifier = Modifier.width(28.dp))
-            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (focused) ZappColors.OnFocus else ZappColors.Text, modifier = Modifier.weight(1f))
-            trailing?.let { Text(it, fontSize = 12.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint) }
+            Text(symbol, fontSize = TextSize.Body, color = if (focused) ZappColors.OnFocus else ZappColors.Dim, modifier = Modifier.width(28.dp))
+            Text(label, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, color = if (focused) ZappColors.OnFocus else ZappColors.Text, modifier = Modifier.weight(1f))
+            trailing?.let { Text(it, fontSize = TextSize.Small, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint) }
         }
     }
 }
@@ -488,7 +488,7 @@ fun MenuItem(symbol: String, label: String, requester: FocusRequester?, trailing
 @Composable
 private fun OptionLine(label: String, content: @Composable () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = ZappColors.Dim, fontSize = 13.sp, modifier = Modifier.width(96.dp))
+        Text(label, color = ZappColors.Dim, fontSize = TextSize.Body, modifier = Modifier.width(96.dp))
         content()
     }
 }
@@ -548,13 +548,13 @@ fun RenameRowDialog(row: HomeRowSetting, onRename: (String?) -> Unit, onClose: (
         Column(
             Modifier
                 .width(440.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Rename row", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Its own name: ${row.title}", color = ZappColors.Faint, fontSize = 12.sp)
+            Text("Rename row", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
+            Text("Its own name: ${row.title}", color = ZappColors.Faint, fontSize = TextSize.Small)
             TvTextField("Name", text, { text = it }, focusRequester = field, last = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ZButton("Save", {

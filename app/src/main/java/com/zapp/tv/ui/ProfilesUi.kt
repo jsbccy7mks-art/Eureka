@@ -85,7 +85,7 @@ fun Avatar(profile: Profile, size: Dp, modifier: Modifier = Modifier) {
                     .background(Color(0x99000000))
                     .padding(horizontal = 6.dp, vertical = 1.dp),
             ) {
-                Text("KIDS", fontSize = (size.value * 0.1f).coerceAtLeast(8f).sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Color.White)
+                Text("KIDS", fontSize = (size.value * 0.1f).coerceAtLeast(8f).sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, color = Color.White)
             }
         }
     }
@@ -117,7 +117,7 @@ fun WhoIsWatching(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             LogoMark(30.dp)
             Spacer(Modifier.height(22.dp))
-            Text("Who's watching?", fontSize = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
+            Text("Who's watching?", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
             Spacer(Modifier.height(34.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 profiles.forEach { p ->
@@ -139,7 +139,7 @@ fun WhoIsWatching(
                         Spacer(Modifier.height(12.dp))
                         Text(
                             p.name,
-                            fontSize = 14.sp,
+                            fontSize = TextSize.Body,
                             fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Medium,
                             color = if (focused) ZappColors.Text else ZappColors.Dim,
                             maxLines = 1,
@@ -148,7 +148,7 @@ fun WhoIsWatching(
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
                         if (p.pin != null) {
-                            Text("PIN", fontSize = 9.5.sp, color = ZappColors.Faint, letterSpacing = 1.5.sp)
+                            Text("PIN", fontSize = TextSize.Tag, color = ZappColors.Faint, letterSpacing = 1.5.sp)
                         }
                     }
                 }
@@ -186,7 +186,7 @@ fun PinPad(title: String, subtitle: String?, check: (String) -> Boolean, onDone:
         Column(
             Modifier
                 .width(340.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(26.dp)
                 .onPreviewKeyEvent { e ->
@@ -213,10 +213,10 @@ fun PinPad(title: String, subtitle: String?, check: (String) -> Boolean, onDone:
                 },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(title, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
             subtitle?.let {
                 Spacer(Modifier.height(4.dp))
-                Text(it, color = ZappColors.Dim, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(it, color = ZappColors.Dim, fontSize = TextSize.Small, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -231,7 +231,7 @@ fun PinPad(title: String, subtitle: String?, check: (String) -> Boolean, onDone:
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text(if (wrong) "That's not right. Try again." else " ", color = ZappColors.Error, fontSize = 11.5.sp)
+            Text(if (wrong) "That's not right. Try again." else " ", color = ZappColors.Error, fontSize = TextSize.Small)
             Spacer(Modifier.height(10.dp))
             val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -252,7 +252,7 @@ fun PinPad(title: String, subtitle: String?, check: (String) -> Boolean, onDone:
                                     restColor = ZappColors.Glass,
                                 ) { focused ->
                                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        Text(k, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+                                        Text(k, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
                                     }
                                 }
                             }
@@ -279,7 +279,7 @@ fun ProfilesPane(mvm: MediaViewModel) {
             Text(
                 "Each profile has its own Continue watching, library and Home rows. Kids profiles only see family titles and no live TV. Each profile can connect its own Nuvio, Simkl and Stremio accounts.",
                 color = ZappColors.Dim,
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
                 lineHeight = 17.sp,
                 modifier = Modifier.padding(bottom = 6.dp),
             )
@@ -304,7 +304,7 @@ fun ProfilesPane(mvm: MediaViewModel) {
                     Avatar(p, 36.dp)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(p.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+                        Text(p.name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
                         Text(
                             listOfNotNull(
                                 if (p.kids) "Kids" else null,
@@ -312,11 +312,11 @@ fun ProfilesPane(mvm: MediaViewModel) {
                                 if (p.id == 1L) "Main profile" else null,
                                 if (p.id == s.profileId) "In use" else null,
                             ).joinToString(" · ").ifBlank { "Profile" },
-                            fontSize = 12.sp,
+                            fontSize = TextSize.Small,
                             color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
                         )
                     }
-                    Text("Edit", fontSize = 12.sp, color = if (focused) ZappColors.OnFocus else ZappColors.Faint)
+                    Text("Edit", fontSize = TextSize.Small, color = if (focused) ZappColors.OnFocus else ZappColors.Faint)
                 }
             }
         }
@@ -358,14 +358,14 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
         Column(
             Modifier
                 .width(520.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(if (profile == null) "New profile" else "Edit profile", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(if (profile == null) "New profile" else "Edit profile", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
             TvTextField("Name", name, { name = it.take(20) }, placeholder = "Name", focusRequester = field)
-            Text("Colour", color = ZappColors.Dim, fontSize = 12.sp)
+            Text("Colour", color = ZappColors.Dim, fontSize = TextSize.Small)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 AvatarColors.forEachIndexed { i, (a, b) ->
                     FocusSurface(

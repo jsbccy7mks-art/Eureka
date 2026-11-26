@@ -65,7 +65,7 @@ fun BrowseScreen(
     val list = catalogs
     if (list != null && list.isEmpty()) {
         Column(Modifier.padding(start = 40.dp, top = 40.dp, end = 40.dp)) {
-            Text(label, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(label, fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             Text(
                 if (addons.isEmpty()) {
@@ -74,7 +74,7 @@ fun BrowseScreen(
                     "None of your add-ons have ${label.lowercase()} catalogues. Add one that does, or switch one on."
                 },
                 color = ZappColors.Dim,
-                fontSize = 13.sp,
+                fontSize = TextSize.Body,
             )
             Spacer(Modifier.height(18.dp))
             ZButton("Manage add-ons", onOpenAddons, style = ButtonStyle.Primary, focusRequester = emptyFocus)
@@ -100,9 +100,9 @@ fun BrowseScreen(
         topTick = topTick,
         placeholder = {
             Column(Modifier.align(Alignment.BottomStart).padding(start = RowInset, bottom = 24.dp)) {
-                Text(label, fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+                Text(label, fontSize = TextSize.Hero, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp)
                 Spacer(Modifier.height(6.dp))
-                Text(if (list == null) "Loading catalogues…" else "Every ${if (type == "movie") "film" else "series"} catalogue from your add-ons", color = ZappColors.Dim, fontSize = 13.sp)
+                Text(if (list == null) "Loading catalogues…" else "Every ${if (type == "movie") "film" else "series"} catalogue from your add-ons", color = ZappColors.Dim, fontSize = TextSize.Body)
             }
         },
     ) {
@@ -218,12 +218,12 @@ fun LibraryScreen(
             .padding(top = 28.dp),
     ) {
         Row(Modifier.padding(start = 40.dp, end = 40.dp), verticalAlignment = Alignment.Bottom) {
-            Text("Library", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Library", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(12.dp))
             Text(
                 if (library.isEmpty()) "Nothing saved yet" else "$films films  ·  $series series",
                 color = ZappColors.Dim,
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
         }
@@ -237,7 +237,7 @@ fun LibraryScreen(
             }
             run {
                 Spacer(Modifier.width(18.dp))
-                Text("Sort", color = ZappColors.Faint, fontSize = 12.sp)
+                Text("Sort", color = ZappColors.Faint, fontSize = TextSize.Small)
                 Spacer(Modifier.width(8.dp))
                 Segmented(listOf("added" to "Date added", "title" to "A–Z", "year" to "Year", "watched" to "Recently watched"), sort) {
                     sort = it
@@ -254,7 +254,7 @@ fun LibraryScreen(
                 else if (tab == "loved") "Nothing loved yet. Hold OK on any title and choose the heart."
                 else "No ${if (tab == "movie") "films" else "series"} saved yet.",
                 color = ZappColors.Dim,
-                fontSize = 13.sp,
+                fontSize = TextSize.Body,
                 modifier = Modifier.padding(start = 40.dp),
             )
         }
@@ -304,7 +304,7 @@ private fun GenreChips(genres: List<String>, selected: String?, onPick: (String)
                                 chosen -> ZappColors.Text
                                 else -> ZappColors.Dim
                             },
-                            fontSize = 12.5.sp,
+                            fontSize = TextSize.Small,
                             fontWeight = if (chosen || focused) FontWeight.SemiBold else FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )

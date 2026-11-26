@@ -154,7 +154,7 @@ fun GuideScreen(
                         Text(
                             "Updated ${timeFormat.format(info.updated)}",
                             color = ZappColors.Faint,
-                            fontSize = 11.sp,
+                            fontSize = TextSize.Small,
                         )
                     }
                 }
@@ -261,9 +261,9 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
     ) {
         if (selection == null) {
             Column(Modifier.weight(1f)) {
-                Text(categoryName, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(categoryName, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text("Move onto a programme to see what it's about.", color = ZappColors.Dim, fontSize = 12.sp)
+                Text("Move onto a programme to see what it's about.", color = ZappColors.Dim, fontSize = TextSize.Small)
             }
         } else {
             val art = selection.programme?.icon
@@ -286,7 +286,7 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
                 val p = selection.programme
                 Text(
                     text = p?.title ?: selection.row.channel.name,
-                    fontSize = 20.sp,
+                    fontSize = TextSize.Title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -304,20 +304,20 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
                             "No guide information"
                         },
                         color = ZappColors.Dim,
-                        fontSize = 12.sp,
+                        fontSize = TextSize.Small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
                 p?.description?.let {
                     Spacer(Modifier.height(5.dp))
-                    Text(it, color = ZappColors.Faint, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(it, color = ZappColors.Faint, fontSize = TextSize.Small, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
         Spacer(Modifier.width(20.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text(dayFormat.format(now), color = ZappColors.Dim, fontSize = 12.sp)
+            Text(dayFormat.format(now), color = ZappColors.Dim, fontSize = TextSize.Small)
             Spacer(Modifier.height(8.dp))
             KeyHint("OK", "Watch")
         }
@@ -336,7 +336,7 @@ private fun TimeRuler(windowStart: Long, gridWidth: Dp, dpPerMs: Float, now: Lon
             Text(
                 text = if (windowStart / 86_400_000L == now / 86_400_000L) "Today" else dayFormat.format(windowStart),
                 color = ZappColors.Faint,
-                fontSize = 11.sp,
+                fontSize = TextSize.Small,
                 modifier = Modifier.padding(start = 10.dp),
             )
         }
@@ -346,7 +346,7 @@ private fun TimeRuler(windowStart: Long, gridWidth: Dp, dpPerMs: Float, now: Lon
                 Text(
                     text = timeFormat.format(t),
                     color = ZappColors.Dim,
-                    fontSize = 11.sp,
+                    fontSize = TextSize.Small,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.offset(x = (k * SLOT * dpPerMs).dp + 4.dp),
                 )
@@ -408,7 +408,7 @@ private fun GuideRow(
                 Text(
                     channel.number.toString(),
                     color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                    fontSize = 10.5.sp,
+                    fontSize = TextSize.Label,
                     modifier = Modifier.width(30.dp),
                     maxLines = 1,
                 )
@@ -417,7 +417,7 @@ private fun GuideRow(
                 Text(
                     channel.name,
                     color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -453,7 +453,7 @@ private fun GuideRow(
                     Text(
                         text = if (epgId.isNullOrBlank()) "No guide for this channel" else "No information",
                         color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                        fontSize = 11.5.sp,
+                        fontSize = TextSize.Small,
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .padding(horizontal = 12.dp),
@@ -584,7 +584,7 @@ private fun ProgrammeCell(
                     past -> ZappColors.Faint
                     else -> ZappColors.Text
                 },
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
                 fontWeight = if (airing || focused) FontWeight.SemiBold else FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -592,7 +592,7 @@ private fun ProgrammeCell(
             Text(
                 text = timeFormat.format(programme.start) + if (replay) "  ·  ↺ Replay" else "",
                 color = if (focused) ZappColors.OnFocusDim else if (replay) ZappColors.Signal else ZappColors.Faint,
-                fontSize = 10.sp,
+                fontSize = TextSize.Label,
                 maxLines = 1,
             )
         }

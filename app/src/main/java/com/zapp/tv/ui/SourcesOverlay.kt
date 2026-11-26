@@ -175,10 +175,10 @@ fun SourcesOverlay(
 
         Row(Modifier.fillMaxSize().padding(start = 56.dp, top = 40.dp, end = 40.dp, bottom = 20.dp)) {
             Column(Modifier.width(250.dp)) {
-                Text(request.meta.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(request.meta.name, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 request.episodeLabel?.let {
                     Spacer(Modifier.height(6.dp))
-                    Text(it, color = ZappColors.Dim, fontSize = 13.sp, maxLines = 2)
+                    Text(it, color = ZappColors.Dim, fontSize = TextSize.Body, maxLines = 2)
                 }
                 Spacer(Modifier.height(16.dp))
                 val waiting = (expected - batches.size).coerceAtLeast(0)
@@ -189,23 +189,23 @@ fun SourcesOverlay(
                         else -> "${all.size} sources from ${sorted.count { it.streams.isNotEmpty() }} add-ons"
                     },
                     color = ZappColors.Faint,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                 )
                 if (hiddenCount > 0) {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "$hiddenCount hidden by your source settings" + if (settings.cachedOnly) " (ready-to-play only)" else "",
                         color = ZappColors.Faint,
-                        fontSize = 11.sp,
+                        fontSize = TextSize.Small,
                     )
                 }
                 sorted.filter { it.error != null }.forEach {
                     Spacer(Modifier.height(4.dp))
-                    Text(if (it.addonName.isBlank()) it.error.orEmpty() else "${it.addonName}: ${it.error}", color = ZappColors.Faint, fontSize = 11.sp, maxLines = 2)
+                    Text(if (it.addonName.isBlank()) it.error.orEmpty() else "${it.addonName}: ${it.error}", color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 2)
                 }
                 if (request.resumeMs > 0) {
                     Spacer(Modifier.height(12.dp))
-                    Text("Resumes at ${formatClock(request.resumeMs)}", color = ZappColors.Signal, fontSize = 12.sp)
+                    Text("Resumes at ${formatClock(request.resumeMs)}", color = ZappColors.Signal, fontSize = TextSize.Small)
                 }
             }
             Spacer(Modifier.width(28.dp))
@@ -214,7 +214,7 @@ fun SourcesOverlay(
                     Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = ZappColors.Brand2, strokeWidth = 3.dp, modifier = Modifier.size(30.dp))
                         Spacer(Modifier.height(14.dp))
-                        Text("Finding the best source…", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Finding the best source…", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(14.dp))
                         val stop = remember { FocusRequester() }
                         LaunchedEffect(Unit) { stop.tryRequest() }
@@ -229,7 +229,7 @@ fun SourcesOverlay(
                                 if (hiddenCount > 0) "Nothing ready to play. Turn off \"Ready to play only\" in Settings to see all $hiddenCount sources."
                                 else "None of your add-ons found a source for this.",
                                 color = ZappColors.Dim,
-                                fontSize = 14.sp,
+                                fontSize = TextSize.Body,
                             )
                             Spacer(Modifier.height(14.dp))
                             val back = remember { FocusRequester() }
@@ -247,7 +247,7 @@ fun SourcesOverlay(
                                     Text(
                                         s.addonName,
                                         color = ZappColors.Dim,
-                                        fontSize = 12.sp,
+                                        fontSize = TextSize.Small,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.padding(start = 4.dp, top = if (i == 0) 0.dp else 10.dp, bottom = 6.dp),
                                     )
@@ -298,14 +298,14 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
                     .padding(vertical = 5.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(s.quality ?: "SD?", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (focused) ZappColors.OnFocus else Color.White)
+                Text(s.quality ?: "SD?", fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else Color.White)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     s.name.replace('\n', ' '),
                     color = if (focused) ZappColors.OnFocus else if (s.playable || debrid != null) ZappColors.Text else ZappColors.Faint,
-                    fontSize = 13.sp,
+                    fontSize = TextSize.Body,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -314,7 +314,7 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
                     Text(
                         s.description,
                         color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
-                        fontSize = 11.5.sp,
+                        fontSize = TextSize.Small,
                         lineHeight = 15.sp,
                         maxLines = if (focused) 5 else 2,
                         overflow = TextOverflow.Ellipsis,
@@ -327,13 +327,13 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
                         if (readyNow) Tag("Ready")
                         learned?.let { Tag(it, highlight = it == "Reliable") }
                         tags.forEach { Tag(it) }
-                        note?.let { Text(it, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = 11.sp) }
+                        note?.let { Text(it, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Small) }
                     }
                 }
             }
             s.size?.let {
                 Spacer(Modifier.width(12.dp))
-                Text(it, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(it, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
             }
         }
     }

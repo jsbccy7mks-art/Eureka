@@ -139,7 +139,7 @@ fun PosterCard(
                         Text(
                             meta.name,
                             fontSize = if (rank != null) 9.5.sp else 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.SemiBold,
                             maxLines = if (rank != null) 1 else 2,
                             overflow = TextOverflow.Ellipsis,
                             color = Color.White,
@@ -168,7 +168,7 @@ fun PosterCard(
                     rank.toString(),
                     style = androidx.compose.ui.text.TextStyle(
                         fontFamily = TitleFont,
-                        fontSize = 26.sp,
+                        fontSize = TextSize.Page,
                         lineHeight = 26.sp,
                         color = Color.White,
                         shadow = androidx.compose.ui.graphics.Shadow(Color(0xB3000000), androidx.compose.ui.geometry.Offset(0f, 2f), 6f),
@@ -180,7 +180,7 @@ fun PosterCard(
         }
         if (showTitle || FocusStyle.cardTitles) {
             Spacer(Modifier.height(7.dp))
-            Text(meta.name, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZappColors.Dim)
+            Text(meta.name, fontSize = TextSize.Small, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ZappColors.Dim)
         }
     }
 }
@@ -195,7 +195,7 @@ fun Artwork(url: String?, title: String, contentScale: ContentScale = ContentSca
         Text(
             title,
             color = ZappColors.Faint,
-            fontSize = 12.sp,
+            fontSize = TextSize.Small,
             fontWeight = FontWeight.SemiBold,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
@@ -271,13 +271,13 @@ fun ContinueCard(
                         modifier = Modifier.heightIn(max = width * 0.17f).widthIn(max = width * 0.5f),
                     )
                 } else {
-                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             Spacer(Modifier.width(8.dp))
             Text(
                 listOfNotNull(progress.episodeLabel?.substringBefore(","), minutesLeft(progress)).joinToString("  ·  "),
-                fontSize = 9.5.sp,
+                fontSize = TextSize.Tag,
                 fontWeight = FontWeight.Medium,
                 color = Color.White.copy(alpha = 0.9f),
                 maxLines = 1,
@@ -337,9 +337,9 @@ fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: Str
                 .widthIn(max = 420.dp),
         ) {
             if (meta == null) {
-                Text(emptyTitle, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+                Text(emptyTitle, fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp)
                 Spacer(Modifier.height(8.dp))
-                Text(emptyBody, color = ZappColors.Dim, fontSize = 13.sp, lineHeight = 19.sp)
+                Text(emptyBody, color = ZappColors.Dim, fontSize = TextSize.Body, lineHeight = 19.sp)
             } else {
                 if (meta.logo != null) {
                     AsyncImage(
@@ -352,13 +352,13 @@ fun MediaHero(meta: MetaPreview?, height: Dp, emptyTitle: String, emptyBody: Str
                             .widthIn(max = 300.dp),
                     )
                 } else {
-                    Text(meta.name, fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(meta.name, fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(10.dp))
                 MetaFacts(meta.releaseInfo, meta.imdbRating, null, meta.genres)
                 meta.description?.let {
                     Spacer(Modifier.height(10.dp))
-                    Text(it, color = ZappColors.Dim, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    Text(it, color = ZappColors.Dim, fontSize = TextSize.Small, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -373,7 +373,7 @@ fun MovieTitle(name: String, size: androidx.compose.ui.unit.TextUnit, maxLines: 
     Text(
         name,
         fontFamily = when (font) { 1 -> Inter; 2 -> TitleFont; else -> CinemaFont },
-        fontWeight = when (font) { 1 -> FontWeight.Bold; 2 -> FontWeight.Normal; else -> FontWeight.Bold },
+        fontWeight = when (font) { 1 -> FontWeight.SemiBold; 2 -> FontWeight.Normal; else -> FontWeight.SemiBold },
         fontSize = when (font) { 1 -> size * 0.9f; 2 -> size; else -> size * 0.86f },
         lineHeight = size * 1.0f,
         letterSpacing = when (font) { 1 -> (size.value * -0.015f).sp; 2 -> (size.value * 0.01f).sp; else -> (size.value * 0.05f).sp },
@@ -452,7 +452,7 @@ fun ScoreCards(list: List<com.zapp.tv.data.RatingBadge>, imdb: String?, modifier
                     )
                 } else {
                     Box(Modifier.clip(RoundedCornerShape(4.dp)).background(bg).padding(horizontal = 5.dp, vertical = 1.dp)) {
-                        Text(mark, color = fg, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 0.3.sp)
+                        Text(mark, color = fg, fontSize = TextSize.Tag, fontWeight = FontWeight.Black, letterSpacing = 0.3.sp)
                     }
                 }
                 Spacer(Modifier.width(7.dp))
@@ -463,7 +463,7 @@ fun ScoreCards(list: List<com.zapp.tv.data.RatingBadge>, imdb: String?, modifier
                         false -> Color(0xFFFF8A8A)
                         null -> ZappColors.Text
                     },
-                    fontSize = 13.sp,
+                    fontSize = TextSize.Body,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -478,7 +478,7 @@ fun RatingBadges(list: List<com.zapp.tv.data.RatingBadge>, modifier: Modifier = 
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         list.forEach { r ->
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(r.source.uppercase(), color = ZappColors.Faint, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                Text(r.source.uppercase(), color = ZappColors.Faint, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
                 Spacer(Modifier.width(5.dp))
                 Text(
                     r.value,
@@ -487,7 +487,7 @@ fun RatingBadges(list: List<com.zapp.tv.data.RatingBadge>, modifier: Modifier = 
                         false -> Color(0xFFFF8A8A)
                         null -> ZappColors.Text
                     },
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -514,7 +514,7 @@ fun Tag(text: String, highlight: Boolean = false) {
             .background(if (highlight) Color(0x33FFC94A) else ZappColors.GlassHigh)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
-        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (highlight) ZappColors.Star else ZappColors.Text, maxLines = 1)
+        Text(text, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, color = if (highlight) ZappColors.Star else ZappColors.Text, maxLines = 1)
     }
 }
 
@@ -668,10 +668,10 @@ fun RowHeader(title: String, subtitle: String? = null) {
         Modifier.padding(start = RowInset, bottom = 9.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp)
+        Text(title, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp)
         subtitle?.let {
             Spacer(Modifier.width(8.dp))
-            Text(it, fontSize = 11.sp, color = ZappColors.Faint)
+            Text(it, fontSize = TextSize.Small, color = ZappColors.Faint)
         }
     }
 }

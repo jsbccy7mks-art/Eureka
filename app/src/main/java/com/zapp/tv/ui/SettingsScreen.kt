@@ -40,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -54,18 +57,17 @@ import androidx.compose.ui.input.key.type
 
 const val UPDATE_LINK = "github.com/jsbccy7mks-art/Eureka/releases/latest/download/zapp-tv.apk"
 
-private enum class SettingsSection(val label: String) {
-    Phone("Phone setup"),
+private enum class SettingsSection(val label: String, val listed: Boolean = true) {
+    Phone("Phone setup", listed = false),
     Sources("Playlists"),
     Addons("Add-ons"),
+    Accounts("Accounts"),
+    HomeLayout("Home"),
     Appearance("Appearance"),
-    Profiles("Profiles"),
-    HomeLayout("Home screen"),
-    Live("Live TV and guide"),
     Playback("Playback"),
-    Subtitles("Subtitles"),
-    Accounts("Accounts and sync"),
-    About("Updates and about"),
+    Live("Live TV"),
+    Profiles("Profiles"),
+    About("System"),
 }
 
 @Composable
@@ -122,28 +124,37 @@ fun SettingsScreen(
             .onFocusChanged { hasFocusInside = it.hasFocus }
             .padding(start = 28.dp, end = 36.dp, top = 28.dp, bottom = 20.dp),
     ) {
-        Column(Modifier.width(210.dp)) {
-            Text("Settings", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp)
-            Spacer(Modifier.height(18.dp))
+        Column(Modifier.width(220.dp)) {
+            Text("Settings", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, modifier = Modifier.padding(start = 14.dp))
+            Spacer(Modifier.height(22.dp))
             LazyColumn(
                 modifier = Modifier
                     .onFocusChanged { sectionsHaveFocus = it.hasFocus }
                     .restoreFocus(sectionMemory),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                items(SettingsSection.entries, key = { it.name }) { s ->
+                items(SettingsSection.entries.filter { it.listed }, key = { it.name }) { s ->
                     FocusSurface(
                         onClick = { section = s },
                         modifier = Modifier
                             .rememberFocus(sectionMemory, s.name)
                             .fillMaxWidth(),
-                        selected = s == section,
+                        selected = s == section || (section == SettingsSection.Phone && s == SettingsSection.About),
                         focusRequester = if (s == section) firstFocus else if (s == SettingsSection.entries.first()) firstItem else null,
                         onFocusChange = { if (it) focusedSection = s },
                         shape = RoundedCornerShape(10.dp),
-                        focusScale = 1.03f,
+                        focusScale = 1.02f,
                     ) { focused ->
                         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            SectionIcon(
+                                s,
+                                when {
+                                    focused -> ZappColors.OnFocus
+                                    s == section -> ZappColors.Text
+                                    else -> ZappColors.Faint
+                                },
+                            )
+                            Spacer(Modifier.width(13.dp))
                             Text(
                                 s.label,
                                 color = when {
@@ -151,8 +162,8 @@ fun SettingsScreen(
                                     s == section -> ZappColors.Text
                                     else -> ZappColors.Dim
                                 },
-                                fontSize = 14.sp,
-                                fontWeight = if (s == section || focused) FontWeight.SemiBold else FontWeight.Medium,
+                                fontSize = TextSize.Body,
+                                fontWeight = FontWeight.Medium,
                             )
                             if (NewSettings.sectionHasNew(s.name)) {
                                 Spacer(Modifier.width(8.dp))
@@ -164,12 +175,16 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.width(28.dp))
+        Spacer(Modifier.width(32.dp))
 
+        LaunchedEffect(section) { SettingsHelp.clear() }
+        LaunchedEffect(sectionsHaveFocus) { if (sectionsHaveFocus) SettingsHelp.clear() }
+        androidx.compose.runtime.CompositionLocalProvider(LocalHelpAtFoot provides true) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
         Box(
             Modifier
                 .weight(1f)
-                .fillMaxHeight(),
+                .fillMaxWidth(),
         ) {
             when (section) {
                 SettingsSection.Phone -> PhoneSetupPane(vm, phoneTab)
@@ -180,10 +195,12 @@ fun SettingsScreen(
                 SettingsSection.HomeLayout -> HomeLayoutPane(mvm)
                 SettingsSection.Live -> LiveSettingsPane(vm, playback)
                 SettingsSection.Playback -> PlaybackSettingsPane(vm)
-                SettingsSection.Subtitles -> SubtitleSettingsPane(vm)
                 SettingsSection.Accounts -> AccountsPane(vm, mvm) { openPhone(it) }
-                SettingsSection.About -> AboutPane(vm) { openPhone("help") }
+                SettingsSection.About -> AboutPane(vm, onPhoneSetup = { openPhone("xtream") }) { openPhone("help") }
             }
+        }
+        HelpFoot()
+        }
         }
     }
 }
@@ -195,49 +212,48 @@ private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SettingRow(
-            title = "Pause and rewind live TV",
-            body = "Keeps the last 5 minutes of the channel you're watching on this TV, so you can pause, rewind and catch up. Deleted when you change channel or leave. Uses about 100–400 MB while watching (more for 4K).",
-            value = SettingValue.Toggle(vm.settings.liveRewind),
-            onClick = { vm.settings.liveRewind = !vm.settings.liveRewind },
-        )
-        SettingRow(
-            title = "Preview channels while browsing",
-            body = "Plays the channel you rest on in the corner of Live TV and in the Home hero.",
-            value = SettingValue.Toggle(vm.settings.preview),
-            onClick = {
-                vm.settings.preview = !vm.settings.preview
-                if (!vm.settings.preview) playback.stop()
-            },
-        )
-        SettingRow(
-            title = "Update the guide automatically",
-            body = "How often the TV guide is downloaded again while the app is open.",
-            value = SettingValue.Choice(
-                when (vm.settings.guideHours) {
-                    0 -> "Off"
-                    else -> "Every ${vm.settings.guideHours} hours"
+        SettingsGroup("Watching", "") {
+            SettingRow(
+                title = "Pause live TV",
+                body = "Keeps the last 5 minutes of the channel you're watching, so you can pause, rewind and catch up. Cleared when you change channel. Uses about 100–400 MB while watching.",
+                value = SettingValue.Toggle(vm.settings.liveRewind),
+                onClick = { vm.settings.liveRewind = !vm.settings.liveRewind },
+            )
+            SettingRow(
+                title = "Channel previews",
+                body = "Plays the channel you rest on in the corner of Live TV and in the Home header.",
+                value = SettingValue.Toggle(vm.settings.preview),
+                onClick = {
+                    vm.settings.preview = !vm.settings.preview
+                    if (!vm.settings.preview) playback.stop()
                 },
-            ),
-            onClick = {
-                val i = intervals.indexOf(vm.settings.guideHours)
-                vm.settings.guideHours = intervals[(i + 1).mod(intervals.size)]
-            },
-        )
-        SettingRow(
-            title = "Update guide now",
-            body = "Downloads the latest guide for every playlist.",
-            value = SettingValue.Action,
-            onClick = { vm.refreshGuideAll() },
-        )
-        SettingRow(
-            title = "Refresh all playlists",
-            body = "Reloads channel lists from your providers. Favourites and history are kept.",
-            value = SettingValue.Action,
-            onClick = { vm.refreshAll() },
-        )
+            )
+        }
+        SettingsGroup("Guide and playlists", "") {
+            SettingRow(
+                title = "Guide updates",
+                body = "How often the TV guide is downloaded again while the app is open.",
+                value = SettingValue.Choice(if (vm.settings.guideHours == 0) "Off" else "Every ${vm.settings.guideHours} hours"),
+                onClick = {
+                    val i = intervals.indexOf(vm.settings.guideHours)
+                    vm.settings.guideHours = intervals[(i + 1).mod(intervals.size)]
+                },
+            )
+            SettingRow(
+                title = "Update guide now",
+                body = "Downloads the latest guide for every playlist.",
+                value = SettingValue.Action,
+                onClick = { vm.refreshGuideAll() },
+            )
+            SettingRow(
+                title = "Refresh playlists",
+                body = "Reloads channel lists from your providers. Favourites and history are kept.",
+                value = SettingValue.Action,
+                onClick = { vm.refreshAll() },
+            )
+        }
+        Spacer(Modifier.height(20.dp))
     }
 }
 
@@ -256,153 +272,147 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        SettingsGroup("Display matching", "Frame rate and resolution switching") {
+        SettingsGroup("Starting", "") {
+            SettingRow(
+                title = "Play automatically",
+                body = "Starts the best source straight away instead of showing the list. You can still pick one with \"Let me choose\".",
+                value = SettingValue.Toggle(s.autoPlayFirst),
+                onClick = { s.autoPlayFirst = !s.autoPlayFirst },
+            )
+            SettingRow(
+                title = "Prepare in the background",
+                body = "While you're on a details page, fetches sources and gets a cached debrid link ready, so Play starts almost at once.",
+                value = SettingValue.Toggle(s.prepareLinks),
+                onClick = { s.prepareLinks = !s.prepareLinks },
+            )
+            SettingRow(
+                title = "Instant sources only",
+                body = "Only lists sources that play straight away: direct links and torrents your debrid service already has.",
+                value = SettingValue.Toggle(s.cachedOnly),
+                onClick = { s.cachedOnly = !s.cachedOnly },
+            )
+            SettingRow(
+                title = "Best quality first",
+                body = "Within each add-on, ready sources first, then by quality. Off keeps the add-on's own order.",
+                value = SettingValue.Toggle(s.bestFirst),
+                onClick = { s.bestFirst = !s.bestFirst },
+            )
+            SettingRow(
+                title = "Quality limit",
+                body = "Skips sources above this quality, for slower connections or TVs that struggle with 4K.",
+                value = SettingValue.Choice(listOf("None", "1080p", "720p")[s.maxQuality.coerceIn(0, 2)]),
+                onClick = { s.maxQuality = (s.maxQuality + 1) % 3 },
+            )
+            SettingRow(
+                title = "Remember source",
+                body = "Tries the source you used last time first; for series, the same release for the next episode.",
+                value = SettingValue.Toggle(s.sameSource),
+                onClick = { s.sameSource = !s.sameSource },
+            )
+            var learnReset by remember { mutableStateOf(false) }
+            SettingRow(
+                title = "Smart source order",
+                body = (if (learnReset) "Cleared. " else "") + "Learns how each add-on and release plays on this TV and lists reliable ones higher. OK starts over.",
+                value = SettingValue.Choice(if (learnReset) "Cleared" else "Learning"),
+                onClick = {
+                    (vm.getApplication<com.zapp.tv.ZappApp>()).sourceStats.reset()
+                    learnReset = true
+                },
+            )
+        }
+        SettingsGroup("Episodes and endings", "") {
+            SettingRow(
+                title = "Skip intros",
+                body = "Uses IntroDB's community timings, where an episode has them.",
+                value = SettingValue.Choice(listOf("Off", "Show button", "Automatically")[s.skipIntro.coerceIn(0, 2)]),
+                onClick = { s.skipIntro = (s.skipIntro + 1) % 3 },
+            )
+            SettingRow(
+                title = "Skip recaps",
+                body = "\"Previously on…\" at the start of episodes.",
+                value = SettingValue.Choice(listOf("Off", "Show button", "Automatically")[s.skipRecap.coerceIn(0, 2)]),
+                onClick = { s.skipRecap = (s.skipRecap + 1) % 3 },
+            )
+            SettingRow(
+                title = "Autoplay next episode",
+                body = "Up next appears at the credits. On: it counts down from 10, then plays. Off: it waits for you.",
+                value = SettingValue.Toggle(s.autoNextEpisode),
+                onClick = { s.autoNextEpisode = !s.autoNextEpisode },
+            )
+            SettingRow(
+                title = "Suggestions at the end",
+                body = "At a film's credits it shrinks to a corner and something to watch next fills the screen. Needs your TMDB key.",
+                value = SettingValue.Toggle(s.postPlaySuggest),
+                onClick = { s.postPlaySuggest = !s.postPlaySuggest },
+            )
+        }
+        SettingsGroup("Picture", "") {
             val activity = androidx.compose.ui.platform.LocalContext.current as? android.app.Activity
             val system = activity?.let { DisplayMatch.systemPreference(it) }
             SettingRow(
                 title = "Match frame rate",
-                body = "Finds the film's real frame rate (23.976, 24, 25, 50, 60) before it starts, switches your TV and waits for it to settle, then plays: smooth motion and no stutter at the start." +
+                body = "Switches your TV to the film's frame rate before it starts, so motion is smooth." +
                     when (system) {
-                        0 -> " Your box's own setting blocks this: Settings, Display & Sound, Advanced display settings, Match content frame rate: choose Always."
-                        1 -> " Your box only allows seamless switches: for this to work, set Settings, Display & Sound, Advanced display settings, Match content frame rate to Always."
-                        else -> ""
+                        0 -> " Your box blocks this: set Display & Sound, Advanced display settings, Match content frame rate to Always."
+                        1 -> " Your box only allows seamless switches: set Match content frame rate to Always in its settings."
+                        else -> " The screen may go black for a moment."
                     },
-                value = SettingValue.Choice(listOf("Off", "At the start", "At the start, back when you stop")[s.frameRateMode.coerceIn(0, 2)]),
+                value = SettingValue.Choice(listOf("Off", "On", "On, switch back after")[s.frameRateMode.coerceIn(0, 2)]),
                 onClick = { s.frameRateMode = (s.frameRateMode + 1) % 3 },
             )
             SettingRow(
                 title = "Match resolution",
-                body = "Also switches to the video's resolution (1080p, 4K). Off lets your TV upscale, which is often better and quicker.",
+                body = "Also switches to the video's resolution. Off lets your TV upscale, which is often better and quicker.",
                 value = SettingValue.Toggle(s.matchResolution),
                 onClick = { s.matchResolution = !s.matchResolution },
             )
         }
-        SettingsGroup("Starting films and series", "Autoplay, which sources, quality", startOpen = true) {
-        SettingRow(
-            title = "Autoplay",
-            body = "For films and series: start the best source straight away instead of showing the list. You can still choose with \"Let me choose\".",
-            value = SettingValue.Toggle(s.autoPlayFirst),
-            onClick = { s.autoPlayFirst = !s.autoPlayFirst },
-        )
-        SettingRow(
-            title = "Get ready while I browse",
-            body = "With autoplay on, a details page fetches the sources and, if your debrid service already has one cached, gets its link ready so Play starts almost at once. Cached sources use no download slot; they do appear in your debrid list.",
-            value = SettingValue.Toggle(s.prepareLinks),
-            onClick = { s.prepareLinks = !s.prepareLinks },
-        )
-        SettingRow(
-            title = "Ready to play only",
-            body = "Only list sources that play straight away: direct links, and torrents your debrid service already has. Hides ones that would have to download first.",
-            value = SettingValue.Toggle(s.cachedOnly),
-            onClick = { s.cachedOnly = !s.cachedOnly },
-        )
-        SettingRow(
-            title = "Best quality first",
-            body = "Within each add-on, list ready sources first, then by quality (4K, 1080p, 720p). Off keeps the add-on's own order.",
-            value = SettingValue.Toggle(s.bestFirst),
-            onClick = { s.bestFirst = !s.bestFirst },
-        )
-        SettingRow(
-            title = "Highest quality",
-            body = "Skip sources above this quality, for slower connections or TVs that struggle with 4K.",
-            value = SettingValue.Choice(listOf("Any", "Up to 1080p", "Up to 720p")[s.maxQuality.coerceIn(0, 2)]),
-            onClick = { s.maxQuality = (s.maxQuality + 1) % 3 },
-        )
-        SettingRow(
-            title = "Same source when resuming",
-            body = "Tries the source you used last time first; for series, the same release for the next episode (like Nuvio's binge groups).",
-            value = SettingValue.Toggle(s.sameSource),
-            onClick = { s.sameSource = !s.sameSource },
-        )
-        var learnReset by remember { mutableStateOf(false) }
-        SettingRow(
-            title = "Sources that learn",
-            body = "Axon notes how each add-on and release has played on this box (how fast it started, if it failed, if you switched away) and lists reliable ones higher. Kept only on this TV." +
-                if (learnReset) " Cleared." else "",
-            value = SettingValue.Choice("Start over"),
-            onClick = {
-                (vm.getApplication<com.zapp.tv.ZappApp>()).sourceStats.reset()
-                learnReset = true
-            },
-        )
-        SettingRow(
-            title = "Skip intros",
-            body = "Using IntroDB's community timings, where an episode has them.",
-            value = SettingValue.Choice(listOf("Off", "Show a Skip button", "Skip by itself")[s.skipIntro.coerceIn(0, 2)]),
-            onClick = { s.skipIntro = (s.skipIntro + 1) % 3 },
-        )
-        SettingRow(
-            title = "Skip recaps",
-            body = "\"Previously on…\" at the start of episodes.",
-            value = SettingValue.Choice(listOf("Off", "Show a Skip button", "Skip by itself")[s.skipRecap.coerceIn(0, 2)]),
-            onClick = { s.skipRecap = (s.skipRecap + 1) % 3 },
-        )
-        SettingRow(
-            title = "Suggest something when a film ends",
-            body = "At the credits of a film (or the latest episode of a series), it shrinks to a small window with sound and something to watch next fills the screen, with Play and Details. Needs your TMDB key.",
-            value = SettingValue.Toggle(s.postPlaySuggest),
-            onClick = { s.postPlaySuggest = !s.postPlaySuggest },
-        )
-        SettingRow(
-            title = "Play the next episode automatically",
-            body = "The Up next card always appears at the credits. On: it counts down from 10, then plays the next episode. Off: it waits for you.",
-            value = SettingValue.Toggle(s.autoNextEpisode),
-            onClick = { s.autoNextEpisode = !s.autoNextEpisode },
-        )
+        SettingsGroup("Sound", "") {
+            SettingRow(
+                title = "Audio language",
+                body = "Used when there's more than one language. You can still switch in the player.",
+                value = SettingValue.Choice(languageLabel(s.audioLanguage)),
+                onClick = { s.audioLanguage = next(s.audioLanguage) },
+            )
+            SettingRow(
+                title = "Bigger buffer",
+                body = "Holds more video in reserve for unsteady connections; channels change a little slower. Applies next time Axon starts.",
+                value = SettingValue.Toggle(s.largeBuffer),
+                onClick = { s.largeBuffer = !s.largeBuffer },
+            )
         }
-        SettingsGroup("Player", "Language and buffering") {
-        SettingRow(
-            title = "Preferred audio language",
-            body = "Used when a channel offers more than one language. You can still switch in the player.",
-            value = SettingValue.Choice(languageLabel(s.audioLanguage)),
-            onClick = { s.audioLanguage = next(s.audioLanguage) },
-        )
-        SettingRow(
-            title = "Bigger buffer",
-            body = "Holds more video in reserve for unsteady connections, at the cost of slower channel changes. " +
-                "Takes effect next time Axon starts.",
-            value = SettingValue.Toggle(s.largeBuffer),
-            onClick = { s.largeBuffer = !s.largeBuffer },
-        )
-        }
-        Spacer(Modifier.height(6.dp))
+        SubtitleSettings(vm)
         Text(
-            "In the player: OK opens the controls (audio, subtitles, stream info), Left opens the channel list, " +
-                "Right shows what's on, and Up or Down changes channel.",
+            "In the player: OK for controls, Left for channels, Right for what's on, Up and Down to change channel.",
             color = ZappColors.Faint,
-            fontSize = 12.sp,
-            lineHeight = 17.sp,
+            fontSize = TextSize.Small,
+            modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 20.dp),
         )
     }
 }
 
 @Composable
-private fun SubtitleSettingsPane(vm: AppViewModel) {
+private fun SubtitleSettings(vm: AppViewModel) {
     val s = vm.settings
     val sizes = listOf("Small", "Medium", "Large", "Extra large")
-    val styles = listOf("White with shadow", "White on dark box", "Yellow with shadow")
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Live preview of the chosen look.
+    val styles = listOf("Shadow", "Dark box", "Yellow")
+    SettingsGroup("Subtitles", "") {
+        // How they'll look.
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(96.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .padding(horizontal = 4.dp, vertical = 6.dp)
+                .height(84.dp)
+                .clip(Shapes.Row)
                 .background(
                     androidx.compose.ui.graphics.Brush.linearGradient(
-                        listOf(Color(0xFF3A4A6B), Color(0xFF6B5A3A), Color(0xFF2A3A3A)),
+                        listOf(Color(0xFF2E3B55), Color(0xFF55482E), Color(0xFF223030)),
                     ),
                 ),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Box(Modifier.padding(bottom = 12.dp)) {
+            Box(Modifier.padding(bottom = 10.dp)) {
                 SubtitleText(
                     "This is how subtitles will look.",
                     when (s.subtitleSize) {
@@ -416,26 +426,26 @@ private fun SubtitleSettingsPane(vm: AppViewModel) {
             }
         }
         SettingRow(
-            title = "Films and series: subtitles",
-            body = "Turn subtitles on automatically for films and series. Their font, bold, style, size and timing are in the player's Subtitles menu.",
-            value = SettingValue.Choice(if (s.vodSubtitlesOn) "On when available" else "Off"),
+            title = "Films and series",
+            body = "Turns subtitles on by themselves for films and series. Font, size and timing are also in the player's Subtitles menu.",
+            value = SettingValue.Choice(if (s.vodSubtitlesOn) "On" else "Off"),
             onClick = { s.vodSubtitlesOn = !s.vodSubtitlesOn },
         )
         SettingRow(
-            title = "Live TV: subtitles",
-            body = "Turn subtitles on automatically when a channel has them. You can always switch in the player. The settings below are for live TV.",
-            value = SettingValue.Choice(if (s.subtitlesOn) "On when available" else "Off"),
+            title = "Live TV",
+            body = "Turns subtitles on by themselves when a channel has them.",
+            value = SettingValue.Choice(if (s.subtitlesOn) "On" else "Off"),
             onClick = { s.subtitlesOn = !s.subtitlesOn },
         )
         SettingRow(
-            title = "Subtitle language",
-            body = "Preferred language when subtitles turn on automatically.",
+            title = "Language",
+            body = "Preferred language when subtitles turn on by themselves.",
             value = SettingValue.Choice(languageLabel(s.subtitleLanguage)),
             onClick = { s.subtitleLanguage = next(s.subtitleLanguage) },
         )
         SettingRow(
             title = "Size",
-            body = "Applies to text subtitles and captions.",
+            body = "For text subtitles and captions. Picture-based (DVB) subtitles keep the broadcaster's look.",
             value = SettingValue.Choice(sizes[s.subtitleSize.coerceIn(0, 3)]),
             onClick = { s.subtitleSize = (s.subtitleSize + 1).mod(sizes.size) },
         )
@@ -447,20 +457,15 @@ private fun SubtitleSettingsPane(vm: AppViewModel) {
         )
         SettingRow(
             title = "Position",
-            body = "Raise subtitles if they're hidden by the edge of your TV.",
+            body = "Raise subtitles if the edge of your TV hides them.",
             value = SettingValue.Choice(if (s.subtitleRaised) "Raised" else "Bottom"),
             onClick = { s.subtitleRaised = !s.subtitleRaised },
-        )
-        Text(
-            "Picture-based subtitles (DVB) keep the look the broadcaster gave them.",
-            color = ZappColors.Faint,
-            fontSize = 12.sp,
         )
     }
 }
 
 @Composable
-private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
+private fun AboutPane(vm: AppViewModel, onPhoneSetup: () -> Unit, onPhone: () -> Unit) {
     val context = LocalContext.current
     val version = remember {
         try {
@@ -474,40 +479,16 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            LogoMark(44.dp)
+        Row(Modifier.padding(start = 16.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            LogoMark(40.dp)
             Spacer(Modifier.width(14.dp))
             Column {
-                Text("Axon", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Version ${version ?: "unknown"}, build ${vm.currentBuild}", color = ZappColors.Dim, fontSize = 12.sp)
+                Text("Axon", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
+                Text("Version ${version ?: "unknown"} · build ${vm.currentBuild}", color = ZappColors.Dim, fontSize = TextSize.Small)
             }
         }
-        Spacer(Modifier.height(22.dp))
         val u = vm.update
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            var trailerTest by remember { mutableStateOf<String?>(null) }
-            val testScope = androidx.compose.runtime.rememberCoroutineScope()
-            SettingRow(
-                title = "Test trailers",
-                body = trailerTest ?: "Checks that trailers and theme tunes can play in Axon's own player, and says what went wrong if not.",
-                value = SettingValue.Action,
-                onClick = {
-                    trailerTest = "Testing…"
-                    testScope.launch { trailerTest = (context.applicationContext as com.zapp.tv.ZappApp).youtube.test() }
-                },
-            )
-            SettingRow(
-                title = "Show frame rate",
-                body = "A small counter at the top of the screen: frames per second, and how many were slow. For checking how smoothly things scroll.",
-                value = SettingValue.Toggle(vm.settings.showFps),
-                onClick = { vm.settings.showFps = !vm.settings.showFps },
-            )
-            SettingRow(
-                title = "What's new",
-                body = "What changed in this version and the few before it.",
-                value = SettingValue.Action,
-                onClick = { WhatsNewState.notes = Changelog.read(context).take(3).ifEmpty { null } },
-            )
+        SettingsGroup("Updates", "") {
             SettingRow(
                 title = "Check for updates",
                 body = when (u) {
@@ -518,7 +499,13 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
                     is UpdateState.Downloading -> "Downloading build ${u.release.build}…"
                     is UpdateState.Failed -> u.message
                 },
-                value = SettingValue.Action,
+                value = when (u) {
+                    UpdateState.Checking -> SettingValue.Choice("Checking…")
+                    UpdateState.UpToDate -> SettingValue.Choice("Up to date")
+                    is UpdateState.Available -> SettingValue.Choice("Build ${u.release.build} ready")
+                    is UpdateState.Failed -> SettingValue.Choice("Didn't work")
+                    else -> SettingValue.Action
+                },
                 onClick = { vm.checkForUpdates(manual = true) },
             )
             val release = when (u) {
@@ -535,9 +522,42 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
                     onClick = { vm.installUpdate() },
                 )
                 if (u is UpdateState.Downloading) {
-                    ProgressLine(u.progress, Modifier.fillMaxWidth().padding(horizontal = 4.dp))
+                    ProgressLine(u.progress, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp))
                 }
             }
+            SettingRow(
+                title = "What's new",
+                body = "What changed in this version and the few before it.",
+                value = SettingValue.Action,
+                onClick = { WhatsNewState.notes = Changelog.read(context).take(3).ifEmpty { null } },
+            )
+        }
+        SettingsGroup("Phone", "") {
+            SettingRow(
+                title = "Phone setup",
+                body = "Add playlists, add-ons, keys and accounts by typing on your phone instead of the remote.",
+                value = SettingValue.Action,
+                onClick = onPhoneSetup,
+            )
+        }
+        SettingsGroup("Checks", "") {
+            var trailerTest by remember { mutableStateOf<String?>(null) }
+            val testScope = androidx.compose.runtime.rememberCoroutineScope()
+            SettingRow(
+                title = "Test trailers",
+                body = trailerTest ?: "Checks that trailers and theme tunes can play, and says what went wrong if not.",
+                value = if (trailerTest == "Testing…") SettingValue.Choice("Testing…") else SettingValue.Action,
+                onClick = {
+                    trailerTest = "Testing…"
+                    testScope.launch { trailerTest = (context.applicationContext as com.zapp.tv.ZappApp).youtube.test() }
+                },
+            )
+            SettingRow(
+                title = "Show frame rate",
+                body = "A small counter at the top of the screen: frames per second and how many were slow.",
+                value = SettingValue.Toggle(vm.settings.showFps),
+                onClick = { vm.settings.showFps = !vm.settings.showFps },
+            )
         }
         val crash = vm.lastCrash
         if (crash != null) {
@@ -545,12 +565,12 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             Panel(Modifier.fillMaxWidth()) {
                 Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Axon closed unexpectedly", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Axon closed unexpectedly", fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             crash.lineSequence().drop(5).firstOrNull { it.isNotBlank() }?.take(160) ?: "",
                             color = ZappColors.Dim,
-                            fontSize = 11.sp,
+                            fontSize = TextSize.Small,
                             maxLines = 3,
                         )
                         Spacer(Modifier.height(10.dp))
@@ -565,17 +585,17 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
         Spacer(Modifier.height(18.dp))
         Panel(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
-                Text("Updating another way", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Updating another way", fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "If the built-in updater can't install on this TV, open the Downloader app and enter this address. " +
                         "It always points to the newest version.",
                     color = ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     lineHeight = 17.sp,
                 )
                 Spacer(Modifier.height(10.dp))
-                Text(UPDATE_LINK, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = ZappColors.Signal)
+                Text(UPDATE_LINK, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, color = ZappColors.Signal)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -583,7 +603,7 @@ private fun AboutPane(vm: AppViewModel, onPhone: () -> Unit) {
             "Axon doesn't include any channels, playlists or accounts. Add your own from Sources. " +
                 "Intro, recap and credits timings come from IntroDB (introdb.app), a community project.",
             color = ZappColors.Faint,
-            fontSize = 12.sp,
+            fontSize = TextSize.Small,
         )
     }
 }
@@ -606,7 +626,7 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Uni
                 Text(
                     "Paste an add-on's install link (it ends in manifest.json). Axon doesn't include any add-ons; you choose your own.",
                     color = ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     lineHeight = 17.sp,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -643,14 +663,14 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Uni
                             if (a.manifest.logo != null) {
                                 coil.compose.AsyncImage(model = a.manifest.logo, contentDescription = null, modifier = Modifier.size(30.dp))
                             } else {
-                                Text(a.manifest.name.take(1).uppercase(), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                                Text(a.manifest.name.take(1).uppercase(), fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 a.manifest.name + if (!a.addon.enabled) " (off)" else "",
-                                fontSize = 15.sp,
+                                fontSize = TextSize.Heading,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (a.addon.enabled) ZappColors.Text else ZappColors.Faint,
                             )
@@ -666,7 +686,7 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Uni
                             Text(
                                 "Version ${a.manifest.version}" + if (offers.isNotEmpty()) ", offers " + offers.joinToString(", ") else "",
                                 color = ZappColors.Dim,
-                                fontSize = 12.sp,
+                                fontSize = TextSize.Small,
                             )
                         }
                     }
@@ -697,7 +717,7 @@ private fun AddonsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Uni
                 Text(
                     "Order matters: details come from the first add-on that has them, and sources are listed in this order.",
                     color = ZappColors.Faint,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                 )
             }
         }
@@ -713,31 +733,33 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        SettingsCaption("Sync", Modifier.padding(top = 0.dp))
         SettingsGroup(
             "Simkl",
             when (state) {
-                is MediaViewModel.SimklState.SignedIn -> "Connected" + if (state.user.isNotBlank()) " as ${state.user}" else ""
-                else -> "Syncs watched, progress and library (and Nuvio through it)"
+                is MediaViewModel.SimklState.SignedIn -> if (state.user.isNotBlank()) state.user else "Connected"
+                else -> "Not connected"
             },
+            collapsible = true,
         ) {
         Text(
             "Keeps what you've watched, where you got to, and your library in step with Simkl, and with Nuvio " +
                 "when Nuvio uses Simkl for watch progress and library. Films and series only; live channels aren't sent.",
             color = ZappColors.Dim,
-            fontSize = 12.sp,
+            fontSize = TextSize.Small,
             lineHeight = 17.sp,
         )
         Spacer(Modifier.height(4.dp))
         when (state) {
             MediaViewModel.SimklState.NeedsAppId -> Column {
-                Text("First, a Simkl app ID", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("First, a Simkl app ID", fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Create an app at simkl.com/settings/developer (choose a device or TV app), then paste its Client ID on your phone. You only do this once.",
                     color = ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     lineHeight = 17.sp,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -763,13 +785,13 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                     QrCode(state.link, 140.dp)
                     Spacer(Modifier.width(24.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Scan with your phone and approve Axon", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Scan with your phone and approve Axon", fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(6.dp))
-                        Text("Or go to ${state.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = 12.sp)
+                        Text("Or go to ${state.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = TextSize.Small)
                         Spacer(Modifier.height(6.dp))
-                        Text(state.code, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                        Text(state.code, fontSize = TextSize.Hero, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                         Spacer(Modifier.height(10.dp))
-                        Text("Waiting for you to approve…", color = ZappColors.Faint, fontSize = 12.sp)
+                        Text("Waiting for you to approve…", color = ZappColors.Faint, fontSize = TextSize.Small)
                         Spacer(Modifier.height(10.dp))
                         ZButton("Cancel", { mvm.cancelSimklSignIn() }, style = ButtonStyle.Quiet, focusRequester = focus)
                     }
@@ -788,7 +810,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                     onClick = { mvm.syncSimkl(force = true) },
                     focusRequester = focus,
                 )
-                mvm.simklMessage?.let { Text(it, color = ZappColors.Dim, fontSize = 12.sp) }
+                mvm.simklMessage?.let { Text(it, color = ZappColors.Dim, fontSize = TextSize.Small) }
                 SettingRow(
                     title = "Disconnect Simkl",
                     body = "Axon stops syncing and forgets the sign-in. What's already here stays.",
@@ -798,25 +820,26 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 Text(
                     "In Nuvio, connect the same Simkl account and choose Simkl for watch progress and library.",
                     color = ZappColors.Faint,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                 )
             }
         }
 
         }
-        SettingsGroup("Stremio", if (mvm.stremio.signedIn) "Signed in as ${mvm.settings.stremioUser}" else "Bring over your Stremio library and Continue watching") {
+        SettingsGroup("Stremio", if (mvm.stremio.signedIn) mvm.settings.stremioUser.ifBlank { "Signed in" } else "Not connected", collapsible = true) {
             StremioSection(vm, mvm) { onPhone("stremio") }
         }
-        SettingsGroup("Nuvio", nuvioSummary(mvm)) {
+        SettingsGroup("Nuvio", nuvioSummary(mvm), collapsible = true) {
             NuvioSyncSection(mvm) { onPhone("nuvio") }
             Spacer(Modifier.height(6.dp))
             NuvioSection(mvm)
         }
-        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected: cast photos, reviews, recommendations and Collections" else "Optional: cast photos, reviews, recommendations, and the Collections page") {
+        SettingsCaption("Extras")
+        SettingsGroup("TMDB", if (mvm.tmdb.enabled) "Connected" else "Not set up", collapsible = true) {
             Text(
                 "With your own free TMDB key, details pages show cast photos, age ratings, reviews, \"More with…\" and \"People also watched\".",
                 color = ZappColors.Dim,
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
                 lineHeight = 17.sp,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -824,11 +847,11 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 if (mvm.tmdb.enabled) ZButton("Remove key", { mvm.settings.setSecret("tmdbKey", "") }, style = ButtonStyle.Quiet)
             }
         }
-        SettingsGroup("MDBList", if (mvm.mdblist.enabled) "Connected: IMDb, Rotten Tomatoes, Metacritic and Letterboxd scores" else "Optional: more ratings on details pages") {
+        SettingsGroup("MDBList", if (mvm.mdblist.enabled) "Connected" else "Not set up", collapsible = true) {
             Text(
                 "With your own free MDBList key (and TMDB above), details pages show IMDb, Rotten Tomatoes critics and audience, Metacritic and Letterboxd scores, and Home shows Rotten Tomatoes beside the year.",
                 color = ZappColors.Dim,
-                fontSize = 12.sp,
+                fontSize = TextSize.Small,
                 lineHeight = 17.sp,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -836,7 +859,8 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 if (mvm.mdblist.enabled) ZButton("Remove key", { mvm.settings.setSecret("mdblistKey", "") }, style = ButtonStyle.Quiet)
             }
         }
-        SettingsGroup("Debrid services", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ")?.let { "Connected: $it" } ?: "Real-Debrid, AllDebrid, Premiumize, TorBox") {
+        SettingsCaption("Streaming")
+        SettingsGroup("Debrid", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Not connected", collapsible = true) {
             DebridSection(vm, mvm)
         }
     }
@@ -866,12 +890,12 @@ private fun StremioSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () ->
                     "Bring over your Stremio library and Continue watching. Scan the code and sign in to Stremio on your phone; " +
                         "Axon keeps only Stremio's sign-in key, never your password.",
                     color = ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     lineHeight = 17.sp,
                 )
                 mvm.stremioStatus?.let {
                     Spacer(Modifier.height(6.dp))
-                    Text(it, color = ZappColors.Faint, fontSize = 12.sp)
+                    Text(it, color = ZappColors.Faint, fontSize = TextSize.Small)
                 }
             }
             Spacer(Modifier.width(16.dp))
@@ -884,9 +908,9 @@ private fun nuvioSummary(mvm: MediaViewModel): String {
     mvm.nuvioVersion
     val pid = mvm.settings.profileId
     return when {
-        !mvm.nuvio.signedIn(pid) -> "Sync Continue watching, watched and library, and import add-ons"
-        mvm.nuvio.linkedProfile(pid) == 0 -> "Connected: choose a Nuvio profile"
-        else -> "Syncing with ${mvm.nuvio.linkedProfileName(pid).ifBlank { "your profile" }}"
+        !mvm.nuvio.signedIn(pid) -> "Not connected"
+        mvm.nuvio.linkedProfile(pid) == 0 -> "Choose a profile"
+        else -> mvm.nuvio.linkedProfileName(pid).ifBlank { "Connected" }
     }
 }
 
@@ -902,12 +926,12 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
                     "Two-way sync with your Nuvio account: where you got to, what you've watched and your library. " +
                         "Sign in on your phone; Axon keeps only the Nuvio session, encrypted, never your password.",
                     color = ZappColors.Dim,
-                    fontSize = 12.sp,
+                    fontSize = TextSize.Small,
                     lineHeight = 17.sp,
                 )
                 mvm.nuvioSyncStatus?.let {
                     Spacer(Modifier.height(6.dp))
-                    Text(it, color = ZappColors.Faint, fontSize = 12.sp)
+                    Text(it, color = ZappColors.Faint, fontSize = TextSize.Small)
                 }
             }
             Spacer(Modifier.width(16.dp))
@@ -939,13 +963,13 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
         Text(
             "Connected as ${nuvio.user(pid).ifBlank { "your Nuvio account" }}. Choose which Nuvio profile this Axon profile syncs with.",
             color = ZappColors.Dim,
-            fontSize = 12.sp,
+            fontSize = TextSize.Small,
             lineHeight = 17.sp,
         )
-        mvm.nuvioSyncStatus?.let { Text(it, color = ZappColors.Faint, fontSize = 12.sp) }
+        mvm.nuvioSyncStatus?.let { Text(it, color = ZappColors.Faint, fontSize = TextSize.Small) }
     }
     if (mvm.nuvioProfiles.size > 1 || linked == 0) {
-        Text("Nuvio profile", color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        Text("Nuvio profile", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(top = 4.dp))
         mvm.nuvioProfiles.forEach { p ->
             SettingRow(
                 title = p.name,
@@ -976,7 +1000,7 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
         "Syncs when Axon opens, when you switch profile, when you come back to Axon and every 30 minutes; " +
             "what you watch is sent while you watch and when you pause or stop. Films and episodes only, never live TV.",
         color = ZappColors.Faint,
-        fontSize = 12.sp,
+        fontSize = TextSize.Small,
         lineHeight = 17.sp,
     )
 }
@@ -988,7 +1012,7 @@ private fun NuvioSection(mvm: MediaViewModel) {
         "Add-ons: in Nuvio TV open Add-ons, choose Manage from phone, then press Home (leave it open), " +
             "come back here and press Import.",
         color = ZappColors.Dim,
-        fontSize = 12.sp,
+        fontSize = TextSize.Small,
         lineHeight = 17.sp,
     )
     SettingRow(
@@ -1014,10 +1038,10 @@ private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
         "Lets torrent sources from your add-ons play: Axon asks your own debrid account for a normal link. " +
             "If you connect more than one, they're tried in this order.",
         color = ZappColors.Dim,
-        fontSize = 12.sp,
+        fontSize = TextSize.Small,
         lineHeight = 17.sp,
     )
-    mvm.message?.let { Text(it, color = ZappColors.Signal, fontSize = 12.sp) }
+    mvm.message?.let { Text(it, color = ZappColors.Signal, fontSize = TextSize.Small) }
 
     when (val s = mvm.debridSignIn) {
         is MediaViewModel.DebridSignIn.Waiting -> Panel(Modifier.fillMaxWidth()) {
@@ -1025,11 +1049,11 @@ private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
                 QrCode(s.link, 140.dp)
                 Spacer(Modifier.width(24.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Scan with your phone and approve Axon on ${s.service}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Scan with your phone and approve Axon on ${s.service}", fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))
-                    Text("Or go to ${s.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = 12.sp)
+                    Text("Or go to ${s.shortLink.removePrefix("https://")} and enter", color = ZappColors.Dim, fontSize = TextSize.Small)
                     Spacer(Modifier.height(6.dp))
-                    Text(s.code, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    Text(s.code, fontSize = TextSize.Hero, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
                     Spacer(Modifier.height(10.dp))
                     val cancel = remember { FocusRequester() }
                     LaunchedEffect(Unit) { cancel.tryRequest() }
@@ -1074,12 +1098,12 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
         Column(
             Modifier
                 .width(500.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("Add-on link", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Add-on link", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
             TvTextField(
                 "Install link",
                 link,
@@ -1100,9 +1124,9 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
 @Composable
 private fun AppearancePane(vm: AppViewModel) {
     val s = vm.settings
-    Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.verticalScroll(rememberScrollState())) {
         SettingsGroup("Theme", (Palettes.all.firstOrNull { it.id == s.theme }?.name ?: "Custom") + ": colours for the glow, highlights and progress bars", startOpen = true) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             (Palettes.all + Palettes.custom(s.customColors.first, s.customColors.second)).forEach { p ->
                 val chosen = s.theme == p.id
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1130,14 +1154,14 @@ private fun AppearancePane(vm: AppViewModel) {
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(p.name, fontSize = 12.sp, color = if (chosen) ZappColors.Text else ZappColors.Dim, fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
+                    Text(p.name, fontSize = TextSize.Small, color = if (chosen) ZappColors.Text else ZappColors.Dim, fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
         }
         if (s.theme == "custom") {
             Spacer(Modifier.height(16.dp))
             listOf("First colour" to true, "Second colour" to false).forEach { (label, firstColour) ->
-                Text(label, color = ZappColors.Dim, fontSize = 12.sp)
+                Text(label, color = ZappColors.Dim, fontSize = TextSize.Small)
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Palettes.Swatches.forEachIndexed { i, c ->
@@ -1220,7 +1244,7 @@ private fun AppearancePane(vm: AppViewModel) {
             onClick = { s.focusGlow = !s.focusGlow },
         )
         }
-        SettingsGroup("Trailers and motion", if (s.trailers) "Trailers on" else "Trailers off") {
+        SettingsGroup("Motion and sound", "") {
         SettingRow(
             title = "Moving artwork",
             body = "A slow zoom and pan on the pictures behind Home and details. Turn off if your TV feels slow.",
@@ -1286,6 +1310,7 @@ private fun AppearancePane(vm: AppViewModel) {
             )
         }
         }
+        Spacer(Modifier.height(20.dp))
     }
 }
 
@@ -1303,17 +1328,10 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
     ) {
-        item(key = "intro") {
-            Text(
-                "Rows on Home in order, and the ones you can add. OK on a row to move, rename, resize or remove it. Continue watching always comes first.",
-                color = ZappColors.Dim,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
-        }
+        item(key = "intro") { SettingsCaption("Personal", Modifier.padding(top = 0.dp)) }
         item(key = "rate") {
             SettingRow(
                 title = "Rate films and series",
@@ -1334,7 +1352,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
         if (mvm.tmdb.enabled && mvm.settings.libraryCollections) {
             item(key = "colShelves") {
                 val shelves = mvm.collectionShelfLayout()
-                SettingsGroup("Collections layout", "Order the shelves on the Collections page and hide the ones you don't want") {
+                SettingsGroup("Collections layout", "${shelves.count { it.third }} of ${shelves.size} shown", collapsible = true) {
                     shelves.forEachIndexed { i, (id, title, on) ->
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(Modifier.weight(1f)) {
@@ -1367,7 +1385,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
             item(key = "offHead") { LayoutHeading("Not on Home", "OK to add") }
             hidden.groupBy { it.source.ifBlank { "Other" } }.forEach { (group, list) ->
                 item(key = "group:$group") {
-                    Text(group.uppercase(), color = ZappColors.Faint, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
+                    Text(group.uppercase(), color = ZappColors.Faint, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, modifier = Modifier.padding(start = 6.dp, top = 6.dp))
                 }
                 items(list.size, key = { "off:" + list[it].id }) { i ->
                     val r = list[i]
@@ -1385,9 +1403,9 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
     menuFor?.let { r -> LayoutMenu(mvm, rows, r, onMove = { moving = r.id }) { menuFor = null } }
     if (confirmReset) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { confirmReset = false }) {
-            Column(Modifier.width(420.dp).clip(RoundedCornerShape(20.dp)).background(ZappColors.Panel).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Reset Home?", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Every row goes back to its usual place, size and name.", color = ZappColors.Dim, fontSize = 13.sp)
+            Column(Modifier.width(420.dp).clip(Shapes.Panel).background(ZappColors.Panel).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Reset Home?", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
+                Text("Every row goes back to its usual place, size and name.", color = ZappColors.Dim, fontSize = TextSize.Body)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ZButton("Reset", { mvm.resetLayout(); confirmReset = false }, style = ButtonStyle.Danger)
                     ZButton("Cancel", { confirmReset = false }, style = ButtonStyle.Quiet)
@@ -1399,10 +1417,10 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
 
 @Composable
 private fun LayoutHeading(title: String, hint: String) {
-    Row(Modifier.padding(start = 6.dp, top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.Bottom) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    Row(Modifier.padding(start = 16.dp, top = 20.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title.uppercase(), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.3.sp, color = ZappColors.Faint)
         Spacer(Modifier.width(10.dp))
-        Text(hint, color = ZappColors.Faint, fontSize = 11.sp)
+        Text(hint, color = ZappColors.Faint, fontSize = TextSize.Label)
     }
 }
 
@@ -1427,32 +1445,32 @@ private fun LayoutRow(r: HomeRowSetting, moving: Boolean, pinned: Boolean, onCli
                     else -> false
                 }
             },
-        shape = RoundedCornerShape(10.dp),
+        shape = Shapes.Row,
         focusScale = 1f,
-        restColor = if (moving) ZappColors.GlassHigh else ZappColors.Glass,
+        restColor = if (moving) ZappColors.GlassHigh else Color.Transparent,
     ) { focused ->
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.heightIn(min = 42.dp).padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (moving) {
-                Text("↕", color = if (focused) ZappColors.OnFocus else ZappColors.Brand2, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("↕", color = if (focused) ZappColors.OnFocus else ZappColors.Brand2, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(10.dp))
             }
-            Text(r.label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text(r.label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             if (r.name != null) {
                 Spacer(Modifier.width(6.dp))
-                Text("(${r.title})", color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text("(${r.title})", color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             }
             Spacer(Modifier.weight(1f))
             Text(
                 if (moving) "Up/Down to move, OK to drop" else if (pinned) "Always first" else r.source,
                 color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                fontSize = 11.sp,
+                fontSize = TextSize.Small,
                 maxLines = 1,
             )
             tags.forEach { t ->
                 Spacer(Modifier.width(6.dp))
                 Text(
                     t,
-                    fontSize = 10.sp,
+                    fontSize = TextSize.Label,
                     fontWeight = FontWeight.SemiBold,
                     color = if (focused) ZappColors.OnFocus else ZappColors.Dim,
                     modifier = Modifier
@@ -1484,11 +1502,11 @@ private fun LayoutMenu(mvm: MediaViewModel, rows: List<HomeRowSetting>, r: HomeR
     val fixedShape = r.id == CONTINUE_ROW || r.id == NEW_EPISODES_ROW
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         Column(
-            Modifier.width(420.dp).clip(RoundedCornerShape(20.dp)).background(ZappColors.Panel).padding(horizontal = 14.dp, vertical = 18.dp),
+            Modifier.width(420.dp).clip(Shapes.Panel).background(ZappColors.Panel).padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(r.label, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
-            Text(r.source, color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(start = 10.dp, bottom = 8.dp))
+            Text(r.label, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
+            Text(r.source, color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(start = 10.dp, bottom = 8.dp))
             if (!r.on) {
                 MenuItem("↓", "Add to the bottom of Home", first) { mvm.showRow(rows, r.id, atTop = false); onClose() }
                 MenuItem("↑", "Add to the top (under Continue watching)", null) { mvm.showRow(rows, r.id, atTop = true); onClose() }
@@ -1513,6 +1531,25 @@ sealed interface SettingValue {
     data object Action : SettingValue
 }
 
+/** What the setting you're on does: shown in one line at the foot of Settings, rather than under every row. */
+object SettingsHelp {
+    var title by mutableStateOf<String?>(null)
+    var body by mutableStateOf("")
+
+    fun show(t: String, b: String) {
+        if (title != t) title = t
+        if (body != b) body = b
+    }
+
+    fun clear() {
+        title = null
+        body = ""
+    }
+}
+
+/** True inside Settings, where descriptions go to the foot of the page; elsewhere they sit under the row. */
+val LocalHelpAtFoot = androidx.compose.runtime.compositionLocalOf { false }
+
 @Composable
 fun SettingRow(
     title: String,
@@ -1522,41 +1559,56 @@ fun SettingRow(
     focusRequester: FocusRequester? = null,
 ) {
     val isNew = NewSettings.isNew(title)
+    val atFoot = LocalHelpAtFoot.current
     FocusSurface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                // A hairline between rows.
+                val y = size.height + 1.dp.toPx()
+                drawLine(Color(0x12FFFFFF), androidx.compose.ui.geometry.Offset(14.dp.toPx(), y), androidx.compose.ui.geometry.Offset(size.width - 14.dp.toPx(), y), 1f)
+            },
         focusRequester = focusRequester,
         // Seen once you move off it (so the dot is there while you read it).
         onFocusChange = { if (!it && isNew) NewSettings.markSeen(title) },
-        shape = RoundedCornerShape(14.dp),
-        focusScale = 1.015f,
-        restColor = ZappColors.Glass,
+        shape = Shapes.Row,
+        focusScale = 1.01f,
     ) { focused ->
+        if (focused && atFoot) androidx.compose.runtime.SideEffect { SettingsHelp.show(title, body) }
         Row(
-            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            Modifier
+                .heightIn(min = 46.dp)
+                .padding(horizontal = 16.dp, vertical = if (atFoot) 10.dp else 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(title, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     if (isNew) {
                         Spacer(Modifier.width(8.dp))
                         NewDot()
                     }
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(body, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 12.sp)
+                if (!atFoot && body.isNotBlank()) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(body, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Small, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
             Spacer(Modifier.width(16.dp))
             when (value) {
                 is SettingValue.Toggle -> Switch(value.on, focused)
-                is SettingValue.Choice -> Text(
-                    value.label,
-                    color = if (focused) ZappColors.OnFocus else ZappColors.Signal,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                SettingValue.Action -> ChevronGlyph(if (focused) ZappColors.OnFocus else ZappColors.Faint, 12.dp, down = false)
+                is SettingValue.Choice -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        value.label,
+                        color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
+                        fontSize = TextSize.Body,
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    ChevronGlyph(if (focused) ZappColors.OnFocusDim else ZappColors.Faint, 9.dp, down = false)
+                }
+                SettingValue.Action -> ChevronGlyph(if (focused) ZappColors.OnFocusDim else ZappColors.Faint, 10.dp, down = false)
             }
         }
     }
@@ -1564,80 +1616,80 @@ fun SettingRow(
 
 @Composable
 private fun Switch(checked: Boolean, focused: Boolean) {
-    // Clear on any theme: "On" is a coloured track with a dark knob; "Off" is an empty outline.
-    val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 20.dp else 0.dp, androidx.compose.animation.core.tween(160), label = "knob")
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (checked) "On" else "Off",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = when {
-                focused -> ZappColors.OnFocusDim
-                checked -> ZappColors.Text
-                else -> ZappColors.Faint
-            },
-        )
-        Spacer(Modifier.width(10.dp))
+    // Small and quiet: a coloured track with a white knob when on, a faint empty track when off.
+    val knobX by androidx.compose.animation.core.animateDpAsState(if (checked) 13.dp else 0.dp, androidx.compose.animation.core.tween(160), label = "knob")
+    Box(
+        Modifier
+            .width(30.dp)
+            .height(17.dp)
+            .clip(Shapes.Pill)
+            .background(
+                if (checked) Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))
+                else Brush.horizontalGradient(listOf(if (focused) Color(0x26000000) else Color(0x24FFFFFF), if (focused) Color(0x26000000) else Color(0x24FFFFFF))),
+            )
+            .padding(3.dp),
+    ) {
         Box(
             Modifier
-                .width(42.dp)
-                .height(22.dp)
-                .clip(RoundedCornerShape(50))
+                .padding(start = knobX)
+                .size(11.dp)
+                .clip(Shapes.Pill)
                 .background(
-                    if (checked) Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))
-                    else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)),
-                )
-                .border(1.5.dp, if (checked) Color.Transparent else if (focused) Color(0x66000000) else Color(0x55FFFFFF), RoundedCornerShape(50))
-                .padding(3.dp),
-        ) {
-            Box(
-                Modifier
-                    .padding(start = knobX)
-                    .size(16.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(
-                        when {
-                            checked -> ZappColors.Bg
-                            focused -> Color(0x99000000)
-                            else -> Color(0x88FFFFFF)
-                        },
-                    ),
-            )
-        }
+                    when {
+                        checked -> Color.White
+                        focused -> Color(0x80000000)
+                        else -> Color(0xFF9CA0B2)
+                    },
+                ),
+        )
     }
 }
 
-/** A heading that opens and closes its settings, so long pages stay short. */
+/**
+ * A set of settings under a heading. [collapsible] makes the heading a row that opens and closes
+ * them (for long blocks such as accounts); otherwise it's a small capitals caption, always open.
+ */
 @Composable
-fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, content: @Composable () -> Unit) {
+fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, collapsible: Boolean = false, content: @Composable () -> Unit) {
+    if (!collapsible) {
+        Column(Modifier.fillMaxWidth()) {
+            SettingsCaption(title)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { content() }
+        }
+        return
+    }
     var open by androidx.compose.runtime.saveable.rememberSaveable(title) { mutableStateOf(startOpen) }
     val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 90f else 0f, androidx.compose.animation.core.tween(200), label = "chevron")
+    val atFoot = LocalHelpAtFoot.current
     Column(Modifier.fillMaxWidth()) {
         FocusSurface(
             onClick = { open = !open },
             modifier = Modifier.fillMaxWidth(),
             onFocusChange = { if (!it) NewSettings.markSeen("group:$title") },
-            shape = RoundedCornerShape(14.dp),
+            shape = Shapes.Row,
             focusScale = 1.01f,
-            restColor = ZappColors.Glass,
         ) { focused ->
-            Row(Modifier.padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
-                        if (NewSettings.groupHasNew(title)) {
-                            Spacer(Modifier.width(8.dp))
-                            NewDot()
-                        }
-                    }
-                    Text(summary, fontSize = 12.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            if (focused && atFoot) androidx.compose.runtime.SideEffect { SettingsHelp.show(title, summary) }
+            Row(Modifier.heightIn(min = 46.dp).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+                if (NewSettings.groupHasNew(title)) {
+                    Spacer(Modifier.width(8.dp))
+                    NewDot()
                 }
+                Spacer(Modifier.width(16.dp))
                 Text(
-                    "›",
-                    fontSize = 22.sp,
-                    color = if (focused) ZappColors.OnFocus else ZappColors.Faint,
-                    modifier = Modifier.graphicsLayer { rotationZ = turn },
+                    summary,
+                    fontSize = TextSize.Body,
+                    color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.weight(1f),
                 )
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.graphicsLayer { rotationZ = turn }) {
+                    ChevronGlyph(if (focused) ZappColors.OnFocusDim else ZappColors.Faint, 10.dp, down = false)
+                }
             }
         }
         androidx.compose.animation.AnimatedVisibility(
@@ -1646,9 +1698,91 @@ fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, co
             exit = androidx.compose.animation.shrinkVertically(androidx.compose.animation.core.tween(200)) + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
         ) {
             Column(
-                Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                Modifier.padding(start = 12.dp, top = 4.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) { content() }
+        }
+    }
+}
+
+/** Small capitals over a set of rows. */
+@Composable
+fun SettingsCaption(title: String, modifier: Modifier = Modifier) {
+    Text(
+        title.uppercase(),
+        fontSize = TextSize.Label,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.3.sp,
+        color = ZappColors.Faint,
+        modifier = modifier.padding(start = 16.dp, top = 20.dp, bottom = 6.dp),
+    )
+}
+
+/** The foot of Settings: what the setting you're on does. */
+@Composable
+private fun HelpFoot() {
+    val t = SettingsHelp.title
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .drawBehind { drawLine(Color(0x14FFFFFF), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1f) }
+            .padding(top = 12.dp),
+    ) {
+        androidx.compose.animation.AnimatedContent(
+            targetState = t to SettingsHelp.body,
+            transitionSpec = { androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) togetherWith androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)) },
+            label = "help",
+        ) { (title, body) ->
+            if (title != null && body.isNotBlank()) {
+                Text(
+                    androidx.compose.ui.text.buildAnnotatedString {
+                        pushStyle(androidx.compose.ui.text.SpanStyle(color = ZappColors.Text, fontWeight = FontWeight.Medium))
+                        append(title)
+                        pop()
+                        append("   ")
+                        append(body)
+                    },
+                    color = ZappColors.Dim,
+                    fontSize = TextSize.Small,
+                    lineHeight = 17.sp,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** A small line icon for each Settings section. */
+@Composable
+private fun SectionIcon(section: SettingsSection, color: Color) {
+    androidx.compose.foundation.Canvas(Modifier.size(16.dp)) {
+        val u = size.width / 24f
+        val st = androidx.compose.ui.graphics.drawscope.Stroke(1.7f * u, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
+        fun o(x: Float, y: Float) = androidx.compose.ui.geometry.Offset(x * u, y * u)
+        fun line(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(color, o(x1, y1), o(x2, y2), st.width, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        fun rect(x: Float, y: Float, w: Float, h: Float, r: Float) = drawRoundRect(color, o(x, y), androidx.compose.ui.geometry.Size(w * u, h * u), androidx.compose.ui.geometry.CornerRadius(r * u), style = st)
+        fun circle(x: Float, y: Float, r: Float) = drawCircle(color, r * u, o(x, y), style = st)
+        fun path(vararg p: Pair<Float, Float>, close: Boolean = false) = drawPath(
+            androidx.compose.ui.graphics.Path().apply {
+                moveTo(p[0].first * u, p[0].second * u)
+                p.drop(1).forEach { lineTo(it.first * u, it.second * u) }
+                if (close) close()
+            },
+            color, style = st,
+        )
+        when (section) {
+            SettingsSection.Sources -> { rect(3f, 5f, 18f, 12f, 2f); line(8f, 21f, 16f, 21f) }
+            SettingsSection.Addons -> { rect(4f, 4f, 7f, 7f, 1.5f); rect(13f, 4f, 7f, 7f, 1.5f); rect(4f, 13f, 7f, 7f, 1.5f); line(16.5f, 13.5f, 16.5f, 19.5f); line(13.5f, 16.5f, 19.5f, 16.5f) }
+            SettingsSection.Accounts -> { circle(12f, 8f, 4f); path(4f to 21f, 7f to 16.5f, 12f to 15f, 17f to 16.5f, 20f to 21f) }
+            SettingsSection.HomeLayout -> { rect(3f, 4f, 18f, 6f, 2f); rect(3f, 14f, 18f, 6f, 2f) }
+            SettingsSection.Appearance -> { circle(12f, 12f, 9f); drawArc(color, 90f, 180f, true, o(3f, 3f), androidx.compose.ui.geometry.Size(18f * u, 18f * u)) }
+            SettingsSection.Playback -> path(7f to 5f, 19f to 12f, 7f to 19f, close = true)
+            SettingsSection.Live -> { rect(3f, 7f, 18f, 13f, 2f); path(8f to 3f, 12f to 7f, 16f to 3f) }
+            SettingsSection.Profiles -> { circle(9f, 9f, 3.5f); circle(17f, 10f, 2.5f); path(3f to 20f, 5.5f to 16f, 9f to 15f, 12.5f to 16f, 15f to 20f); path(15.5f to 15.2f, 17f to 15f, 19.5f to 16f, 21f to 19f) }
+            SettingsSection.About -> { circle(12f, 12f, 9f); line(12f, 11f, 12f, 17f); drawCircle(color, 1.1f * u, o(12f, 7.6f)) }
+            SettingsSection.Phone -> { rect(7f, 3f, 10f, 18f, 2.5f); line(11f, 18f, 13f, 18f) }
         }
     }
 }
@@ -1662,11 +1796,11 @@ private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
         }
         Spacer(Modifier.width(28.dp))
         Column(Modifier.weight(1f).padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Set up from your phone", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Set up from your phone", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
             Text(
                 "Scan the code with your phone's camera (same Wi-Fi as the TV). Typing there is much quicker than the remote, and everything appears here straight away.",
                 color = ZappColors.Dim,
-                fontSize = 12.5.sp,
+                fontSize = TextSize.Small,
                 lineHeight = 18.sp,
             )
             listOf(
@@ -1685,8 +1819,8 @@ private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
                     )
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text(t, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
-                        Text(b, color = ZappColors.Dim, fontSize = 12.sp)
+                        Text(t, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
+                        Text(b, color = ZappColors.Dim, fontSize = TextSize.Small)
                     }
                 }
             }

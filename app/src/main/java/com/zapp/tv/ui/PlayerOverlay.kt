@@ -464,7 +464,7 @@ private fun ControlsPanel(
         var caption by remember { mutableStateOf<String?>(null) }
         Box(Modifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.Center) {
             caption?.let {
-                Text(it, fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1.5f), 6f)))
+                Text(it, fontSize = TextSize.Small, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1.5f), 6f)))
             }
         }
         // Transport in the middle (always the same buttons, so nothing shifts as you press them);
@@ -568,7 +568,7 @@ internal fun SeekBar(
                     }
                     Text(
                         listOfNotNull(formatClock(position), chapterAt(position)).joinToString("  ·  "),
-                        fontSize = 11.5.sp,
+                        fontSize = TextSize.Small,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White,
                         maxLines = 1,
@@ -631,9 +631,9 @@ internal fun SeekBar(
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Text(formatClock(position), color = Color.White.copy(alpha = 0.75f), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+            Text(formatClock(position), color = Color.White.copy(alpha = 0.75f), fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
             Spacer(Modifier.weight(1f))
-            Text("-" + formatClock(duration - position), color = Color.White.copy(alpha = 0.55f), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+            Text("-" + formatClock(duration - position), color = Color.White.copy(alpha = 0.55f), fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -656,7 +656,7 @@ internal fun SidePanel(title: String, content: @Composable () -> Unit) {
             .background(Brush.horizontalGradient(listOf(ZappColors.Bg.copy(alpha = 0.00f), ZappColors.Bg.copy(alpha = 0.90f), ZappColors.Bg.copy(alpha = 0.95f))))
             .padding(start = 36.dp, end = 32.dp, top = 32.dp, bottom = 24.dp),
     ) {
-        Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(12.dp))
         content()
     }
@@ -682,7 +682,7 @@ internal fun TrackPanel(
             Text(
                 if (offOption != null) "This channel has no subtitles." else "This channel has one audio track.",
                 color = ZappColors.Dim,
-                fontSize = 13.sp,
+                fontSize = TextSize.Body,
             )
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -711,9 +711,9 @@ private fun TrackRow(label: String, detail: String, selected: Boolean, requester
     ) { focused ->
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold)
                 if (detail.isNotEmpty()) {
-                    Text(detail, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 11.5.sp)
+                    Text(detail, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Small)
                 }
             }
             if (selected) {
@@ -748,8 +748,8 @@ internal fun DetailsPanel(playback: Playback) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 rows.forEach { (label, value) ->
                     Row {
-                        Text(label, color = ZappColors.Dim, fontSize = 12.5.sp, modifier = Modifier.width(120.dp))
-                        Text(value, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+                        Text(label, color = ZappColors.Dim, fontSize = TextSize.Small, modifier = Modifier.width(120.dp))
+                        Text(value, fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -865,13 +865,13 @@ private fun InfoBar(
                     Text(
                         channel.number.toString(),
                         color = ZappColors.Dim,
-                        fontSize = 15.sp,
+                        fontSize = TextSize.Heading,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
                         channel.name,
-                        fontSize = 20.sp,
+                        fontSize = TextSize.Title,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -885,7 +885,7 @@ private fun InfoBar(
                     // Live, or how far behind after pausing or rewinding.
                     val behindMs = if (playback?.timeshiftOn == true) playback.behindLive() else 0L
                     if (behindMs >= 1_000) {
-                        Text("−" + formatClock(behindMs), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Color(0x33FFFFFF)).padding(horizontal = 6.dp, vertical = 1.dp))
+                        Text("−" + formatClock(behindMs), fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(Color(0x33FFFFFF)).padding(horizontal = 6.dp, vertical = 1.dp))
                     } else {
                         LivePill()
                     }
@@ -899,7 +899,7 @@ private fun InfoBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             current.title,
-                            fontSize = 14.sp,
+                            fontSize = TextSize.Body,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -909,24 +909,24 @@ private fun InfoBar(
                         Text(
                             "${timeFormat.format(current.start)} – ${timeFormat.format(current.stop)}",
                             color = ZappColors.Dim,
-                            fontSize = 12.sp,
+                            fontSize = TextSize.Small,
                         )
                     }
                     Spacer(Modifier.height(7.dp))
                     ProgressLine(progressOf(current.start, current.stop, now), Modifier.width(420.dp))
                 } else {
-                    Text("No guide information", color = ZappColors.Dim, fontSize = 13.sp)
+                    Text("No guide information", color = ZappColors.Dim, fontSize = TextSize.Body)
                 }
                 tech.filter { it !in setOf("4K", "1080p", "720p", "SD") }.takeIf { it.isNotEmpty() }?.let { t ->
                     Spacer(Modifier.height(6.dp))
-                    Text(t.joinToString("  ·  "), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
+                    Text(t.joinToString("  ·  "), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = Color.White.copy(alpha = 0.55f), maxLines = 1)
                 }
                 if (next != null) {
                     Spacer(Modifier.height(7.dp))
                     Text(
                         "Next at ${timeFormat.format(next.start)}: ${next.title}",
                         color = ZappColors.Faint,
-                        fontSize = 12.sp,
+                        fontSize = TextSize.Small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -978,7 +978,7 @@ private fun ChannelListPanel(
                 }
             },
     ) {
-        Text("Channels", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        Text("Channels", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(10.dp))
         LazyColumn(
             state = listState,
@@ -1023,7 +1023,7 @@ private fun ChannelListPanel(
                             Text(
                                 row.channel.number.toString(),
                                 color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                                fontSize = 11.sp,
+                                fontSize = TextSize.Small,
                                 modifier = Modifier.width(32.dp),
                                 maxLines = 1,
                             )
@@ -1033,7 +1033,7 @@ private fun ChannelListPanel(
                                 Text(
                                     row.channel.name,
                                     color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                                    fontSize = 13.sp,
+                                    fontSize = TextSize.Body,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -1042,7 +1042,7 @@ private fun ChannelListPanel(
                                     Text(
                                         it,
                                         color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
-                                        fontSize = 11.sp,
+                                        fontSize = TextSize.Small,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
@@ -1107,7 +1107,7 @@ fun VodSubtitleText(text: String, size: androidx.compose.ui.unit.TextUnit, font:
         fontFamily = subtitleFont(font),
         fontSize = size,
         lineHeight = size * 1.25f,
-        fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium,
+        fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Medium,
         textAlign = TextAlign.Center,
     )
     val shadow = Shadow(Color.Black.copy(alpha = 0.85f), Offset(0f, 2f), 8f)
@@ -1195,8 +1195,8 @@ internal fun SubtitleStylePanel(playback: Playback, settings: com.zapp.tv.data.S
                 shape = RoundedCornerShape(10.dp),
             ) { focused ->
                 Row(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(if (focused) "‹  $value  ›" else value, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 13.sp)
+                    Text(label, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(if (focused) "‹  $value  ›" else value, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Body)
                 }
             }
         }
@@ -1220,7 +1220,7 @@ internal fun SubtitleStylePanel(playback: Playback, settings: com.zapp.tv.data.S
             "Sync is kept for this title; the look is for all films and series (live TV keeps its own). " +
                 "Subtitles inside the video can only move later; add-on subtitles can move either way.",
             color = ZappColors.Faint,
-            fontSize = 11.5.sp,
+            fontSize = TextSize.Small,
             lineHeight = 16.sp,
         )
         Spacer(Modifier.height(14.dp))
@@ -1282,12 +1282,12 @@ internal fun LiveTimeshiftBar(playback: Playback, active: Boolean) {
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Text("−" + formatClock(now - oldest), color = Color.White.copy(alpha = 0.55f), fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+            Text("−" + formatClock(now - oldest), color = Color.White.copy(alpha = 0.55f), fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
             Spacer(Modifier.weight(1f))
             Text(
                 if (behind < 1_000) "LIVE" else "−" + formatClock(behind),
                 color = if (behind < 1_000) Color(0xFFFF5A5F) else Color.White.copy(alpha = 0.8f),
-                fontSize = 11.5.sp,
+                fontSize = TextSize.Small,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -1326,7 +1326,7 @@ private fun MiniGuide(vm: AppViewModel, channel: Channel, now: Long, timeFormat:
         Modifier
             .padding(end = 40.dp)
             .width(460.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(Shapes.Panel)
             .background(ZappColors.Panel.copy(alpha = 0.92f))
             .padding(10.dp)
             .onPreviewKeyEvent { e ->
@@ -1335,7 +1335,7 @@ private fun MiniGuide(vm: AppViewModel, channel: Channel, now: Long, timeFormat:
             },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text("NOW AND NEXT", color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp))
+        Text("NOW AND NEXT", color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp))
         val list = rows
         if (list == null) {
             ZappLoader(24.dp, Modifier.align(Alignment.CenterHorizontally).padding(20.dp))
@@ -1357,11 +1357,11 @@ private fun MiniGuide(vm: AppViewModel, channel: Channel, now: Long, timeFormat:
                     LogoTile(c.logo, c.name, 40.dp, onLight = focused)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(cur?.title ?: c.name, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(cur?.title ?: c.name, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         Text(
                             listOfNotNull(c.name.takeIf { cur != null }, nxt?.let { "Next " + timeFormat.format(it.start) + "  " + it.title }).joinToString("  ·  "),
                             color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
-                            fontSize = 11.sp,
+                            fontSize = TextSize.Small,
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         )

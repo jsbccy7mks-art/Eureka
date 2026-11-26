@@ -17,36 +17,8 @@ object NewSettings {
     /** A new setting: its title (or "group:<title>" for a whole new group), its section, and its group. */
     private data class Entry(val key: String, val section: String, val group: String? = null)
 
-    private val entries = listOf(
-        Entry("Pause and rewind live TV", "Live"),
-        Entry("Match frame rate", "Playback", "Display matching"),
-        Entry("Match resolution", "Playback", "Display matching"),
-        Entry("Get ready while I browse", "Playback", "Starting films and series"),
-        Entry("Ready to play only", "Playback", "Starting films and series"),
-        Entry("Sources that learn", "Playback", "Starting films and series"),
-        Entry("Suggest something when a film ends", "Playback", "Starting films and series"),
-        Entry("Play the next episode automatically", "Playback", "Starting films and series"),
-        Entry("Films and series: subtitles", "Subtitles"),
-        Entry("Live TV: subtitles", "Subtitles"),
-        Entry("True black", "Appearance", "Look"),
-        Entry("Title lettering", "Appearance", "Look"),
-        Entry("Corners", "Appearance", "Card style"),
-        Entry("Glossy cards", "Appearance", "Card style"),
-        Entry("Names under posters", "Appearance", "Card style"),
-        Entry("Glow strength", "Appearance", "Look"),
-        Entry("Focus outline", "Appearance", "Focus"),
-        Entry("Pulsing glow", "Appearance", "Focus"),
-        Entry("Trailer quality", "Appearance", "Trailers and motion"),
-        Entry("Collection theme music", "Appearance", "Trailers and motion"),
-        Entry("Theme music volume", "Appearance", "Trailers and motion"),
-        Entry("Startup sound", "Appearance", "Trailers and motion"),
-        Entry("Rate films and series", "HomeLayout"),
-        Entry("Collections in the sidebar", "HomeLayout"),
-        Entry("group:Collections layout", "HomeLayout", "Collections layout"),
-        Entry("Test trailers", "About"),
-        Entry("Show frame rate", "About"),
-        Entry("group:Nuvio", "Accounts", "Nuvio"),
-        Entry("group:MDBList", "Accounts", "MDBList"),
+    private val entries = listOf<Entry>(
+        // None at the moment: Settings was redesigned in 0.48.0.
     )
 
     private var settings: com.zapp.tv.data.Settings? = null

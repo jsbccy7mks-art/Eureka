@@ -235,7 +235,7 @@ fun ClockAndAvatar(mvm: MediaViewModel) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         HeaderShortcuts()
         Spacer(Modifier.width(14.dp))
-        Text(fmt.format(now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ZappColors.Text)
+        Text(fmt.format(now), fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, color = ZappColors.Text)
         val p = mvm.currentProfile
         if (p != null && profiles.size > 1) {
             Spacer(Modifier.width(12.dp))

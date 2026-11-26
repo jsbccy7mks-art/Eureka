@@ -114,7 +114,7 @@ fun PostPlayPage(
         // One optional press: how was the film you just watched?
         if (finished != null) {
             Row(Modifier.align(Alignment.TopStart).padding(start = 64.dp, top = 40.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("How was ${finished.name}?", color = ZappColors.Dim, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 320.dp))
+                Text("How was ${finished.name}?", color = ZappColors.Dim, fontSize = TextSize.Body, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 320.dp))
                 Spacer(Modifier.width(14.dp))
                 RatingButtons(mvm.ratingOf(finished.id), size = 36.dp) { r -> mvm.rate(finished, r) }
             }
@@ -128,7 +128,7 @@ fun PostPlayPage(
             val cur = suggestions.getOrNull(i) ?: return@AnimatedContent
             val m = cur.meta
             Column(Modifier.padding(start = 64.dp, bottom = 56.dp).widthIn(max = 620.dp)) {
-                Text("UP NEXT  ·  " + cur.reason.uppercase(), color = ZappColors.Brand2.copy(alpha = 0.95f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("UP NEXT  ·  " + cur.reason.uppercase(), color = ZappColors.Brand2.copy(alpha = 0.95f), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(10.dp))
                 TitleLogo(m.id, m.logo, m.name, Modifier.heightIn(max = 96.dp).widthIn(max = 420.dp)) {
                     MovieTitle(m.name, if (m.name.length > 24) 36.sp else 44.sp, maxLines = 2)
@@ -141,7 +141,7 @@ fun PostPlayPage(
                 }
                 m.description?.let {
                     Spacer(Modifier.height(10.dp))
-                    Text(it, color = Color(0xFFD0D3DC), fontSize = 13.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(it, color = Color(0xFFD0D3DC), fontSize = TextSize.Body, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(20.dp))
                 var onPlayButton by remember { mutableStateOf(true) }

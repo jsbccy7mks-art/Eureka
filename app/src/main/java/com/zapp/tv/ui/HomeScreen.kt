@@ -299,11 +299,11 @@ fun HomeScreen(
                                 RatingGlyph(com.zapp.tv.data.Rating.Love, filled = true, color = Color(0xFFFF5F8F), size = 34.dp)
                                 Spacer(Modifier.width(16.dp))
                                 Column {
-                                    Text(if (ratedCount == 0) "Rate a few films" else "Rate a few more", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(if (ratedCount == 0) "Rate a few films" else "Rate a few more", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                                     Text(
                                         if (ratedCount == 0) "Like, love or dislike a few things you've watched and this row fills with picks for you."
                                         else "$ratedCount of 5 rated. A few more and this row fills with picks for you.",
-                                        color = ZappColors.Dim, fontSize = 12.sp,
+                                        color = ZappColors.Dim, fontSize = TextSize.Small,
                                     )
                                 }
                             }
@@ -424,12 +424,12 @@ private fun EmptyHero(focus: FocusRequester, onOpenAddons: () -> Unit) {
     ) {
         ZappLogo(26.dp)
         Spacer(Modifier.height(24.dp))
-        Text("Nothing on Home yet", fontSize = 28.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp)
+        Text("Nothing on Home yet", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp)
         Spacer(Modifier.height(8.dp))
         Text(
             "Install an add-on with catalogues and they'll show up here. Films and series you start appear in Continue watching.",
             color = ZappColors.Dim,
-            fontSize = 13.sp,
+            fontSize = TextSize.Body,
             lineHeight = 19.sp,
         )
         Spacer(Modifier.height(20.dp))
@@ -537,11 +537,11 @@ fun ChannelCard(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text(row.channel.name, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(row.channel.name, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             row.nowTitle ?: "No guide information",
             color = if (row.nowTitle != null) ZappColors.Dim else ZappColors.Faint,
-            fontSize = 11.sp,
+            fontSize = TextSize.Small,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -606,7 +606,7 @@ private fun MetaRow(
                             // Bottom right, like the time left on Continue watching (the logo is bottom left).
                             Text(
                                 b,
-                                fontSize = 11.sp,
+                                fontSize = TextSize.Small,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White,
                                 maxLines = 1,

@@ -155,12 +155,12 @@ fun LiveScreen(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 "Playlist",
-                                fontSize = 10.sp,
+                                fontSize = TextSize.Label,
                                 color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
                             )
                             Text(
                                 currentPlaylist.playlist.name,
-                                fontSize = 13.sp,
+                                fontSize = TextSize.Body,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (focused) ZappColors.OnFocus else ZappColors.Text,
                                 maxLines = 1,
@@ -207,7 +207,7 @@ fun LiveScreen(
             ) {
                 Text(
                     text = title,
-                    fontSize = 18.sp,
+                    fontSize = TextSize.Title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -215,7 +215,7 @@ fun LiveScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 if (rows.itemCount > 0) {
-                    Text(formatCount(rows.itemCount), color = ZappColors.Faint, fontSize = 13.sp)
+                    Text(formatCount(rows.itemCount), color = ZappColors.Faint, fontSize = TextSize.Body)
                 }
             }
 
@@ -266,7 +266,7 @@ fun LiveScreen(
                             else -> "No channels here."
                         },
                         color = ZappColors.Dim,
-                        fontSize = 14.sp,
+                        fontSize = TextSize.Body,
                         modifier = Modifier
                             .align(Alignment.Center)
                             .padding(32.dp),
@@ -341,7 +341,7 @@ private fun CategoryItemRow(
                     selected -> ZappColors.Text
                     else -> ZappColors.Dim
                 },
-                fontSize = 13.sp,
+                fontSize = TextSize.Body,
                 fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -352,7 +352,7 @@ private fun CategoryItemRow(
                 Text(
                     text = formatCount(item.count),
                     color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                    fontSize = 11.sp,
+                    fontSize = TextSize.Small,
                 )
             }
         }
@@ -391,7 +391,7 @@ private fun ChannelItem(
             Text(
                 text = row.channel.number.toString(),
                 color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                fontSize = 11.sp,
+                fontSize = TextSize.Small,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 modifier = Modifier.width(34.dp),
@@ -403,7 +403,7 @@ private fun ChannelItem(
                     Text(
                         text = row.channel.name,
                         color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                        fontSize = 13.5.sp,
+                        fontSize = TextSize.Body,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -428,7 +428,7 @@ private fun ChannelItem(
                     Text(
                         text = nowTitle,
                         color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
-                        fontSize = 11.5.sp,
+                        fontSize = TextSize.Small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -488,7 +488,7 @@ private fun PreviewPane(
             } else {
                 if (playback.buffering && playback.error == null) ZappLoader(22.dp)
                 playback.error?.let {
-                    Text(it, color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(16.dp))
+                    Text(it, color = Color.White, fontSize = TextSize.Small, modifier = Modifier.padding(16.dp))
                 }
             }
         }
@@ -496,9 +496,9 @@ private fun PreviewPane(
         Spacer(Modifier.height(14.dp))
 
         if (row == null) {
-            Text("Pick a channel", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Pick a channel", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            Text("Rest on a channel to preview it here.", color = ZappColors.Dim, fontSize = 12.sp)
+            Text("Rest on a channel to preview it here.", color = ZappColors.Dim, fontSize = TextSize.Small)
             return@Column
         }
 
@@ -508,7 +508,7 @@ private fun PreviewPane(
             Spacer(Modifier.width(10.dp))
             Text(
                 row.channel.name,
-                fontSize = 13.5.sp,
+                fontSize = TextSize.Body,
                 fontWeight = FontWeight.SemiBold,
                 color = ZappColors.Dim,
                 maxLines = 1,
@@ -528,7 +528,7 @@ private fun PreviewPane(
         Spacer(Modifier.height(14.dp))
 
         if (current == null && later.isEmpty()) {
-            Text("No guide information for this channel.", color = ZappColors.Faint, fontSize = 12.sp)
+            Text("No guide information for this channel.", color = ZappColors.Faint, fontSize = TextSize.Small)
         }
         if (current != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -538,32 +538,32 @@ private fun PreviewPane(
                 Text(
                     "${timeFormat.format(current.start)} – ${timeFormat.format(current.stop)}  ·  $left min left",
                     color = ZappColors.Dim,
-                    fontSize = 11.5.sp,
+                    fontSize = TextSize.Small,
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Text(current.title, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 23.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(current.title, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, lineHeight = 23.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(9.dp))
             ProgressLine(progressOf(current.start, current.stop, now), Modifier.fillMaxWidth())
             current.description?.let {
                 Spacer(Modifier.height(9.dp))
-                Text(it, color = ZappColors.Dim, fontSize = 12.sp, lineHeight = 17.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(it, color = ZappColors.Dim, fontSize = TextSize.Small, lineHeight = 17.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
         if (later.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
-            Text("LATER", color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+            Text("LATER", color = ZappColors.Faint, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
             Spacer(Modifier.height(6.dp))
             later.forEach { p ->
                 Row(Modifier.padding(vertical = 3.dp)) {
-                    Text(timeFormat.format(p.start), color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.width(52.dp))
-                    Text(p.title, color = ZappColors.Text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(timeFormat.format(p.start), color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.width(52.dp))
+                    Text(p.title, color = ZappColors.Text, fontSize = TextSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
 
         Spacer(Modifier.weight(1f))
-        Text("OK to watch  ·  Hold OK to favourite", color = ZappColors.Faint, fontSize = 11.sp)
+        Text("OK to watch  ·  Hold OK to favourite", color = ZappColors.Faint, fontSize = TextSize.Small)
     }
 }
 
@@ -590,8 +590,8 @@ fun heightBadge(h: Int): String = when {
 fun QualityPill(text: String, onLight: Boolean) {
     Text(
         text,
-        fontSize = 8.5.sp,
-        fontWeight = FontWeight.Bold,
+        fontSize = TextSize.Tag,
+        fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.6.sp,
         color = if (onLight) ZappColors.OnFocus else if (text == "UHD") Color.White else ZappColors.Dim,
         modifier = Modifier

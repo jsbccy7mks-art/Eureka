@@ -108,7 +108,7 @@ private fun IconAction(symbol: String, onClick: () -> Unit, highlight: Boolean =
         focusScale = 1.06f,
     ) { focused ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(symbol, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+            Text(symbol, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
         }
     }
 }
@@ -253,9 +253,9 @@ fun DetailScreen(
         }
         if (meta == null) {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Couldn't load this title", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("Couldn't load this title", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
-                Text("None of your add-ons returned details for it.", color = ZappColors.Dim, fontSize = 13.sp)
+                Text("None of your add-ons returned details for it.", color = ZappColors.Dim, fontSize = TextSize.Body)
                 Spacer(Modifier.height(14.dp))
                 ZButton("Back", onClose, focusRequester = playFocus)
             }
@@ -331,7 +331,7 @@ fun DetailScreen(
                             Text(
                                 listOfNotNull(tmdb?.network?.uppercase() ?: if (isSeries) "SERIES" else "FILM", credit).joinToString("   ·   "),
                                 color = ZappColors.Brand2.copy(alpha = 0.9f),
-                                fontSize = 10.sp,
+                                fontSize = TextSize.Label,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = 2.2.sp,
                                 maxLines = 1,
@@ -355,7 +355,7 @@ fun DetailScreen(
                                             .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
                                     )
                                     Spacer(Modifier.width(12.dp))
-                                    Text(tagline, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = ZappColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
+                                    Text(tagline, fontSize = TextSize.Heading, fontWeight = FontWeight.Medium, color = ZappColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 520.dp))
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
@@ -363,8 +363,8 @@ fun DetailScreen(
                             tmdb?.certification?.let { c ->
                                 Text(
                                     c,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = TextSize.Label,
+                                    fontWeight = FontWeight.SemiBold,
                                     color = ZappColors.Text,
                                     modifier = Modifier
                                         .border(1.dp, Color(0x66FFFFFF), RoundedCornerShape(4.dp))
@@ -393,8 +393,8 @@ fun DetailScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     b,
-                                    fontSize = 9.5.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontSize = TextSize.Tag,
+                                    fontWeight = FontWeight.SemiBold,
                                     letterSpacing = 0.6.sp,
                                     color = ZappColors.Text,
                                     modifier = Modifier
@@ -406,14 +406,14 @@ fun DetailScreen(
                             // Just IMDb up here (in the line above); every score is on the next page.
                             match?.let { m ->
                                 Spacer(Modifier.height(8.dp))
-                                Text("$m% match", color = if (m >= 70) Color(0xFF7EE2A8) else if (m < 40) Color(0xFFFF8A8A) else ZappColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("$m% match", color = if (m >= 70) Color(0xFF7EE2A8) else if (m < 40) Color(0xFFFF8A8A) else ZappColors.Text, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold)
                             }
                             Spacer(Modifier.height(26.dp))
                             Text(
                                 ("↓   " + if (isSeries) "EPISODES, CAST AND MORE" else "STORY, CAST AND MORE") +
                                     if (trailerShowing && playFocused) "      ↑   " + (if (trailerSound) "SOUND OFF" else "SOUND ON") else "",
                                 color = ZappColors.Faint,
-                                fontSize = 9.5.sp,
+                                fontSize = TextSize.Tag,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = 2.sp,
                             )
@@ -442,19 +442,19 @@ fun DetailScreen(
                                 })
                                 if (endsAt != null && !isSeries) {
                                     Spacer(Modifier.width(16.dp))
-                                    Text("Ends at ${timeFormat.format(endsAt)}", color = ZappColors.Dim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    Text("Ends at ${timeFormat.format(endsAt)}", color = ZappColors.Dim, fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
                                 }
                                 Spacer(Modifier.weight(1f))
                                 // A few of the cast, quietly, on the right.
                                 Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                                     (tmdb?.cast?.map { it.name } ?: detail?.people.orEmpty().map { it.name }).take(2).forEach { name ->
-                                        Text(name.uppercase(), color = ZappColors.Dim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.8.sp, maxLines = 1)
+                                        Text(name.uppercase(), color = ZappColors.Dim, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 1.8.sp, maxLines = 1)
                                     }
                                 }
                             }
                             if (!done) {
                                 Spacer(Modifier.height(8.dp))
-                                Text("Loading details…", color = ZappColors.Faint, fontSize = 11.sp)
+                                Text("Loading details…", color = ZappColors.Faint, fontSize = TextSize.Small)
                             }
                         }
                     }
@@ -479,19 +479,19 @@ fun DetailScreen(
                                     Text(
                                         "SEASON ${shown.season ?: 0}   ·   EPISODE ${shown.episode ?: 0}",
                                         color = ZappColors.Brand2.copy(alpha = 0.9f),
-                                        fontSize = 10.sp,
+                                        fontSize = TextSize.Label,
                                         fontWeight = FontWeight.SemiBold,
                                         letterSpacing = 2.2.sp,
                                     )
                                     Spacer(Modifier.height(8.dp))
-                                    Text(shown.title.ifBlank { "Episode ${shown.episode}" }, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(shown.title.ifBlank { "Episode ${shown.episode}" }, fontSize = TextSize.Hero, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     shown.released?.take(10)?.let {
                                         Spacer(Modifier.height(4.dp))
-                                        Text(it, color = ZappColors.Dim, fontSize = 12.sp)
+                                        Text(it, color = ZappColors.Dim, fontSize = TextSize.Small)
                                     }
                                     shown.overview?.let {
                                         Spacer(Modifier.height(8.dp))
-                                        Text(it, color = Color(0xFFC9CCD6), fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                        Text(it, color = Color(0xFFC9CCD6), fontSize = TextSize.Small, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             }
@@ -517,10 +517,10 @@ fun DetailScreen(
                                                     Artwork(still, "")
                                                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = if (sn == season || focused) 0.35f else 0.62f)))
                                                     Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 9.dp, vertical = 6.dp)) {
-                                                        Text(seasonName(sn), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = if (sn == season || focused) 1f else 0.75f), maxLines = 1)
+                                                        Text(seasonName(sn), fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = if (sn == season || focused) 1f else 0.75f), maxLines = 1)
                                                         Text(
                                                             if (seen == 0) "${eps.size} episodes" else if (seen >= eps.size) "Watched" else "$seen of ${eps.size} watched",
-                                                            fontSize = 9.5.sp,
+                                                            fontSize = TextSize.Tag,
                                                             color = Color.White.copy(alpha = 0.7f),
                                                             maxLines = 1,
                                                         )
@@ -539,7 +539,7 @@ fun DetailScreen(
                                 } else {
                                     Text(
                                         (season?.let { seasonName(it) } ?: "Episodes") + "  ·  ${episodes.size} episodes",
-                                        fontSize = 13.sp,
+                                        fontSize = TextSize.Body,
                                         fontWeight = FontWeight.SemiBold,
                                         modifier = Modifier.padding(start = 56.dp, bottom = 10.dp),
                                     )
@@ -640,10 +640,10 @@ fun DetailScreen(
                     Text(
                         if (isSeries) "${seasons.count { it > 0 }} seasons  ·  ${videos.size} episodes" else listOfNotNull(meta.releaseInfo, prettyRuntime(detail?.runtime)).joinToString("  ·  "),
                         color = ZappColors.Dim,
-                        fontSize = 12.sp,
+                        fontSize = TextSize.Small,
                     )
                     Spacer(Modifier.weight(1f))
-                    Text("Up to go back", color = ZappColors.Faint, fontSize = 11.sp)
+                    Text("Up to go back", color = ZappColors.Faint, fontSize = TextSize.Small)
                 }
             }
         }
@@ -701,15 +701,15 @@ private fun EpisodeMenu(
         Column(
             Modifier
                 .width(440.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(Shapes.Panel)
                 .background(ZappColors.Panel)
                 .padding(horizontal = 14.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Column(Modifier.padding(horizontal = 10.dp)) {
-                Text(episode.title.ifBlank { "Episode ${episode.episode}" }, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(episode.title.ifBlank { "Episode ${episode.episode}" }, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(3.dp))
-                Text("${meta.name}  ·  ${shortLabel(episode)}", color = ZappColors.Faint, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${meta.name}  ·  ${shortLabel(episode)}", color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.height(8.dp))
             MenuItem(if (watched) "○" else "◉", if (watched) "Mark as unwatched" else "Mark as watched", first) {
@@ -766,15 +766,15 @@ private fun StorySection(
             verticalAlignment = Alignment.Bottom,
         ) {
             Column(Modifier.weight(1.6f)) {
-                Text("THE STORY", color = ZappColors.Brand2.copy(alpha = 0.9f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
+                Text("THE STORY", color = ZappColors.Brand2.copy(alpha = 0.9f), fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.2.sp)
                 Spacer(Modifier.height(12.dp))
                 tmdb?.tagline?.let {
-                    Text(it, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = ZappColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(it, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, color = ZappColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(12.dp))
                 }
                 Text(
                     meta.description?.takeIf { it.isNotBlank() } ?: "No synopsis yet for this film.",
-                    fontSize = 15.sp,
+                    fontSize = TextSize.Heading,
                     lineHeight = 24.sp,
                     color = Color(0xFFD6D9E2),
                     maxLines = 9,
@@ -860,7 +860,7 @@ private fun CastSection(
         Row(Modifier.padding(horizontal = 56.dp)) {
             Column(Modifier.weight(1.5f)) {
                 if (people.isNotEmpty()) {
-                    Text("Cast", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Cast", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(12.dp))
                     val memory = rememberFocusMemory()
                     MinimalScrolling {
@@ -884,13 +884,13 @@ private fun CastSection(
                                             AsyncImage(model = person.photo, contentDescription = person.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                                         } else {
                                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                Text(person.name.split(' ').mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString(""), fontFamily = TitleFont, fontSize = 26.sp, color = ZappColors.Dim)
+                                                Text(person.name.split(' ').mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString(""), fontFamily = TitleFont, fontSize = TextSize.Page, color = ZappColors.Dim)
                                             }
                                         }
                                     }
                                     Spacer(Modifier.height(8.dp))
-                                    Text(person.name, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                                    person.role?.let { Text(it, fontSize = 10.5.sp, color = ZappColors.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 13.sp) }
+                                    Text(person.name, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    person.role?.let { Text(it, fontSize = TextSize.Label, color = ZappColors.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 13.sp) }
                                 }
                             }
                         }
@@ -902,13 +902,13 @@ private fun CastSection(
                 // Series: rate it here (films have the buttons with the story).
                 if (meta.type == "series" && mvm != null) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Your rating", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Your rating", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.width(12.dp))
                         RatingButtons(mvm.ratingOf(meta.id), size = 38.dp) { r -> mvm.rate(meta, r) }
                     }
                     Spacer(Modifier.height(16.dp))
                 }
-                Text("Credits", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text("Credits", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 val creators = tmdb?.createdBy?.takeIf { it.isNotEmpty() } ?: if (meta.type == "series") detail?.writers else null
                 CreditLine("Created by", creators?.take(2)?.joinToString(", ")?.ifBlank { null })
@@ -932,7 +932,7 @@ private fun CastSection(
         val reviews = tmdb?.reviews.orEmpty()
         if (reviews.isNotEmpty()) {
             Spacer(Modifier.height(30.dp))
-            Text("Reviews", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 12.dp))
+            Text("Reviews", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 12.dp))
             val memory = rememberFocusMemory()
             PivotScrolling(56.dp) {
                 LazyRow(
@@ -966,16 +966,16 @@ private fun ReviewCard(r: com.zapp.tv.data.TmdbReview, modifier: Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 r.rating?.let { rating ->
                     val stars = (rating / 2).coerceIn(0.0, 5.0)
-                    Text("★".repeat(stars.toInt()) + "☆".repeat(5 - stars.toInt()), color = ZappColors.Star, fontSize = 12.sp, letterSpacing = 1.sp)
+                    Text("★".repeat(stars.toInt()) + "☆".repeat(5 - stars.toInt()), color = ZappColors.Star, fontSize = TextSize.Small, letterSpacing = 1.sp)
                     Spacer(Modifier.width(10.dp))
                 }
-                Text("TMDB", color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+                Text("TMDB", color = ZappColors.Faint, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
                 Spacer(Modifier.weight(1f))
-                Text("“", fontFamily = TitleFont, fontSize = 26.sp, color = ZappColors.Brand2.copy(alpha = 0.7f))
+                Text("“", fontFamily = TitleFont, fontSize = TextSize.Page, color = ZappColors.Brand2.copy(alpha = 0.7f))
             }
             Spacer(Modifier.height(6.dp))
-            Text(r.text, color = ZappColors.Text, fontSize = 12.5.sp, lineHeight = 18.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Text(r.author, color = ZappColors.Dim, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(r.text, color = ZappColors.Text, fontSize = TextSize.Small, lineHeight = 18.sp, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(r.author, color = ZappColors.Dim, fontSize = TextSize.Small, fontWeight = FontWeight.Medium, maxLines = 1)
         }
     }
 }
@@ -1030,7 +1030,7 @@ private fun MoreSection(
         }
         if (similar.isNotEmpty()) {
             Column {
-                Text("More like this", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
+                Text("More like this", fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
                 val memory = rememberFocusMemory()
                 PivotScrolling(56.dp) {
                     LazyRow(
@@ -1064,7 +1064,7 @@ private fun MoreSection(
 @Composable
 private fun TmdbRow(title: String, items: List<com.zapp.tv.data.TmdbItem>, onOpen: (com.zapp.tv.data.TmdbItem) -> Unit) {
     Column {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
+        Text(title, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 56.dp, bottom = 10.dp))
         val memory = rememberFocusMemory()
         PivotScrolling(56.dp) {
             LazyRow(
@@ -1094,8 +1094,8 @@ private fun TmdbRow(title: String, items: List<com.zapp.tv.data.TmdbItem>, onOpe
                         if (wide) {
                             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color(0xD9000000))))
                             Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-                                Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                item.year?.let { Text(it, fontSize = 11.sp, color = Color(0xCCFFFFFF)) }
+                                Text(item.name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                item.year?.let { Text(it, fontSize = TextSize.Small, color = Color(0xCCFFFFFF)) }
                             }
                         }
                     }
@@ -1109,7 +1109,7 @@ private fun TmdbRow(title: String, items: List<com.zapp.tv.data.TmdbItem>, onOpe
 private fun CreditLine(label: String, value: String?) {
     if (value.isNullOrBlank()) return
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.Bottom) {
-        Text(label.uppercase(), color = ZappColors.Faint, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, maxLines = 1)
+        Text(label.uppercase(), color = ZappColors.Faint, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, maxLines = 1)
         // Dotted leader between the label and the value.
         androidx.compose.foundation.Canvas(Modifier.weight(1f).height(10.dp).padding(horizontal = 8.dp)) {
             var x = 0f
@@ -1118,7 +1118,7 @@ private fun CreditLine(label: String, value: String?) {
                 x += 6f
             }
         }
-        Text(value, color = ZappColors.Text, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
+        Text(value, color = ZappColors.Text, fontSize = TextSize.Small, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 220.dp))
     }
 }
 
@@ -1147,7 +1147,7 @@ private fun PlayButton(label: String, progress: WatchProgress?, requester: Focus
                 )
             }
             Spacer(Modifier.width(10.dp))
-            Text(label, color = fg, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(label, color = fg, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1)
             if (progress != null) {
                 Spacer(Modifier.width(12.dp))
                 ProgressLine(
@@ -1158,7 +1158,7 @@ private fun PlayButton(label: String, progress: WatchProgress?, requester: Focus
                     fill = fg,
                 )
                 Spacer(Modifier.width(10.dp))
-                Text(minutesLeft(progress), color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 12.sp, maxLines = 1)
+                Text(minutesLeft(progress), color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Small, maxLines = 1)
             }
         }
     }
@@ -1220,10 +1220,10 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
             if (f) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
                 Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-                    Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(if (upNext) "Up next" else null, if (p?.watched == true) "Watched" else null, p?.takeIf { !it.watched && it.position > 30_000 }?.let { minutesLeft(it) }).joinToString("  ·  ").ifBlank { " " },
-                        fontSize = 11.sp,
+                        fontSize = TextSize.Small,
                         color = Color(0xCCFFFFFF),
                     )
                 }
@@ -1242,7 +1242,7 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
             rating?.let { r ->
                 Text(
                     "★ %.1f".format(java.util.Locale.UK, r),
-                    fontSize = 10.sp,
+                    fontSize = TextSize.Label,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White,
                     style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0xCC000000), androidx.compose.ui.geometry.Offset(0f, 1f), 5f)),
@@ -1252,8 +1252,8 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
         }
         if (!focused) {
             Spacer(Modifier.height(6.dp))
-            Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (upNext) "Up next" else v.released?.take(10).orEmpty(), fontSize = 10.5.sp, color = if (upNext) ZappColors.Brand2 else ZappColors.Faint, maxLines = 1)
+            Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (upNext) "Up next" else v.released?.take(10).orEmpty(), fontSize = TextSize.Label, color = if (upNext) ZappColors.Brand2 else ZappColors.Faint, maxLines = 1)
         }
     }
 }

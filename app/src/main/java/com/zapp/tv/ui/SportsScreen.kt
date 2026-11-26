@@ -95,11 +95,11 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
         item(key = "head") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    if (showHeader) Text("Sports", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    if (showHeader) Text("Sports", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
                     Text(
                         if (teams.isEmpty()) "Follow your teams to see their matches, and play them on the channel they're on." else teams.joinToString("  ·  ") { it.name },
                         color = ZappColors.Dim,
-                        fontSize = 12.sp,
+                        fontSize = TextSize.Small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -148,7 +148,7 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
             }
         }
         if (teams.isNotEmpty() && vm.fixtures.isEmpty() && !vm.fixturesLoading) {
-            item(key = "none") { Text("No matches found for your teams right now.", color = ZappColors.Dim, fontSize = 13.sp) }
+            item(key = "none") { Text("No matches found for your teams right now.", color = ZappColors.Dim, fontSize = TextSize.Body) }
         }
     }
 
@@ -163,13 +163,13 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
             Column(
                 Modifier
                     .width(440.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(Shapes.Panel)
                     .background(ZappColors.Panel)
                     .padding(horizontal = 14.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(e.title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp))
-                Text("Showing on", color = ZappColors.Faint, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                Text(e.title, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 10.dp))
+                Text("Showing on", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(horizontal = 10.dp))
                 Spacer(Modifier.height(8.dp))
                 hits.forEachIndexed { i, h ->
                     MenuItem("▶", "${h.channelName}  ·  ${timeFormat.format(h.start)}", if (i == 0) f else null) {
@@ -192,7 +192,7 @@ private suspend fun playHit(vm: AppViewModel, h: ProgrammeHit, now: Long, timeFo
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, color = ZappColors.Brand2, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(bottom = 10.dp))
+    Text(text, color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp, modifier = Modifier.padding(bottom = 10.dp))
 }
 
 /** A match: the two badges and names (or the event's picture), when, the score, and where it's on. */
@@ -216,7 +216,7 @@ fun MatchCard(e: SportEvent, now: Long, timeFormat: java.text.DateFormat, reques
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xAA000000)))))
         Column(Modifier.fillMaxSize().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text((e.league ?: e.sport).uppercase(), color = ZappColors.Faint, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text((e.league ?: e.sport).uppercase(), color = ZappColors.Faint, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (live) LivePill()
             }
             Spacer(Modifier.weight(1f))
@@ -225,7 +225,7 @@ fun MatchCard(e: SportEvent, now: Long, timeFormat: java.text.DateFormat, reques
                 Spacer(Modifier.height(6.dp))
                 TeamLine(e.awayBadge, e.away, if (e.finished || live) e.awayScore else null)
             } else {
-                Text(e.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(e.title, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.weight(1f))
             Text(
@@ -235,7 +235,7 @@ fun MatchCard(e: SportEvent, now: Long, timeFormat: java.text.DateFormat, reques
                     else -> "$day  ·  ${timeFormat.format(e.start)}"
                 },
                 color = ZappColors.Dim,
-                fontSize = 11.sp,
+                fontSize = TextSize.Small,
             )
         }
     }
@@ -248,8 +248,8 @@ private fun TeamLine(badge: String?, name: String, score: String?) {
             if (badge != null) AsyncImage(model = badge, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
         }
         Spacer(Modifier.width(10.dp))
-        Text(name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        score?.let { Text(it, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+        Text(name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        score?.let { Text(it, fontSize = TextSize.Heading, fontWeight = FontWeight.SemiBold) }
     }
 }
 
@@ -274,7 +274,7 @@ private fun ManageTeams(vm: AppViewModel, onDone: () -> Unit) {
     val followed = vm.followedTeams
     Column(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Your teams", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text("Your teams", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             ZButton("Done", onDone, style = ButtonStyle.Primary)
         }
         Spacer(Modifier.height(14.dp))
@@ -285,7 +285,7 @@ private fun ManageTeams(vm: AppViewModel, onDone: () -> Unit) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 40.dp)) {
             val list = if (query.trim().length >= 2) results else followed
             if (list.isEmpty()) {
-                item { Text(if (query.isBlank()) "Search for a team to follow it." else "No teams found.", color = ZappColors.Dim, fontSize = 13.sp) }
+                item { Text(if (query.isBlank()) "Search for a team to follow it." else "No teams found.", color = ZappColors.Dim, fontSize = TextSize.Body) }
             }
             items(list, key = { it.id }) { t ->
                 val on = followed.any { it.id == t.id }
