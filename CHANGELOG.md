@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.41.1
+
+**Fixed**
+- Collection pages: the poster you're on is no longer cut off at the top.
+
 ## 0.41.0
 
 **New**

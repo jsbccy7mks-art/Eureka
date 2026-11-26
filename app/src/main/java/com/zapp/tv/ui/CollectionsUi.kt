@@ -188,10 +188,11 @@ fun CollectionScreen(
             }
 
             // ---- the showcase
-            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(vertical = 10.dp).clipToBounds()) {
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(top = 18.dp, bottom = 6.dp).clipToBounds()) {
                 // Posters sized to the space (with room for the lifted one and its reflection),
                 // so they never run into the text above or below.
-                val posterW = (((maxHeight - 34.dp) / 1.1f) * (2f / 3f)).coerceIn(84.dp, 150.dp)
+                // Room above for the lifted, focused poster (it grows and rises a little), and below for its reflection.
+                val posterW = (((maxHeight - 26.dp - 34.dp) / 1.16f) * (2f / 3f)).coerceIn(80.dp, 150.dp)
                 val centre = (maxWidth - posterW) / 2
                 val listState = rememberLazyListState()
                 LaunchedEffect(focusTick, c.id) {
@@ -209,7 +210,7 @@ fun CollectionScreen(
                         itemsIndexed(c.parts, key = { _, p -> p.item.id }) { i, p ->
                             val d = (i - index).toFloat()
                             val rot by animateFloatAsState((-d * 28f).coerceIn(-55f, 55f), tween(380), label = "rot")
-                            val scale by animateFloatAsState(if (d == 0f) 1.08f else (1f - 0.08f * abs(d)).coerceAtLeast(0.72f), tween(380), label = "scale")
+                            val scale by animateFloatAsState(if (d == 0f) 1.06f else (1f - 0.08f * abs(d)).coerceAtLeast(0.72f), tween(380), label = "scale")
                             val fade by animateFloatAsState((1f - 0.2f * abs(d)).coerceAtLeast(0.3f), tween(380), label = "fade")
                             val id = imdb[p.item.id]
                             val density = LocalDensity.current.density
