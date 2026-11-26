@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.2
+
+**Improved**
+- Home, Films and Series: the picture (and trailer) at the top sits higher and whole, so less of
+  it is hidden behind the rows.
+
 ## 0.39.1
 
 **Improved**

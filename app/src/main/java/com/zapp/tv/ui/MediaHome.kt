@@ -183,14 +183,16 @@ private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = n
         Box(
             Modifier
                 .align(Alignment.TopEnd)
-                .fillMaxWidth(0.8f)
-                .fillMaxHeight(0.8f)
+                // A whole 16:9 picture sitting higher up, so the rows cover only its faded edge
+                // and the picture (and trailer) isn't cut off behind the cards.
+                .fillMaxHeight(0.66f)
+                .aspectRatio(16f / 9f, matchHeightConstraintsFirst = true)
                 .clipToBounds()
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
-                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.62f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                    drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.62f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                 },
         ) {
             Crossfade(
