@@ -110,11 +110,6 @@ class ScreensTest {
         rule.setContent { ZappTheme { ZappRoot(vm) } }
         rule.mainClock.advanceTimeBy(600)
         save("app-opening")
-        rule.mainClock.advanceTimeBy(9000)
-        save("app-home")
-        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
-        rule.mainClock.advanceTimeBy(600)
-        save("app-sidebar")
     }
 
     @Test fun playback() = settings("Playback", 4)

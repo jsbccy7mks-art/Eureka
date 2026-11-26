@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.48.0
+
+**New**
+- A cleaner, calmer Settings: nine sections with small icons (Subtitles joined Playback; Updates,
+  Phone setup and checks are under System). Each setting is one line with its value on the right,
+  grouped under small headings, and what the setting you're on does appears at the foot of the
+  page instead of under every row. Shorter names throughout, and smaller switches.
+- Accounts is a short list (Simkl, Stremio, Nuvio, TMDB, MDBList, Debrid) showing whether each is
+  connected; open one to set it up.
+
+**Improved**
+- One look across the whole app: a small set of text sizes and weights used everywhere (less bold,
+  slightly smaller), the same rounded corners for panels and pop-ups, and steady button text.
+
 ## 0.47.0
 
 **New**

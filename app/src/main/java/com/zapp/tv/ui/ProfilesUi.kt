@@ -274,14 +274,14 @@ fun ProfilesPane(mvm: MediaViewModel) {
     var adding by remember { mutableStateOf(false) }
     val s = mvm.settings
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         item {
             Text(
-                "Each profile has its own Continue watching, library and Home rows. Kids profiles only see family titles and no live TV. Each profile can connect its own Nuvio, Simkl and Stremio accounts.",
-                color = ZappColors.Dim,
+                "Each profile has its own Continue watching, library, Home rows and accounts. Kids profiles see only family titles.",
+                color = ZappColors.Faint,
                 fontSize = TextSize.Small,
                 lineHeight = 17.sp,
-                modifier = Modifier.padding(bottom = 6.dp),
+                modifier = Modifier.padding(start = 16.dp, bottom = 10.dp),
             )
         }
         item(key = "add") {
