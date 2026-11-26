@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.45.0
+
+**New**
+- Glossy cards: a soft, still gloss over the top of every poster and card, like light on glass,
+  a touch brighter on the one you're on. Settings, Appearance, Card style (with Corners and Names
+  under posters, which moved there too).
+
+**Improved**
+- Rows further down Home, Films and Series are got ready in the background (their cards and the
+  first pictures), so they're already there when you scroll to them, with no loading cards.
+
 ## 0.44.0
 
 **Improved**

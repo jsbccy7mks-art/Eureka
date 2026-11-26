@@ -292,6 +292,7 @@ fun FocusSurface(
                 if (ring) drawLiftShadow(corner.toPx(), lift)
                 if (ring && ringAlpha > 0.01f) drawFocusGlow(corner.toPx(), pulse.value, ringAlpha)
                 drawContent()
+                if (isCard && FocusStyle.gloss) drawGloss(corner.toPx(), 1f + 0.4f * ringAlpha)
                 if (ring && ringAlpha > 0.01f) drawFocusRing(corner.toPx(), pulse.value, ringAlpha)
                 if (isCard && FocusStyle.cardStyle == 2 && ringAlpha < 0.99f) {
                     drawRoundRect(
@@ -341,6 +342,34 @@ object FocusStyle {
     var cardTitles by mutableStateOf(false)
     /** The page's colour glow: 0 subtle, 1 normal, 2 vivid. */
     var glowLevel by mutableStateOf(1)
+    /** A soft, still gloss over the top half of cards, like light on glass. */
+    var gloss by mutableStateOf(true)
+}
+
+/**
+ * Gloss: a faint light from the top left, strongest at the top edge and gone by the middle, plus
+ * a hairline of light along the top edge. Still (no animation), so it costs nothing to scroll.
+ */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGloss(corner: Float, strength: Float) {
+    val w = size.width
+    val h = size.height
+    val r = androidx.compose.ui.geometry.CornerRadius(corner)
+    drawRoundRect(
+        Brush.linearGradient(
+            0f to Color.White.copy(alpha = 0.11f * strength),
+            0.45f to Color.White.copy(alpha = 0.035f * strength),
+            1f to Color.Transparent,
+            start = Offset(0f, 0f),
+            end = Offset(w * 0.55f, h * 0.55f),
+        ),
+        size = androidx.compose.ui.geometry.Size(w, h * 0.55f),
+        cornerRadius = r,
+    )
+    drawRoundRect(
+        Brush.verticalGradient(0f to Color.White.copy(alpha = 0.22f * strength), 0.12f to Color.Transparent, endY = h),
+        cornerRadius = r,
+        style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+    )
 }
 
 /** How much the page glow shows, from the Glow setting. */

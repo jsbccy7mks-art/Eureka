@@ -116,6 +116,8 @@ fun HomeScreen(
     val catalogs by produceState(emptyList<CatalogRef>(), addons) { value = mvm.catalogs(null) }
 
     val layout = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
+    // Rows further down are got ready now, so they're already there when you scroll to them.
+    LaunchedEffect(layout) { mvm.warmRows(catalogs.filter { c -> layout.any { it.id == c.key && it.on } }) }
     // Smart rows: what to suggest from what you've watched and saved.
     val libraryItems by mvm.library.collectAsState()
     val seed = continueItems.firstOrNull()?.asPreview() ?: libraryItems.firstOrNull()?.let { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }

@@ -182,6 +182,9 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
     }
 
     /** One page of a catalogue; pages are cached for 30 minutes (first pages also on disk). */
+    /** A row's first page if it's already here (memory), without waiting. */
+    fun cachedFirstPage(ref: CatalogRef): List<MetaPreview>? = catalogCache["${ref.key}|0"]?.second
+
     suspend fun catalogPage(ref: CatalogRef, skip: Int): List<MetaPreview> {
         val key = "${ref.key}|$skip"
         catalogCache[key]?.let { (time, items) -> if (System.currentTimeMillis() - time < 30 * 60_000L) return items }

@@ -771,6 +771,35 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     suspend fun catalogs(type: String?): List<CatalogRef> = repo.catalogs(type)
 
+    fun cachedPage(ref: CatalogRef): List<MetaPreview>? =
+        repo.cachedFirstPage(ref)?.let { list -> if (isKids) list.filter { com.zapp.tv.data.ProfileStore.kidsSafe(it.genres) } else list }
+
+    private val warmed = java.util.Collections.synchronizedSet(HashSet<String>())
+
+    /**
+     * Gets rows ready before you scroll to them: each catalogue's first page, and the pictures of
+     * its first cards, so rows further down are already there when they come into view.
+     */
+    fun warmRows(refs: List<CatalogRef>) {
+        val todo = refs.filter { warmed.add(it.key) }
+        if (todo.isEmpty()) return
+        viewModelScope.launch {
+            val gate = kotlinx.coroutines.sync.Semaphore(4)
+            val loader = coil.Coil.imageLoader(getApplication())
+            todo.map { ref ->
+                async {
+                    gate.withPermit {
+                        val items = runCatching { page(ref, 0) }.getOrDefault(emptyList())
+                        items.take(8).forEach { m ->
+                            val pic = m.poster ?: return@forEach
+                            loader.enqueue(coil.request.ImageRequest.Builder(getApplication()).data(pic).size(320, 480).build())
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+
     suspend fun page(ref: CatalogRef, skip: Int): List<MetaPreview> =
         repo.catalogPage(ref, skip).let { list -> if (isKids) list.filter { com.zapp.tv.data.ProfileStore.kidsSafe(it.genres) } else list }
 

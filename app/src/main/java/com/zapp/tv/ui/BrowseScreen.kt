@@ -45,6 +45,7 @@ fun BrowseScreen(
 ) {
     val addons by mvm.addons.collectAsState()
     val catalogs by produceState<List<CatalogRef>?>(null, addons, type) { value = mvm.catalogs(type) }
+    LaunchedEffect(catalogs) { catalogs?.let { mvm.warmRows(it) } }
     var hero by remember(type) { mutableStateOf<HeroItem?>(null) }
     val emptyFocus = remember { FocusRequester() }
     var handledTick by remember { mutableIntStateOf(focusTick) }

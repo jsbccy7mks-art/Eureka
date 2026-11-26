@@ -538,8 +538,9 @@ fun CatalogRow(
     subtitle: String? = null,
     top10: Boolean = false,
 ) {
-    val items = remember(ref.key) { mutableStateListOf<MetaPreview>() }
-    var loading by remember(ref.key) { mutableStateOf(true) }
+    // Already got ready (see warmRows)? Then the row is simply there, with no loading cards.
+    val items = remember(ref.key) { mutableStateListOf<MetaPreview>().apply { mvm.cachedPage(ref)?.let { addAll(it) } } }
+    var loading by remember(ref.key) { mutableStateOf(items.isEmpty()) }
     var failed by remember(ref.key) { mutableStateOf(false) }
     var exhausted by remember(ref.key) { mutableStateOf(false) }
     var requestMore by remember(ref.key) { mutableStateOf(0) }
@@ -550,6 +551,11 @@ fun CatalogRow(
 
     LaunchedEffect(ref.key, requestMore) {
         if (exhausted) return@LaunchedEffect
+        if (requestMore == 0 && items.isNotEmpty()) {
+            loading = false
+            if (!ref.def.pageable) exhausted = true
+            return@LaunchedEffect
+        }
         loading = true
         try {
             val page = mvm.page(ref, items.size)

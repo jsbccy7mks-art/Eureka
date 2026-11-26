@@ -1166,7 +1166,7 @@ private fun AppearancePane(vm: AppViewModel) {
             }
         }
         }
-        SettingsGroup("Look", "Black, lettering, cards and glow") {
+        SettingsGroup("Look", "Black, lettering and glow") {
         SettingRow(
             title = "True black",
             body = "Pure black pages, best on OLED TVs. The colour glow stays.",
@@ -1180,22 +1180,30 @@ private fun AppearancePane(vm: AppViewModel) {
             onClick = { s.titleFont = (s.titleFont + 1) % 3 },
         )
         SettingRow(
-            title = "Card style",
+            title = "Glow strength",
+            body = "How strongly the theme's colour glows across the page.",
+            value = SettingValue.Choice(listOf("Subtle", "Normal", "Vivid")[s.glowLevel.coerceIn(0, 2)]),
+            onClick = { s.glowLevel = (s.glowLevel + 1) % 3 },
+        )
+        }
+        SettingsGroup("Card style", "Corners, gloss and names on posters and cards") {
+        SettingRow(
+            title = "Corners",
             body = "The corners of posters and cards, and an optional thin border.",
             value = SettingValue.Choice(listOf("Rounded", "Square", "Rounded with border")[s.cardStyle.coerceIn(0, 2)]),
             onClick = { s.cardStyle = (s.cardStyle + 1) % 3 },
+        )
+        SettingRow(
+            title = "Glossy cards",
+            body = "A soft gloss over the top of each poster, like light on glass (a little brighter on the one you're on).",
+            value = SettingValue.Toggle(s.gloss),
+            onClick = { s.gloss = !s.gloss },
         )
         SettingRow(
             title = "Names under posters",
             body = "Show each title's name beneath its poster in rows.",
             value = SettingValue.Toggle(s.cardTitles),
             onClick = { s.cardTitles = !s.cardTitles },
-        )
-        SettingRow(
-            title = "Glow strength",
-            body = "How strongly the theme's colour glows across the page.",
-            value = SettingValue.Choice(listOf("Subtle", "Normal", "Vivid")[s.glowLevel.coerceIn(0, 2)]),
-            onClick = { s.glowLevel = (s.glowLevel + 1) % 3 },
         )
         }
         SettingsGroup("Focus", "Outline and glow around the card you're on") {

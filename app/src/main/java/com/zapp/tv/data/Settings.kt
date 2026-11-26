@@ -547,6 +547,10 @@ class Settings(context: Context) {
     var cardTitles: Boolean
         get() = cardTitlesState.value
         set(value) { cardTitlesState.value = value; prefs.edit().putBoolean("cardTitles", value).apply(); com.zapp.tv.ui.FocusStyle.cardTitles = value }
+    private val glossState = mutableStateOf(prefs.getBoolean("gloss", true))
+    var gloss: Boolean
+        get() = glossState.value
+        set(value) { glossState.value = value; prefs.edit().putBoolean("gloss", value).apply(); com.zapp.tv.ui.FocusStyle.gloss = value }
     private val glowLevelState = mutableIntStateOf(prefs.getInt("glowLevel", 1))
     var glowLevel: Int
         get() = glowLevelState.intValue
@@ -566,6 +570,7 @@ class Settings(context: Context) {
         com.zapp.tv.ui.FocusStyle.cardStyle = prefs.getInt("cardStyle", 0)
         com.zapp.tv.ui.FocusStyle.cardTitles = prefs.getBoolean("cardTitles", false)
         com.zapp.tv.ui.FocusStyle.glowLevel = prefs.getInt("glowLevel", 1)
+        com.zapp.tv.ui.FocusStyle.gloss = prefs.getBoolean("gloss", true)
     }
 
     private val cachedOnlyState = mutableStateOf(prefs.getBoolean("cachedOnly", false))
