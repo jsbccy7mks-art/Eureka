@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.27.1
+
+**Fixed**
+- Back out of a film to its details page and the remote stopped working there: the page behind
+  was taking focus. Details pages now keep it, and if focus is ever lost Zapp gives it back.
+- Sidebar: it opens only when you go to it (Left from the page, or Back). If focus lands on it by
+  accident (something closing under the remote), it goes straight back to the page and stays shut.
+  Right always closes it.
+- Switching the TV's resolution (resolution matching) no longer restarts Zapp.
+
+**Changed**
+- Player options are small icons now (audio, subtitles, sources, picture, boost, info, next
+  episode); the one you're on is named, with its setting, just above the row.
+- The starting screen uses the title's large background picture, dimmed.
+
 ## 0.27.0
 
 **New**

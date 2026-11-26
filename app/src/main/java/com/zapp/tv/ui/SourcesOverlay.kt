@@ -151,7 +151,7 @@ fun SourcesOverlay(
     if (autoPlay || resolving != null) {
         Box(Modifier.fillMaxSize().trapFocus()) {
             StartingScreen(
-                background = request.video?.thumbnail ?: request.meta.background ?: request.meta.poster,
+                background = request.meta.background ?: request.video?.thumbnail ?: request.meta.poster,
                 title = request.meta.name,
                 subtitle = request.episodeLabel,
                 status = resolving,

@@ -443,7 +443,7 @@ fun VodPlayer(
             enter = fadeIn(),
             exit = fadeOut(androidx.compose.animation.core.tween(450)),
         ) {
-            StartingScreen(info.background ?: info.poster, info.title, info.episodeLabel)
+            StartingScreen(request.meta.background ?: info.background ?: info.poster, info.title, info.episodeLabel)
         }
 
         // "Skip intro" / "Skip recap": already selected, so one press of OK skips.
@@ -549,7 +549,7 @@ private fun VodTopBar(playback: Playback, info: MediaInfo) {
     }
 }
 
-private enum class PlayerIcon { Play, Pause, Back10, Forward10 }
+private enum class PlayerIcon { Play, Pause, Back10, Forward10, Audio, Subtitles, Sources, Picture, Boost, Info, Next }
 
 @Composable
 private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modifier = Modifier) {
@@ -569,6 +569,74 @@ private fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Modi
                 PlayerIcon.Pause -> {
                     drawRoundRect(color, Offset(w * 0.24f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.17f, w * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
                     drawRoundRect(color, Offset(w * 0.59f, w * 0.18f), androidx.compose.ui.geometry.Size(w * 0.17f, w * 0.64f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
+                }
+                PlayerIcon.Audio, PlayerIcon.Boost -> {
+                    // A speaker; sound waves for audio, a plus for boost.
+                    val sw = w * 0.075f
+                    drawPath(
+                        Path().apply {
+                            moveTo(w * 0.14f, w * 0.38f)
+                            lineTo(w * 0.3f, w * 0.38f)
+                            lineTo(w * 0.5f, w * 0.2f)
+                            lineTo(w * 0.5f, w * 0.8f)
+                            lineTo(w * 0.3f, w * 0.62f)
+                            lineTo(w * 0.14f, w * 0.62f)
+                            close()
+                        },
+                        color,
+                    )
+                    if (icon == PlayerIcon.Audio) {
+                        for (r in listOf(w * 0.16f, w * 0.3f)) {
+                            drawArc(color, -45f, 90f, false, Offset(w * 0.5f - r, w * 0.5f - r), androidx.compose.ui.geometry.Size(r * 2, r * 2), style = Stroke(sw, cap = StrokeCap.Round))
+                        }
+                    } else {
+                        drawLine(color, Offset(w * 0.62f, w * 0.5f), Offset(w * 0.9f, w * 0.5f), sw, StrokeCap.Round)
+                        drawLine(color, Offset(w * 0.76f, w * 0.36f), Offset(w * 0.76f, w * 0.64f), sw, StrokeCap.Round)
+                    }
+                }
+                PlayerIcon.Subtitles -> {
+                    val sw = w * 0.07f
+                    drawRoundRect(color, Offset(w * 0.1f, w * 0.2f), androidx.compose.ui.geometry.Size(w * 0.8f, w * 0.6f), androidx.compose.ui.geometry.CornerRadius(w * 0.1f), style = Stroke(sw))
+                    drawLine(color, Offset(w * 0.24f, w * 0.5f), Offset(w * 0.44f, w * 0.5f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.52f, w * 0.5f), Offset(w * 0.76f, w * 0.5f), sw, StrokeCap.Round)
+                    drawLine(color, Offset(w * 0.24f, w * 0.64f), Offset(w * 0.6f, w * 0.64f), sw, StrokeCap.Round)
+                }
+                PlayerIcon.Sources -> {
+                    val sw = w * 0.075f
+                    for (i in 0..2) {
+                        val y = w * (0.28f + i * 0.22f)
+                        drawCircle(color, w * 0.055f, Offset(w * 0.18f, y))
+                        drawLine(color, Offset(w * 0.32f, y), Offset(w * 0.86f, y), sw, StrokeCap.Round)
+                    }
+                }
+                PlayerIcon.Picture -> {
+                    // Four corners of a frame.
+                    val sw = w * 0.075f
+                    val a = w * 0.14f
+                    val b = w * 0.86f
+                    val l = w * 0.22f
+                    listOf(Offset(a, w * 0.22f) to Pair(1f, 1f), Offset(b, w * 0.22f) to Pair(-1f, 1f), Offset(a, w * 0.78f) to Pair(1f, -1f), Offset(b, w * 0.78f) to Pair(-1f, -1f)).forEach { (p, d) ->
+                        drawLine(color, p, Offset(p.x + l * d.first, p.y), sw, StrokeCap.Round)
+                        drawLine(color, p, Offset(p.x, p.y + l * d.second * 0.8f), sw, StrokeCap.Round)
+                    }
+                }
+                PlayerIcon.Info -> {
+                    val sw = w * 0.07f
+                    drawCircle(color, w * 0.38f, Offset(w / 2, w / 2), style = Stroke(sw))
+                    drawCircle(color, w * 0.05f, Offset(w / 2, w * 0.32f))
+                    drawLine(color, Offset(w / 2, w * 0.46f), Offset(w / 2, w * 0.7f), sw * 1.1f, StrokeCap.Round)
+                }
+                PlayerIcon.Next -> {
+                    drawPath(
+                        Path().apply {
+                            moveTo(w * 0.2f, w * 0.2f)
+                            lineTo(w * 0.66f, w * 0.5f)
+                            lineTo(w * 0.2f, w * 0.8f)
+                            close()
+                        },
+                        color,
+                    )
+                    drawRoundRect(color, Offset(w * 0.7f, w * 0.2f), androidx.compose.ui.geometry.Size(w * 0.11f, w * 0.6f), androidx.compose.ui.geometry.CornerRadius(w * 0.04f))
                 }
                 PlayerIcon.Back10, PlayerIcon.Forward10 -> {
                     val back = icon == PlayerIcon.Back10
@@ -636,6 +704,37 @@ private fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(50))
             .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
     )
+}
+
+/**
+ * A player option as a small icon. While it has focus, its name and current value appear above it,
+ * so the row itself stays clean.
+ */
+@Composable
+private fun IconOption(icon: PlayerIcon, label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) {
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier.size(44.dp),
+        focusRequester = requester,
+        shape = CircleShape,
+        focusScale = 1.16f,
+        restColor = Color.Transparent,
+        focusColor = Color.Transparent,
+    ) { focused ->
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            PlayerGlyph(icon, Color.Black.copy(alpha = 0.55f), 22.dp, Modifier.graphicsLayer { translationY = 1.5.dp.toPx() }.blur(3.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
+            PlayerGlyph(
+                icon,
+                when {
+                    focused -> Color.White
+                    accent -> ZappColors.Brand2
+                    else -> Color.White.copy(alpha = 0.75f)
+                },
+                22.dp,
+            )
+            FocusUnderline(focused, Modifier.align(Alignment.BottomCenter))
+        }
+    }
 }
 
 /** A player option as quiet text; its current value appears beneath it while it has focus. */
@@ -729,14 +828,28 @@ private fun VodControls(
                 }
             }
             Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Top) {
-                ChipButton("Audio", audioNow ?: "Default", onAudio)
-                ChipButton("Subtitles", subsNow, onSubtitles)
-                ChipButton("Sources", null, onSources)
-                ChipButton("Picture", listOf("Fit", "Fill", "Stretch")[playback.pictureMode], { playback.pictureMode = (playback.pictureMode + 1) % 3 })
-                ChipButton("Boost", if (playback.boost) "On" else "Off", { playback.toggleBoost(!playback.boost) })
-                ChipButton("Info", null, onDetails)
-                if (next != null) ChipButton("Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, onNext, accent = true)
+            // Options as small icons; the one you're on is named (with its setting) just above.
+            var caption by remember { mutableStateOf<String?>(null) }
+            Column(horizontalAlignment = Alignment.End) {
+                Box(Modifier.height(18.dp)) {
+                    caption?.let { Text(it, fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), Offset(0f, 1.5f), 6f))) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    @Composable
+                    fun opt(icon: PlayerIcon, label: String, value: String?, accent: Boolean = false, onClick: () -> Unit) {
+                        Box(Modifier.onFocusChanged { if (it.hasFocus) caption = listOfNotNull(label, value).joinToString("  ·  ") else if (caption?.startsWith(label) == true) caption = null }) {
+                            IconOption(icon, label, value, onClick, accent = accent)
+                        }
+                    }
+                    opt(PlayerIcon.Audio, "Audio", audioNow ?: "Default", onClick = onAudio)
+                    opt(PlayerIcon.Subtitles, "Subtitles", subsNow, onClick = onSubtitles)
+                    opt(PlayerIcon.Sources, "Sources", null, onClick = onSources)
+                    opt(PlayerIcon.Picture, "Picture", listOf("Fit", "Fill", "Stretch")[playback.pictureMode]) { playback.pictureMode = (playback.pictureMode + 1) % 3 }
+                    opt(PlayerIcon.Boost, "Volume boost", if (playback.boost) "On" else "Off") { playback.toggleBoost(!playback.boost) }
+                    opt(PlayerIcon.Info, "Stream info", null, onClick = onDetails)
+                    if (next != null) opt(PlayerIcon.Next, "Next episode", next.episode?.let { e -> "S${next.season ?: 1} E$e" }, accent = true, onClick = onNext)
+                }
+            }
             }
         }
     }

@@ -208,9 +208,16 @@ fun RotatingLine(modifier: Modifier = Modifier, everyMs: Long = 3_600) {
  * animated Zapp mark, the title, and a rotating fun line. Shown from choosing play until the first
  * picture appears, so it reads as one smooth start rather than a list of loading steps.
  */
+/** The largest version of a known artwork link (Cinemeta/metahub and TMDB), for full-screen use. */
+fun hiRes(url: String?): String? = url
+    ?.replace("/background/medium/", "/background/large/")
+    ?.replace("/background/small/", "/background/large/")
+    ?.replace(Regex("image\\.tmdb\\.org/t/p/w\\d+/"), "image.tmdb.org/t/p/original/")
+
 @Composable
 fun StartingScreen(background: String?, title: String, subtitle: String? = null, status: String? = null) {
     val tint = rememberArtColor(background)
+    val big = remember(background) { hiRes(background) }
     Box(
         Modifier
             .fillMaxSize()
@@ -219,10 +226,10 @@ fun StartingScreen(background: String?, title: String, subtitle: String? = null,
     ) {
         if (background != null) {
             AsyncImage(
-                model = background,
+                model = big,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                alpha = 0.3f,
+                alpha = 0.34f,
                 modifier = Modifier.fillMaxSize().drift(),
             )
         }

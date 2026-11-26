@@ -92,7 +92,11 @@ fun ZappRoot(vm: AppViewModel) {
     var form by remember { mutableStateOf<Boolean?>(null) } // true = Xtream, false = M3U
     var focusTick by remember { mutableIntStateOf(0) }
     var exitArmed by remember { mutableStateOf(false) }
+    // The sidebar opens only when you go to it (Left from the page, or Back). If focus lands on it any
+    // other way (something on the page closed under the remote), it's sent straight back to the page.
     var railFocused by remember { mutableStateOf(false) }
+    var railIntentAt by remember { mutableStateOf(0L) }
+    var rootHasFocus by remember { mutableStateOf(true) }
     var settingsSection by remember { mutableStateOf<String?>(null) }
 
     // Films and series: detail page, then source list, then player.
@@ -108,11 +112,15 @@ fun ZappRoot(vm: AppViewModel) {
         railLockUntil = System.currentTimeMillis() + 900
     }
 
-    /** Ask the visible screen to take focus once it has been drawn. */
+    // A details page has its own focus requests, so the page underneath never takes focus while
+    // it's showing (that left the remote "stuck" on a page you couldn't see).
+    var detailTick by remember { mutableIntStateOf(0) }
+
+    /** Ask the visible screen (or the open details page) to take focus once it has been drawn. */
     fun requestContentFocus(waitMs: Long = 120) {
         coroutineScope.launch {
             delay(waitMs)
-            focusTick++
+            if (detail != null) detailTick++ else focusTick++
         }
     }
 
@@ -299,7 +307,26 @@ fun ZappRoot(vm: AppViewModel) {
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // Safety net: if nothing has focus (the remote would do nothing), give it back to the page.
+    LaunchedEffect(rootHasFocus) {
+        if (!rootHasFocus) {
+            delay(450)
+            // (Not while a dialog has the remote: then this window doesn't have focus on purpose.)
+            if (!rootHasFocus && (context as? Activity)?.hasWindowFocus() != false) requestContentFocus(0)
+        }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .onFocusChanged { rootHasFocus = it.hasFocus }
+            .onPreviewKeyEvent { e ->
+                if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionLeft) {
+                    railIntentAt = System.currentTimeMillis()
+                }
+                false
+            },
+    ) {
         AmbientBackground()
 
         when {
@@ -320,6 +347,8 @@ fun ZappRoot(vm: AppViewModel) {
                 // Back from a screen goes to the sidebar; Back on the sidebar twice exits.
                 BackHandler(enabled = !playerOpen && form == null && detail == null && playRequest == null) {
                     if (!railFocused) {
+                        railIntentAt = System.currentTimeMillis()
+                        railFocused = true
                         railFocus.tryRequest()
                     } else if (exitArmed) {
                         (context as? Activity)?.finish()
@@ -408,7 +437,10 @@ fun ZappRoot(vm: AppViewModel) {
                     current = dest,
                     updateReady = vm.update is UpdateState.Available,
                     railFocus = railFocus,
-                    onFocusChanged = { railFocused = it },
+                    open = railFocused,
+                    onOpenChange = { railFocused = it },
+                    intended = { System.currentTimeMillis() - railIntentAt < 700 },
+                    onStray = { requestContentFocus(0) },
                     onSelect = { open(it) },
                 )
             }
@@ -490,7 +522,7 @@ fun ZappRoot(vm: AppViewModel) {
                 DetailScreen(
                     mvm = mvm,
                     request = d,
-                    focusTick = focusTick,
+                    focusTick = detailTick,
                     onPlay = { playRequest = it },
                     onOpenTitle = { m -> detail = DetailRequest(m.type, m.id, m) },
                     onClose = {
@@ -614,10 +646,13 @@ private fun Sidebar(
     current: Dest,
     updateReady: Boolean,
     railFocus: FocusRequester,
-    onFocusChanged: (Boolean) -> Unit,
+    open: Boolean,
+    onOpenChange: (Boolean) -> Unit,
+    intended: () -> Boolean,
+    onStray: () -> Unit,
     onSelect: (Dest) -> Unit,
 ) {
-    var open by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val width by animateDpAsState(if (open) RailOpenWidth else RailWidth, tween(200), label = "rail")
@@ -654,18 +689,24 @@ private fun Sidebar(
                 // The whole sidebar (destinations, Settings and the profile) opens while the remote
                 // is anywhere on it, and closes the moment focus leaves it.
                 .onFocusChanged {
-                    open = it.hasFocus
-                    onFocusChanged(it.hasFocus)
+                    if (it.hasFocus == hasFocus) return@onFocusChanged
+                    hasFocus = it.hasFocus
+                    when {
+                        !it.hasFocus -> onOpenChange(false)
+                        intended() -> onOpenChange(true)
+                        else -> onStray() // landed here by accident: back to the page, closed
+                    }
                 }
                 .focusProperties { enter = { railFocus } }
                 .onPreviewKeyEvent { e ->
                     // Right goes back to where you were on the page. If the page can't take focus
                     // (still loading), focus moves right anyway, so the sidebar always closes.
                     if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionRight) {
+                        onOpenChange(false)
                         onRight()
                         scope.launch {
                             delay(220)
-                            if (open) focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
+                            if (hasFocus) focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Right)
                         }
                         true
                     } else {
