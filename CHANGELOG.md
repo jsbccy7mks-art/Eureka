@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.38.0
+
+**New**
+- Collections now cover every major franchise on TMDB, not just ones you've started, on shelves:
+  Your collections, Finish what you started, Superheroes, Action and adventure, Sci-fi, Fantasy,
+  Horror, Animation and family, Comedy, Crime and thriller.
+- Studio collections (Pixar, Studio Ghibli, A24, Marvel Studios, Lucasfilm, DreamWorks Animation,
+  Blumhouse), decades ('70s to 2010s) and themes ('80s Action, Modern Horror, Space Adventures,
+  Westerns and more), all in the same showcase in release order. Only franchises play a theme tune.
+- Any collection shelf can be added to Home (Home layout, "Collections: …").
+- The catalogue is found once and refreshed weekly.
+
+**Improved**
+- Film and series titles use a more cinematic typeface (Cinzel).
+- The collection showcase sizes its posters to the screen so they no longer cover the story.
+- Library cards without a poster from the add-on now fall back to another poster source.
+
 ## 0.37.0
 
 **New**

@@ -394,6 +394,14 @@ class Settings(context: Context) {
         get() = themeVolumeState.intValue
         set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
 
+    /** The catalogue of collections found on TMDB (JSON, shared by all profiles), and when it was made. */
+    var collectionCatalogue: String
+        get() = prefs.getString("collectionCatalogue", "") ?: ""
+        set(value) { prefs.edit().putString("collectionCatalogue", value).apply() }
+    var collectionCatalogueAt: Long
+        get() = prefs.getLong("collectionCatalogueAt", 0L)
+        set(value) { prefs.edit().putLong("collectionCatalogueAt", value).apply() }
+
     /** Your Dislike / Like / Love ratings, this profile (JSON). */
     var ratingsJson: String
         get() = prefs.getString(acct("ratings"), "") ?: ""

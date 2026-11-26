@@ -258,27 +258,38 @@ fun LibraryScreen(
         }
         Spacer(Modifier.height(18.dp))
         if (tab == "collections" && mvm.settings.libraryCollections) {
-            val list = mvm.collections
-            if (list.isEmpty()) {
+            val shelves = mvm.collectionShelves
+            if (shelves.isEmpty()) {
                 Text(
-                    if (mvm.tmdb.enabled) "Franchises of the films you save or watch appear here (Harry Potter, Bond…)." else "Collections need your TMDB key (Settings, Accounts and sync).",
+                    if (mvm.tmdb.enabled) "Finding collections on TMDB…" else "Collections need your TMDB key (Settings, Accounts and sync).",
                     color = ZappColors.Dim,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(start = 40.dp),
                 )
             }
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(cardWidth(1, true) + 12.dp),
-                contentPadding = PaddingValues(start = 40.dp, end = 40.dp, bottom = 40.dp, top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+            val firstCard = shelves.firstOrNull()?.items?.firstOrNull()
+            androidx.compose.foundation.lazy.LazyColumn(
+                contentPadding = PaddingValues(bottom = 40.dp, top = 2.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
-                items(list, key = { it.id }) { c ->
-                    CollectionCard(
-                        c,
-                        cardWidth(1, true),
-                        modifier = if (c == list.firstOrNull()) Modifier.focusRequesterSafe(first) else Modifier,
-                    ) { onOpenCollection(c.id) }
+                items(shelves.size, key = { shelves[it].id }) { i ->
+                    val shelf = shelves[i]
+                    Column {
+                        Text(shelf.title, color = ZappColors.Text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 40.dp, bottom = 10.dp))
+                        androidx.compose.foundation.lazy.LazyRow(
+                            contentPadding = PaddingValues(start = 40.dp, end = 40.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            items(shelf.items.size, key = { shelf.items[it].id }) { j ->
+                                val c = shelf.items[j]
+                                CollectionCard(
+                                    c,
+                                    cardWidth(1, true),
+                                    modifier = if (i == 0 && c == firstCard) Modifier.focusRequesterSafe(first) else Modifier,
+                                ) { onOpenCollection(c.id) }
+                            }
+                        }
+                    }
                 }
             }
             return@Column

@@ -276,6 +276,61 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
         c
     }
 
+
+    // ------------------------------------------------------------ the collections catalogue
+
+    /** Well-known films (TMDB ids, with their genre ids), by [sort], [pages] pages of 20. */
+    suspend fun discoverFilms(params: Map<String, String>, pages: Int): List<Pair<Long, List<Int>>> = withContext(Dispatchers.IO) {
+        (1..pages).flatMap { p ->
+            get("discover/movie", params + ("page" to p.toString()))?.optJSONArray("results").objects().map { o ->
+                val g = o.optJSONArray("genre_ids")
+                o.optLong("id") to (if (g == null) emptyList() else (0 until g.length()).map { g.optInt(it) })
+            }
+        }.distinctBy { it.first }
+    }
+
+    /** The franchise a film (by TMDB id) belongs to, if any. */
+    suspend fun filmCollection(tmdbId: Long): TmdbCollectionRef? = withContext(Dispatchers.IO) {
+        val c = get("movie/$tmdbId")?.optJSONObject("belongs_to_collection") ?: return@withContext null
+        TmdbCollectionRef(
+            c.optLong("id"),
+            c.optString("name").removeSuffix(" Collection").removeSuffix(" collection"),
+            img(c.optString("poster_path"), "w500"),
+            img(c.optString("backdrop_path"), "w780"),
+        )
+    }
+
+    /**
+     * A collection made from a search of TMDB (a studio, a decade, a theme) rather than a franchise:
+     * its best-known films, shown in release order.
+     */
+    suspend fun discoverCollection(id: Long, name: String, overview: String?, params: Map<String, String>): TmdbCollection? = withContext(Dispatchers.IO) {
+        collections[id]?.let { return@withContext it }
+        val found = (1..2).flatMap { p -> get("discover/movie", params + ("page" to p.toString()))?.optJSONArray("results").objects() }
+            .filter { it.optString("poster_path").isNotBlank() && it.optString("release_date").isNotBlank() }
+            .distinctBy { it.optLong("id") }
+            .take(30)
+        if (found.isEmpty()) return@withContext null
+        val parts = found.sortedBy { it.optString("release_date") }.map { p ->
+            TmdbCollectionPart(
+                item(p, "movie").copy(poster = img(p.optString("poster_path"), "w500"), backdrop = img(p.optString("backdrop_path"), "w1280")),
+                p.optString("overview").takeIf { it.isNotBlank() },
+                p.optString("release_date").takeIf { it.isNotBlank() },
+            )
+        }
+        val top = found.first()
+        val c = TmdbCollection(
+            id = id,
+            name = name,
+            overview = overview,
+            poster = img(top.optString("poster_path"), "w500"),
+            backdrop = img(top.optString("backdrop_path"), "original"),
+            parts = parts,
+        )
+        collections[id] = c
+        c
+    }
+
     /** The IMDb id for a TMDB title, so it can open in Zapp. */
     suspend fun imdbId(item: TmdbItem): String? = withContext(Dispatchers.IO) {
         val key = "${item.type}|${item.id}"

@@ -91,9 +91,13 @@ fun CollectionCard(
         Artwork(c.backdrop ?: c.poster, c.name)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-            Text("COLLECTION", color = ZappColors.Brand2, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+            Text(
+                when (c.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; else -> "COLLECTION" },
+                color = ZappColors.Brand2, fontSize = 8.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp,
+            )
             Spacer(Modifier.height(2.dp))
             MovieTitle(c.name, 17.sp, maxLines = 1)
+            c.note?.let { Text(it, color = ZappColors.Dim, fontSize = 10.sp, maxLines = 1) }
         }
     }
 }
@@ -167,7 +171,7 @@ fun CollectionScreen(
             // ---- the franchise
             Column(Modifier.padding(start = 64.dp, end = 64.dp, top = 40.dp)) {
                 Text(
-                    listOfNotNull("COLLECTION", "${c.parts.size} FILMS", years, if (imdb.isNotEmpty()) "$seen WATCHED" else null).joinToString("   ·   "),
+                    listOfNotNull(mvm.collectionLabel(collectionId), "${c.parts.size} FILMS", years, if (imdb.isNotEmpty()) "$seen WATCHED" else null).joinToString("   ·   "),
                     color = ZappColors.Brand2.copy(alpha = 0.95f),
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,

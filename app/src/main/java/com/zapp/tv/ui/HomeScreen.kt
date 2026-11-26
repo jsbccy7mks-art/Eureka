@@ -133,7 +133,7 @@ fun HomeScreen(
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
             SPORTS_ROW -> !mvm.isKids && sportsSoon.isNotEmpty()
-            else -> catalogs.any { it.key == r.id }
+            else -> if (r.id.startsWith("collections:")) mvm.collectionShelf(r.id.removePrefix("collections:")) != null else catalogs.any { it.key == r.id }
         }
     }
 
@@ -236,9 +236,12 @@ fun HomeScreen(
                         }
                     }
                 }
-            } else if (row.id == COLLECTIONS_ROW) {
+            } else if (row.id == COLLECTIONS_ROW || row.id.startsWith("collections:")) {
+                val shelf = mvm.collectionShelf(if (row.id == COLLECTIONS_ROW) "yours" else row.id.removePrefix("collections:"))
+                val shelfItems = shelf?.items.orEmpty()
+                val shelfTitle = shelf?.title ?: "Your collections"
                 Column {
-                    RowHeader("Your collections")
+                    RowHeader(shelfTitle)
                     val w = cardWidth(row.size, true)
                     val extra = w + 24.dp
                     PivotScrolling(RowInset + extra) {
@@ -247,9 +250,10 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
                         ) {
-                            items(mvm.collections, key = { it.id }) { c ->
+                            items(shelfItems, key = { it.id }) { c ->
                                 CollectionCard(c, w, onFocus = {
-                                    focused = HeroItem(MetaPreview("collection:${c.id}", "collection", c.name, c.poster, "poster", c.backdrop, null, "${c.yours} of yours in this collection", null, null, emptyList()), "Your collections")
+                                    val line = c.note ?: if (c.yours > 0) "${c.yours} of yours in this collection" else null
+                                    focused = HeroItem(MetaPreview("collection:${c.id}", "collection", c.name, c.poster, "poster", c.backdrop, null, line, null, null, emptyList()), shelfTitle)
                                     lastFocus = HomeFocus(row.id, c.id.toString())
                                     moves++
                                 }) { onOpenCollection(c.id) }

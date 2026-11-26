@@ -26,6 +26,9 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
@@ -48,6 +51,24 @@ const val BECAUSE_ROW = "because"
 const val NEW_EPISODES_ROW = "newEpisodes"
 const val LIBRARY_ROW = "library"
 const val COLLECTIONS_ROW = "collections"
+
+/** The collection shelves, in order. Each can also be a Home row ("collections:<id>"). */
+val COLLECTION_SHELVES = listOf(
+    "yours" to "Your collections",
+    "finish" to "Finish what you started",
+    "superheroes" to "Superheroes",
+    "action" to "Action and adventure",
+    "scifi" to "Sci-fi",
+    "fantasy" to "Fantasy",
+    "horror" to "Horror",
+    "family" to "Animation and family",
+    "comedy" to "Comedy",
+    "crime" to "Crime and thriller",
+    "more" to "More collections",
+    "studios" to "Studios",
+    "decades" to "Decades",
+    "themes" to "Themes",
+)
 const val SPORTS_ROW = "sports"
 const val FOR_YOU_ROW = "forYou"
 const val LOVED_ROW = "loved"
@@ -969,34 +990,206 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         null
     }
 
-    // ---- franchise collections (TMDB)
+    // ---- collections (TMDB): franchises, studios, decades and themes
 
-    /** A franchise you have at least one film of (saved or watched). */
-    data class CollectionSummary(val id: Long, val name: String, val poster: String?, val backdrop: String?, val yours: Int)
+    /**
+     * One collection as a card. [kind] is franchise, studio, decade or theme; [yours] how many of
+     * its films you've saved or watched; [note] a short line under the name ("2 of 5 watched").
+     */
+    data class CollectionSummary(
+        val id: Long,
+        val name: String,
+        val poster: String?,
+        val backdrop: String?,
+        val yours: Int = 0,
+        val kind: String = "franchise",
+        val shelf: String = "",
+        val note: String? = null,
+    )
 
+    /** A row of collections in Library (and, if you add it, on Home). */
+    data class CollectionShelf(val id: String, val title: String, val items: List<CollectionSummary>)
+
+    /** A collection made from a TMDB search rather than a franchise. Ids are negative so they never meet TMDB's. */
+    private data class Curated(val id: Long, val kind: String, val name: String, val blurb: String, val params: Map<String, String>)
+
+    private val curated: List<Curated> = run {
+        fun studio(company: Int, name: String, blurb: String) =
+            Curated(-(100_000L + company), "studio", name, blurb, mapOf("with_companies" to company.toString(), "sort_by" to "vote_count.desc"))
+        fun span(from: Int?, to: Int?): Map<String, String> = buildMap {
+            from?.let { put("primary_release_date.gte", "$it-01-01") }
+            to?.let { put("primary_release_date.lte", "$it-12-31") }
+        }
+        fun decade(id: Long, name: String, from: Int, blurb: String) =
+            Curated(id, "decade", name, blurb, span(from, from + 9) + mapOf("sort_by" to "vote_count.desc"))
+        fun theme(id: Long, name: String, blurb: String, genres: String, from: Int? = null, to: Int? = null, extra: Map<String, String> = emptyMap()) =
+            Curated(id, "theme", name, blurb, span(from, to) + mapOf("with_genres" to genres, "sort_by" to "vote_count.desc") + extra)
+        listOf(
+            studio(3, "Pixar", "Every Pixar film, from Toy Story on."),
+            studio(10342, "Studio Ghibli", "Hand-drawn worlds from Miyazaki, Takahata and friends."),
+            studio(41077, "A24", "The independent studio's best-loved films."),
+            studio(420, "Marvel Studios", "The Marvel Cinematic Universe, film by film."),
+            studio(1, "Lucasfilm", "Star Wars, Indiana Jones and more."),
+            studio(521, "DreamWorks Animation", "Shrek, Kung Fu Panda, How to Train Your Dragon and more."),
+            studio(3172, "Blumhouse", "Modern horror, made small and scary."),
+            decade(-1, "'70s Classics", 1970, "The decade's best-known films."),
+            decade(-2, "'80s Classics", 1980, "The decade's best-known films."),
+            decade(-3, "'90s Classics", 1990, "The decade's best-known films."),
+            decade(-4, "2000s Favourites", 2000, "The decade's best-known films."),
+            decade(-5, "2010s Favourites", 2010, "The decade's best-known films."),
+            theme(-11, "'80s Action", "Explosions, one-liners and synth.", "28", 1980, 1989),
+            theme(-12, "'90s Action", "The blockbusters of the nineties.", "28", 1990, 1999),
+            theme(-13, "Modern Horror", "The scariest films since 2010.", "27", from = 2010),
+            theme(-14, "Animated Classics", "Animation from before 2000.", "16", to = 1999),
+            theme(-15, "Mind-Bending Sci-Fi", "Science fiction that stays with you.", "878", extra = mapOf("vote_average.gte" to "7.4", "vote_count.gte" to "1500")),
+            theme(-16, "Space Adventures", "Out among the stars.", "878,12"),
+            theme(-17, "Crime Classics", "Gangsters, heists and detectives, before 2000.", "80", to = 1999),
+            theme(-18, "Feel-Good Comedies", "Comedies people love.", "35", extra = mapOf("vote_average.gte" to "7.2", "vote_count.gte" to "1500")),
+            theme(-19, "War Epics", "War on the big screen.", "10752"),
+            theme(-20, "Westerns", "Out on the frontier.", "37"),
+        )
+    }
+
+    /** Franchises you have at least one film of (saved or watched). */
     var collections by mutableStateOf<List<CollectionSummary>>(emptyList())
         private set
+    /** Franchises you've started but not finished. */
+    private var unfinished by mutableStateOf<List<CollectionSummary>>(emptyList())
+    /** Every franchise, studio, decade and theme found on TMDB. */
+    private var catalogue by mutableStateOf<List<CollectionSummary>>(emptyList())
     private var collectionsJob: kotlinx.coroutines.Job? = null
+    private var catalogueJob: kotlinx.coroutines.Job? = null
+
+    /** The shelves in order, the empty ones left out. */
+    val collectionShelves: List<CollectionShelf>
+        get() {
+            val out = ArrayList<CollectionShelf>()
+            out.add(CollectionShelf("yours", "Your collections", collections))
+            out.add(CollectionShelf("finish", "Finish what you started", unfinished))
+            COLLECTION_SHELVES.drop(2).forEach { (id, title) -> out.add(CollectionShelf(id, title, catalogue.filter { it.shelf == id })) }
+            return out.filter { it.items.isNotEmpty() }
+        }
+
+    fun collectionShelf(id: String): CollectionShelf? = collectionShelves.firstOrNull { it.id == id }
 
     /** Works out your collections from the films in your library and the ones you've watched. */
     fun refreshCollections() {
         if (!tmdb.enabled) return
+        loadCatalogue()
         collectionsJob?.cancel()
         collectionsJob = viewModelScope.launch {
             delay(1_500)
-            val films = (library.value.filter { it.type == "movie" }.map { it.metaId } + watchedTitles.value)
-                .filter { it.startsWith("tt") }.distinct().take(120)
+            val watched = watchedTitles.value
+            val films = (library.value.filter { it.type == "movie" }.map { it.metaId } + watched)
+                .filter { it.startsWith("tt") }.distinct().take(160)
             val found = LinkedHashMap<Long, CollectionSummary>()
+            val watchedTmdb = HashSet<Long>()
+            val watchedIn = HashMap<Long, Int>()
             for (id in films) {
-                val c = runCatching { tmdb.details(id, "movie")?.collection }.getOrNull() ?: continue
+                val d = runCatching { tmdb.details(id, "movie") }.getOrNull() ?: continue
+                if (id in watched) watchedTmdb.add(d.tmdbId)
+                val c = d.collection ?: continue
                 val prev = found[c.id]
                 found[c.id] = CollectionSummary(c.id, c.name, c.poster, c.backdrop, (prev?.yours ?: 0) + 1)
+                if (id in watched) watchedIn[c.id] = (watchedIn[c.id] ?: 0) + 1
             }
             collections = found.values.sortedByDescending { it.yours }
+            // Started but not finished: some watched, more already out.
+            val today = java.time.LocalDate.now().toString()
+            unfinished = found.values.filter { (watchedIn[it.id] ?: 0) > 0 }.mapNotNull { s ->
+                val c = collection(s.id) ?: return@mapNotNull null
+                val out = c.parts.filter { (it.released ?: "9999") <= today }
+                val seen = out.count { it.item.id in watchedTmdb }
+                if (seen in 1 until out.size) s.copy(note = "$seen of ${out.size} watched") else null
+            }
         }
     }
 
-    suspend fun collection(id: Long): com.zapp.tv.data.TmdbCollection? = runCatching { tmdb.collection(id) }.getOrNull()
+    /** The catalogue, from the copy on the box; looked for again on TMDB once a week. */
+    private fun loadCatalogue() {
+        if (catalogue.isEmpty()) catalogue = parseCatalogue(settings.collectionCatalogue)
+        val stale = System.currentTimeMillis() - settings.collectionCatalogueAt > 7 * 24 * 3_600_000L
+        if ((catalogue.isEmpty() || stale) && catalogueJob?.isActive != true) {
+            catalogueJob = viewModelScope.launch { buildCatalogue() }
+        }
+    }
+
+    private fun parseCatalogue(json: String): List<CollectionSummary> = try {
+        val a = JSONArray(json.ifBlank { "[]" })
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            CollectionSummary(
+                o.getLong("id"), o.getString("name"), o.optString("poster").ifBlank { null }, o.optString("backdrop").ifBlank { null },
+                kind = o.optString("kind", "franchise"), shelf = o.optString("shelf"),
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** Which shelf a franchise goes on, from the genres of its best-known film. */
+    private fun shelfFor(genres: List<Int>, superhero: Boolean): String = when {
+        superhero -> "superheroes"
+        16 in genres || 10751 in genres -> "family"
+        27 in genres -> "horror"
+        878 in genres -> "scifi"
+        14 in genres -> "fantasy"
+        28 in genres || 12 in genres -> "action"
+        80 in genres || 53 in genres || 9648 in genres -> "crime"
+        35 in genres -> "comedy"
+        else -> "more"
+    }
+
+    private suspend fun buildCatalogue() = withContext(Dispatchers.IO) {
+        // The most-watched films on TMDB (and today's popular ones), and the franchises they belong to.
+        val heroes = tmdb.discoverFilms(mapOf("with_keywords" to "9715", "sort_by" to "vote_count.desc"), 3)
+        val heroIds = heroes.map { it.first }.toSet()
+        val films = (tmdb.discoverFilms(mapOf("sort_by" to "vote_count.desc"), 25) +
+            tmdb.discoverFilms(mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "400"), 5) + heroes).distinctBy { it.first }
+        if (films.isEmpty()) return@withContext
+        val gate = kotlinx.coroutines.sync.Semaphore(6)
+        val refs = films.map { f -> async { gate.withPermit { f to runCatching { tmdb.filmCollection(f.first) }.getOrNull() } } }.awaitAll()
+        val franchises = LinkedHashMap<Long, CollectionSummary>()
+        for ((f, ref) in refs) {
+            ref ?: continue
+            val prev = franchises[ref.id]
+            if (prev == null) {
+                franchises[ref.id] = CollectionSummary(ref.id, ref.name, ref.poster, ref.backdrop, shelf = shelfFor(f.second, f.first in heroIds))
+            } else if (f.first in heroIds && prev.shelf != "superheroes") {
+                franchises[ref.id] = prev.copy(shelf = "superheroes")
+            }
+        }
+        // Studios, decades and themes: their best-known film's artwork.
+        val made = curated.map { d ->
+            async {
+                gate.withPermit {
+                    tmdb.discoverCollection(d.id, d.name, d.blurb, d.params)?.let { c ->
+                        CollectionSummary(d.id, d.name, c.poster, c.backdrop?.replace("/original/", "/w780/"), kind = d.kind, shelf = d.kind + "s")
+                    }
+                }
+            }
+        }.awaitAll().filterNotNull()
+        val all = franchises.values.toList() + made
+        if (franchises.size < 10) return@withContext // TMDB was having a bad moment; try again next time
+        val arr = JSONArray()
+        all.forEach { arr.put(JSONObject().put("id", it.id).put("name", it.name).put("poster", it.poster ?: "").put("backdrop", it.backdrop ?: "").put("kind", it.kind).put("shelf", it.shelf)) }
+        settings.collectionCatalogue = arr.toString()
+        settings.collectionCatalogueAt = System.currentTimeMillis()
+        withContext(Dispatchers.Main) { catalogue = all }
+    }
+
+    suspend fun collection(id: Long): com.zapp.tv.data.TmdbCollection? = runCatching {
+        if (id < 0) curated.firstOrNull { it.id == id }?.let { d -> tmdb.discoverCollection(d.id, d.name, d.blurb, d.params) }
+        else tmdb.collection(id)
+    }.getOrNull()
+
+    /** "COLLECTION", "STUDIO", "DECADE" or "THEME", for the showcase and cards. */
+    fun collectionLabel(id: Long): String = when (curated.firstOrNull { it.id == id }?.kind) {
+        "studio" -> "STUDIO"
+        "decade" -> "DECADE"
+        "theme" -> "THEME"
+        else -> "COLLECTION"
+    }
 
     /** IMDb ids for a collection's films (to open them, and to tick the watched ones). */
     suspend fun collectionImdbIds(c: com.zapp.tv.data.TmdbCollection): Map<Long, String> = kotlinx.coroutines.coroutineScope {
@@ -1004,7 +1197,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             .awaitAll().mapNotNull { (k, v) -> v?.let { k to it } }.toMap()
     }
 
-    suspend fun collectionTheme(id: Long): String? = if (settings.themeMusic) runCatching { zapp.themes.collectionTheme(id) }.getOrNull() else null
+    /** Only franchises have theme tunes. */
+    suspend fun collectionTheme(id: Long): String? = if (settings.themeMusic && id > 0) runCatching { zapp.themes.collectionTheme(id) }.getOrNull() else null
 
     /** Episode ratings for one season (TMDB), by episode number. */
     suspend fun episodeRatings(seriesId: String, season: Int): Map<Int, Double> {
@@ -1309,6 +1503,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         catalogs.forEach { available[it.key] = it.title }
         available[LIBRARY_ROW] = "Your library"
         available[COLLECTIONS_ROW] = "Your collections"
+        COLLECTION_SHELVES.drop(1).forEach { (id, title) -> available["collections:$id"] = "Collections: $title" }
         available[SPORTS_ROW] = "Your teams"
 
         val saved = parseLayout(settings.homeRowsJson)
@@ -1320,7 +1515,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         for ((id, title) in available) {
             if (result.none { it.id == id }) {
                 // Collections start switched off on Home (they live in Library); turn them on in Home layout.
-                val row = HomeRowSetting(id, title, id != COLLECTIONS_ROW, landscape = id == CONTINUE_ROW || id == COLLECTIONS_ROW)
+                val shelfRow = id == COLLECTIONS_ROW || id.startsWith("collections:")
+                val row = HomeRowSetting(id, title, !shelfRow, landscape = id == CONTINUE_ROW || shelfRow)
                 // New smart rows go just below Continue watching; everything else at the end.
                 if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW || id == FOR_YOU_ROW || id == LOVED_ROW || id == GEMS_ROW) {
                     result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row)
