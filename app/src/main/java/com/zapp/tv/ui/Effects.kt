@@ -32,6 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -155,6 +158,8 @@ fun DialogBlurBehind() {
 object NavShortcuts {
     var search: () -> Unit = {}
     var settings: () -> Unit = {}
+    /** Down from the buttons: back to the page (on Home, its first row: Continue watching). */
+    var down: () -> Unit = {}
     /** The Search button, so Up from the top row of a page can land on it. */
     val requester = androidx.compose.ui.focus.FocusRequester()
 }
@@ -162,7 +167,18 @@ object NavShortcuts {
 /** Small Search and Settings buttons beside the clock (Up from the top of a page reaches them). */
 @Composable
 fun HeaderShortcuts() {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier.onPreviewKeyEvent { e ->
+            if (e.key == androidx.compose.ui.input.key.Key.DirectionDown) {
+                if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) NavShortcuts.down()
+                true
+            } else {
+                false
+            }
+        },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         listOf(Glyph.Search to { NavShortcuts.search() }, Glyph.Settings to { NavShortcuts.settings() }).forEachIndexed { i, (g, go) ->
             // Just the icon with a soft drop shadow; on focus it brightens and grows a little.
             FocusSurface(

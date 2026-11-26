@@ -394,6 +394,11 @@ class Settings(context: Context) {
         get() = themeVolumeState.intValue
         set(value) { themeVolumeState.intValue = value; prefs.edit().putInt("themeVolume", value).apply() }
 
+    /** New settings you've already looked at (titles, one per line). */
+    var seenSettings: String
+        get() = prefs.getString("seenSettings", "") ?: ""
+        set(value) { prefs.edit().putString("seenSettings", value).apply() }
+
     /** The catalogue of collections found on TMDB (JSON, shared by all profiles), and when it was made. */
     var collectionCatalogue: String
         get() = prefs.getString("collectionCatalogue", "") ?: ""

@@ -179,6 +179,10 @@ fun ZappRoot(vm: AppViewModel) {
 
     NavShortcuts.search = { open(Dest.Search) }
     NavShortcuts.settings = { open(Dest.Settings) }
+    NavShortcuts.down = {
+        if (dest == Dest.Home) StartFocus.fresh = true
+        requestContentFocus(0)
+    }
 
     fun pickProfile(p: com.zapp.tv.data.Profile) {
         if (p.pin != null && p.id != mvm.settings.profileId) pinFor = p else useProfile(p)

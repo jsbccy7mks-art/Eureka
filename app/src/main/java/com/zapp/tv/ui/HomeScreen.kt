@@ -427,20 +427,24 @@ private fun ContinueRow(
     onLongPress: (WatchProgress) -> Unit,
 ) {
     val memory = rememberFocusMemory()
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val rowStart = rememberRowStart()
     Column {
         RowHeader("Continue watching")
         val extra = cardWidth(size, true) + 24.dp
         PivotScrolling(RowInset + extra) {
             LazyRow(
+                state = listState,
                 modifier = Modifier
                     .extendLeft(extra)
                     .fadeLeftOf(extra + RowInset)
+                    .backToStart(rowStart, listState)
                     .restoreFocus(memory),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
             ) {
-                items(items, key = { it.videoId }) { p ->
-                    val requester = remember { FocusRequester() }
+                itemsIndexed(items, key = { _, it -> it.videoId }) { index, p ->
+                    val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
                     if (pendingId == p.videoId) {
                         LaunchedEffect(Unit) {
                             requester.tryRequest()
@@ -453,7 +457,7 @@ private fun ContinueRow(
                         modifier = Modifier
                             .rememberFocus(memory, p.videoId)
                             .focusRequesterSafe(requester),
-                        onFocus = { onFocusItem(p) },
+                        onFocus = { rowStart.index = index; onFocusItem(p) },
                         onClick = { onClick(p) },
                         onLongClick = { onLongPress(p) },
                         width = cardWidth(size, true),
@@ -537,20 +541,24 @@ private fun MetaRow(
 ) {
     val memory = rememberFocusMemory()
     val width = cardWidth(size, landscape)
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val rowStart = rememberRowStart()
     Column {
         RowHeader(title)
         val extra = width + 24.dp
         PivotScrolling(RowInset + extra) {
             LazyRow(
+                state = listState,
                 modifier = Modifier
                     .extendLeft(extra)
                     .fadeLeftOf(extra + RowInset)
+                    .backToStart(rowStart, listState)
                     .restoreFocus(memory),
                 horizontalArrangement = Arrangement.spacedBy(if (size == 0) 10.dp else 12.dp),
                 contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
             ) {
                 itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
-                    val requester = remember { FocusRequester() }
+                    val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
                     if (pendingId == meta.id || (pendingId == "" && index == 0)) {
                         LaunchedEffect(Unit) {
                             requester.tryRequest()
@@ -563,7 +571,7 @@ private fun MetaRow(
                             modifier = Modifier
                                 .rememberFocus(memory, meta.id)
                                 .focusRequesterSafe(requester),
-                            onFocus = { onFocusItem(meta) },
+                            onFocus = { rowStart.index = index; onFocusItem(meta) },
                             onClick = { onOpen(meta) },
                             onLongClick = { onLongPress(meta) },
                             width = width,

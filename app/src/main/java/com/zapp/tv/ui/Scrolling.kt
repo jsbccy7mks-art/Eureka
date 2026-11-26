@@ -27,6 +27,10 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import kotlinx.coroutines.launch
 
 private val TvEasing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
 
@@ -143,3 +147,34 @@ fun Modifier.trapFocus(): Modifier = this
         }
     }
     .focusGroup()
+
+/**
+ * A row that remembers which card you're on; Back from further along it scrolls to the start and
+ * puts you on the first card (the next Back goes on to whatever the page does with Back).
+ */
+class RowStart {
+    var index = 0
+    val first = FocusRequester()
+}
+
+@Composable
+fun rememberRowStart(): RowStart = remember { RowStart() }
+
+@Composable
+fun Modifier.backToStart(row: RowStart, state: androidx.compose.foundation.lazy.LazyListState): Modifier {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return this.onPreviewKeyEvent { e ->
+        if (e.key != androidx.compose.ui.input.key.Key.Back || row.index <= 0) return@onPreviewKeyEvent false
+        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyUp) {
+            row.index = 0
+            scope.launch {
+                state.scrollToItem(0)
+                repeat(6) {
+                    kotlinx.coroutines.delay(30)
+                    if (runCatching { row.first.requestFocus() }.getOrDefault(false)) return@launch
+                }
+            }
+        }
+        true
+    }
+}

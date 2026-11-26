@@ -77,6 +77,7 @@ fun SettingsScreen(
         mutableStateOf(SettingsSection.entries.firstOrNull { it.name == initialSection } ?: SettingsSection.Sources)
     }
     var focusedSection by remember { mutableStateOf<SettingsSection?>(null) }
+    NewSettings.init(vm.settings)
     // The phone page is in one place only (Phone setup); other sections send you there, on the right tab.
     var phoneTab by remember { mutableStateOf<String?>(null) }
     fun openPhone(tab: String) {
@@ -137,17 +138,22 @@ fun SettingsScreen(
                         shape = RoundedCornerShape(10.dp),
                         focusScale = 1.03f,
                     ) { focused ->
-                        Text(
-                            s.label,
-                            color = when {
-                                focused -> ZappColors.OnFocus
-                                s == section -> ZappColors.Text
-                                else -> ZappColors.Dim
-                            },
-                            fontSize = 14.sp,
-                            fontWeight = if (s == section || focused) FontWeight.SemiBold else FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        )
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                s.label,
+                                color = when {
+                                    focused -> ZappColors.OnFocus
+                                    s == section -> ZappColors.Text
+                                    else -> ZappColors.Dim
+                                },
+                                fontSize = 14.sp,
+                                fontWeight = if (s == section || focused) FontWeight.SemiBold else FontWeight.Medium,
+                            )
+                            if (NewSettings.sectionHasNew(s.name)) {
+                                Spacer(Modifier.width(8.dp))
+                                NewDot()
+                            }
+                        }
                     }
                 }
             }
@@ -1258,10 +1264,13 @@ fun SettingRow(
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null,
 ) {
+    val isNew = NewSettings.isNew(title)
     FocusSurface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         focusRequester = focusRequester,
+        // Seen once you move off it (so the dot is there while you read it).
+        onFocusChange = { if (!it && isNew) NewSettings.markSeen(title) },
         shape = RoundedCornerShape(14.dp),
         focusScale = 1.015f,
         restColor = ZappColors.Glass,
@@ -1271,7 +1280,13 @@ fun SettingRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, color = if (focused) ZappColors.OnFocus else ZappColors.Text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    if (isNew) {
+                        Spacer(Modifier.width(8.dp))
+                        NewDot()
+                    }
+                }
                 Spacer(Modifier.height(2.dp))
                 Text(body, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = 12.sp)
             }
@@ -1344,13 +1359,20 @@ fun SettingsGroup(title: String, summary: String, startOpen: Boolean = false, co
         FocusSurface(
             onClick = { open = !open },
             modifier = Modifier.fillMaxWidth(),
+            onFocusChange = { if (!it) NewSettings.markSeen("group:$title") },
             shape = RoundedCornerShape(14.dp),
             focusScale = 1.01f,
             restColor = ZappColors.Glass,
         ) { focused ->
             Row(Modifier.padding(horizontal = 18.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, color = if (focused) ZappColors.OnFocus else ZappColors.Text)
+                        if (NewSettings.groupHasNew(title)) {
+                            Spacer(Modifier.width(8.dp))
+                            NewDot()
+                        }
+                    }
                     Text(summary, fontSize = 12.sp, color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
                 Text(

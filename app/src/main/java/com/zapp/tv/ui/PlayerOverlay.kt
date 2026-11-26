@@ -151,6 +151,8 @@ fun PlayerOverlay(
     LaunchedEffect(idleTick, panel) {
         if (panel == PlayerPanel.Controls && playback.error == null) {
             delay(9_000)
+            // Paused: the controls stay until you play again.
+            while (!playback.player.playWhenReady) delay(500)
             panel = PlayerPanel.None
         }
     }
@@ -441,42 +443,49 @@ private fun ControlsPanel(
         if (playback.timeshiftOn) LiveTimeshiftBar(playback, focusable) else SeekBar(playback, focusable)
         Spacer(Modifier.height(12.dp))
         var caption by remember { mutableStateOf<String?>(null) }
-        Box(Modifier.height(18.dp)) {
+        Box(Modifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.Center) {
             caption?.let {
                 Text(it, fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1, style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1.5f), 6f)))
             }
         }
-        Row(Modifier.focusGroup(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Transport in the middle (always the same buttons, so nothing shifts as you press them);
+        // channel choices on the left; tracks, favourite and info on the right.
+        Box(Modifier.fillMaxWidth().focusGroup()) {
             @Composable
             fun opt(icon: PlayerIcon, label: String, value: String? = null, accent: Boolean = false, requester: FocusRequester? = null, onClick: () -> Unit) {
                 Box(Modifier.onFocusChanged { if (it.hasFocus) caption = listOfNotNull(label, value).joinToString("  ·  ") else if (caption?.startsWith(label) == true) caption = null }) {
                     IconOption(icon, label, value, onClick, requester = requester, accent = accent)
                 }
             }
-            if (playback.error != null) {
-                opt(PlayerIcon.Restart, "Try again", requester = first) { playback.retry() }
-                opt(PlayerIcon.Next, "Next channel", onClick = onNextChannel)
-            } else {
-                opt(if (playing) PlayerIcon.Pause else PlayerIcon.Play, if (playing) "Pause" else "Play", requester = first) { playback.togglePause() }
+            Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                opt(PlayerIcon.Channels, "Channels", onClick = onChannels)
+                onLastChannel?.let { opt(PlayerIcon.LastChannel, "Last channel", onClick = it) }
+                onRestart?.let { opt(PlayerIcon.Restart, "Watch from the start", "Catch-up", onClick = it) }
             }
-            if (playback.timeshiftOn) {
-                opt(PlayerIcon.Back10, "Back 10 seconds") { playback.seekLive(-10_000) }
-                if (playback.behindLive() > 1_000) {
-                    opt(PlayerIcon.Forward10, "Forward 10 seconds") { playback.seekLive(10_000) }
-                    opt(PlayerIcon.Next, "Back to live", accent = true) { playback.goLive() }
+            Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (playback.error != null) {
+                    opt(PlayerIcon.Restart, "Try again", requester = first) { playback.retry() }
+                    opt(PlayerIcon.Next, "Next channel", onClick = onNextChannel)
+                } else {
+                    val live = playback.behindLive() <= 1_000
+                    if (playback.timeshiftOn) opt(PlayerIcon.Back10, "Back 10 seconds") { playback.seekLive(-10_000) }
+                    opt(if (playing) PlayerIcon.Pause else PlayerIcon.Play, if (playing) "Pause" else "Play", requester = first) { playback.togglePause() }
+                    if (playback.timeshiftOn) {
+                        opt(PlayerIcon.Forward10, if (live) "Forward 10 seconds (you're live)" else "Forward 10 seconds") { if (!live) playback.seekLive(10_000) }
+                        opt(PlayerIcon.Next, if (live) "Live" else "Back to live", accent = !live) { if (!live) playback.goLive() }
+                    }
                 }
             }
-            opt(PlayerIcon.Channels, "Channels", onClick = onChannels)
-            onLastChannel?.let { opt(PlayerIcon.LastChannel, "Last channel", onClick = it) }
-            onRestart?.let { opt(PlayerIcon.Restart, "Watch from the start", "Catch-up", onClick = it) }
-            opt(PlayerIcon.Audio, "Audio", audio.firstOrNull { it.selected }?.label ?: if (audio.size > 1) "${audio.size} tracks" else null, onClick = onAudio)
-            opt(PlayerIcon.Subtitles, "Subtitles", when {
-                subtitles.isEmpty() -> "None"
-                playback.subtitlesShowing -> "On"
-                else -> "Off"
-            }, onClick = onSubtitles)
-            opt(if (favorite) PlayerIcon.FavouriteOn else PlayerIcon.Favourite, if (favorite) "Remove from favourites" else "Add to favourites", onClick = onFavorite)
-            opt(PlayerIcon.Info, "Stream info", playback.techParts().joinToString(" · ").ifBlank { null }, onClick = onDetails)
+            Row(Modifier.align(Alignment.CenterEnd), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                opt(PlayerIcon.Audio, "Audio", audio.firstOrNull { it.selected }?.label ?: if (audio.size > 1) "${audio.size} tracks" else null, onClick = onAudio)
+                opt(PlayerIcon.Subtitles, "Subtitles", when {
+                    subtitles.isEmpty() -> "None"
+                    playback.subtitlesShowing -> "On"
+                    else -> "Off"
+                }, onClick = onSubtitles)
+                opt(if (favorite) PlayerIcon.FavouriteOn else PlayerIcon.Favourite, if (favorite) "Remove from favourites" else "Add to favourites", onClick = onFavorite)
+                opt(PlayerIcon.Info, "Stream info", playback.techParts().joinToString(" · ").ifBlank { null }, onClick = onDetails)
+            }
         }
     }
 }

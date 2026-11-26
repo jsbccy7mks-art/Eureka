@@ -475,6 +475,7 @@ fun CatalogRow(
     var requestMore by remember(ref.key) { mutableStateOf(0) }
     val memory = rememberFocusMemory()
     val listState = rememberLazyListState()
+    val rowStart = rememberRowStart()
     val width = cardWidth(size, landscape)
 
     LaunchedEffect(ref.key, requestMore) {
@@ -506,6 +507,7 @@ fun CatalogRow(
                 modifier = Modifier
                     .extendLeft(extra)
                     .fadeLeftOf(extra + RowInset)
+                    .backToStart(rowStart, listState)
                     .restoreFocus(memory),
                 horizontalArrangement = Arrangement.spacedBy(if (size == 0) 10.dp else 12.dp),
                 contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
@@ -524,7 +526,7 @@ fun CatalogRow(
                 // Things you disliked go to the back of the row.
                 val ordered = items.sortedBy { if (mvm.ratingOf(it.id) == com.zapp.tv.data.Rating.Dislike) 1 else 0 }
                 itemsIndexed(if (top10) ordered.take(10) else ordered, key = { _, m -> m.id }) { index, meta ->
-                    val requester = remember { FocusRequester() }
+                    val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
                     // An empty id means "the first card" (first start, nothing remembered yet).
                     if (pendingId == meta.id || (pendingId == "" && index == 0)) {
                         LaunchedEffect(Unit) {
@@ -539,6 +541,7 @@ fun CatalogRow(
                                 .rememberFocus(memory, meta.id)
                                 .focusRequesterSafe(requester),
                             onFocus = {
+                                rowStart.index = index
                                 onFocusItem(meta)
                                 if (!top10 && index >= items.size - 8 && !loading && !exhausted) requestMore++
                             },
