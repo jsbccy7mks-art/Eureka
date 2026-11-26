@@ -53,7 +53,7 @@ class ScreensTest {
         rule.setContent {
             ZappTheme {
                 val scope = rememberCoroutineScope()
-                val playback = remember { Playback(app, scope, vm.settings) { it } }
+                val playback = remember { Playback(app, scope, vm.settings) { "" } }
                 Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
                     AmbientBackground()
                     SettingsScreen(mvm, section, vm, playback, tick.intValue, onForm = {}, onWatchPlaylist = {})
