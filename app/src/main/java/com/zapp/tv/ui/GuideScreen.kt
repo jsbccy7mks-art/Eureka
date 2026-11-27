@@ -49,6 +49,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
@@ -116,12 +117,17 @@ fun GuideScreen(
 
     LaunchedEffect(scope.playlistId, scope.categoryId) { listState.scrollToItem(0) }
 
+    var panelHasFocus by remember { mutableStateOf(false) }
     LaunchedEffect(panelOpen) {
         if (!panelOpen) return@LaunchedEffect
         val i = categories.filter { !it.hidden }.indexOfFirst { it.id == scope.categoryId }
         if (i >= 0) panelState.scrollToItem((i - 3).coerceAtLeast(0))
-        delay(80)
-        panelSelected.tryRequest()
+        // Into the panel, on the category you're in (asked again if the list wasn't ready the first time).
+        repeat(4) {
+            delay(80)
+            if (panelHasFocus) return@LaunchedEffect
+            panelSelected.tryRequest()
+        }
     }
 
     /** Closes the category panel and puts focus back in the guide ([row] -1: where it was). */
@@ -324,6 +330,7 @@ fun GuideScreen(
                             else -> false
                         }
                     }
+                    .onFocusChanged { panelHasFocus = it.hasFocus }
                     // Focus stays in the panel while it's open.
                     .focusProperties { exit = { FocusRequester.Cancel } }
                     .focusGroup(),

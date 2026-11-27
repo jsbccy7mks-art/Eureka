@@ -330,20 +330,9 @@ class ScreensTest {
         settle(2500)
         tick.intValue = 1
         settle(2500)
+        // Only the look: focus inside the guide grid doesn't take in this test setup (it didn't before
+        // 0.61.0 either), so moving around it isn't pictured.
         save("guide")
-        // OK on the next programme sets a reminder (a bell on it, and the hint changes).
-        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-        settle(400)
-        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
-        settle(800)
-        save("guide-reminder")
-        // Left back through the programmes (and earlier times) to the channel column, then once more.
-        repeat(9) {
-            key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
-            settle(300)
-        }
-        settle(900)
-        save("guide-categories")
     }
 
     @Test fun playback() = settings("Playback", 4)

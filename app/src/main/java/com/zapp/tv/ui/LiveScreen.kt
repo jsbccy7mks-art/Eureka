@@ -104,6 +104,7 @@ fun LiveScreen(
     // In the channel list, the categories slide away and the list takes their room (more of the guide).
     var wide by remember { mutableStateOf(vm.lastChannelUrl != null) }
     var categoryFocusWanted by remember { mutableStateOf(false) }
+    var categoriesFocused by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<Pair<Int, ChannelRow>?>(null) }
     var moving by remember { mutableStateOf<String?>(null) }
 
@@ -153,8 +154,12 @@ fun LiveScreen(
         val shown = categories.filter { !it.hidden }
         val i = shown.indexOfFirst { it.id == scope.categoryId }
         if (i >= 0 && categoryState.layoutInfo.visibleItemsInfo.none { it.index == i }) categoryState.scrollToItem((i - 3).coerceAtLeast(0))
-        delay(40)
-        categoryFocus.tryRequest()
+        // Asked again if the column wasn't ready the first time.
+        repeat(4) {
+            delay(40)
+            if (categoriesFocused) return@repeat
+            categoryFocus.tryRequest()
+        }
         categoryFocusWanted = false
     }
 
@@ -236,7 +241,10 @@ fun LiveScreen(
                     Modifier
                         .width(200.dp)
                         .fillMaxHeight()
-                        .onFocusChanged { if (it.hasFocus) wide = false }
+                        .onFocusChanged {
+                            categoriesFocused = it.hasFocus
+                            if (it.hasFocus) wide = false
+                        }
                         .onPreviewKeyEvent { e ->
                             // Right on a category opens it straight away (not after the preview pause).
                             if (e.key != Key.DirectionRight || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
