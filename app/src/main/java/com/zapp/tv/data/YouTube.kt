@@ -1,6 +1,5 @@
 package com.zapp.tv.data
 
-import android.media.MediaCodecList
 import android.os.Build
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -203,8 +202,12 @@ class YouTube(private val http: OkHttpClient) {
 
         val video = adaptive
             .filter { it.optString("mimeType").startsWith("video/") }
-            .filter { it.optInt("height") in 1..maxHeight }
-            .filter { decodes(it.optString("mimeType"), it.optInt("width"), it.optInt("height")) }
+            // Within the 16:9 box of the cap (a 4:3 or 21:9 video is judged by its larger side too).
+            .filter { it.optInt("height") in 1..maxHeight && it.optInt("width") <= maxHeight * 16 / 9 + 8 }
+            // HDR can't be shown behind the page (and some boxes fail on it outright); YouTube always
+            // has an ordinary version too.
+            .filter { !isHdr(it) }
+            .filter { decodes(it.optString("mimeType"), it.optInt("width"), it.optInt("height"), it.optInt("fps")) }
             .sortedWith(
                 compareByDescending<JSONObject> { it.optInt("height") }
                     .thenByDescending { it.optInt("fps") }
@@ -215,7 +218,7 @@ class YouTube(private val http: OkHttpClient) {
             .firstOrNull()
         val hls = sd.optString("hlsManifestUrl").takeIf { it.startsWith("http") }
         return when {
-            video != null && audio != null -> YtSource(video.optString("url"), audio, false, video.optInt("height"), expires)
+            video != null && audio != null -> YtSource(fastest(video.optString("url")), fastest(audio), false, video.optInt("height"), expires)
             hls != null -> YtSource(hls, null, true, maxHeight, expires)
             else -> sd.optJSONArray("formats").objects().filter { it.optString("url").startsWith("http") }
                 .maxByOrNull { it.optInt("height") }
@@ -227,24 +230,77 @@ class YouTube(private val http: OkHttpClient) {
 
     private val decoderCache = ConcurrentHashMap<String, Boolean>()
 
-    private fun decodes(mime: String, width: Int, height: Int): Boolean {
+    private fun isHdr(f: JSONObject): Boolean {
+        val transfer = f.optJSONObject("colorInfo")?.optString("transferCharacteristics").orEmpty()
+        return transfer.contains("SMPTEST2084") || transfer.contains("ARIB_STD_B67") || f.optString("qualityLabel").contains("HDR", true)
+    }
+
+    /**
+     * Whether this TV has a decoder for the stream exactly as it is (codec, profile and level, size
+     * and frame rate), asked the way the player asks. Big videos need a hardware decoder.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun decodes(mime: String, width: Int, height: Int, fps: Int): Boolean {
+        val codecs = Regex("codecs=\"([^\"]+)\"").find(mime)?.groupValues?.get(1)?.trim().orEmpty()
         val type = when {
             mime.contains("avc1") -> "video/avc"
             mime.contains("vp9") || mime.contains("vp09") -> "video/x-vnd.on2.vp9"
             mime.contains("av01") -> "video/av01"
             else -> return false
         }
-        val key = "$type|$width|$height"
-        return decoderCache.getOrPut(key) {
+        return decoderCache.getOrPut("$codecs|$type|$width|$height|$fps") {
             runCatching {
-                MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
-                    if (info.isEncoder || type !in info.supportedTypes) return@any false
+                val format = androidx.media3.common.Format.Builder()
+                    .setSampleMimeType(type)
+                    .setCodecs(codecs.ifBlank { null })
+                    .apply {
+                        if (width > 0 && height > 0) setWidth(width).setHeight(height)
+                        if (fps > 0) setFrameRate(fps.toFloat())
+                    }
+                    .build()
+                androidx.media3.exoplayer.mediacodec.MediaCodecUtil.getDecoderInfos(type, false, false).any { info ->
                     // Software decoders can't keep up with big videos on a TV box.
-                    if (Build.VERSION.SDK_INT >= 29 && !info.isHardwareAccelerated && height > 720) return@any false
-                    val caps = info.getCapabilitiesForType(type).videoCapabilities ?: return@any false
-                    width <= 0 || height <= 0 || caps.isSizeSupported(width, height)
+                    if (height > 720 && !info.hardwareAccelerated) return@any false
+                    info.isFormatSupported(format)
                 }
             }.getOrDefault(type == "video/avc")
+        }
+    }
+
+    /**
+     * YouTube lists other servers holding the same file (the "mn" part of the link). Some are slow
+     * or refuse; try them all at once for a moment and use the first that answers.
+     */
+    private fun fastest(url: String): String {
+        if (!url.contains("googlevideo.com")) return url
+        val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return url
+        val host = uri.host ?: return url
+        val servers = Regex("[?&]mn=([^&]+)").find(url)?.groupValues?.get(1)
+            ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+            ?.split(',')?.map { it.trim() }?.filter { it.isNotBlank() }.orEmpty()
+        val candidates = LinkedHashSet<String>().apply { add(url) }
+        servers.forEachIndexed { i, server ->
+            val alt = host.replaceFirst(Regex("^rr\\d+---"), "rr${i + 1}---").replaceFirst(Regex("sn-[a-z0-9]+-[a-z0-9]+"), server)
+            if (alt != host) add(url.replaceFirst(host, alt))
+        }
+        val probe = client.newBuilder().connectTimeout(2, TimeUnit.SECONDS).readTimeout(2, TimeUnit.SECONDS).build()
+        val found = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        val done = java.util.concurrent.CountDownLatch(1)
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(candidates.size)
+        try {
+            candidates.forEach { c ->
+                pool.submit {
+                    val ok = runCatching {
+                        probe.newCall(Request.Builder().url(c).header("User-Agent", callers[0].userAgent).header("Range", "bytes=0-0").build())
+                            .execute().use { it.isSuccessful }
+                    }.getOrDefault(false)
+                    if (ok && found.compareAndSet(null, c)) done.countDown()
+                }
+            }
+            done.await(2_500, TimeUnit.MILLISECONDS)
+            return found.get() ?: url
+        } finally {
+            pool.shutdownNow()
         }
     }
 

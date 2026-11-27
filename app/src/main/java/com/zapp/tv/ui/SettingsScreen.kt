@@ -1282,8 +1282,9 @@ private fun AppearancePane(vm: AppViewModel) {
             )
             SettingRow(
                 title = "Trailer quality",
-                body = "Best asks YouTube for up to 4K. Choose Auto on slower boxes if trailers stutter.",
-                value = SettingValue.Choice(if (s.trailerBest) "Best" else "Auto"),
+                body = if (TrailerDevice.small) "Best goes up to 1440p on this box (4K needs more memory than it has); Auto stays at 1080p."
+                else "Best goes up to 4K where this TV can play it smoothly; Auto stays at 1080p.",
+                value = SettingValue.Choice(if (!s.trailerBest) "Auto" else if (TrailerDevice.small) "Best (1440p)" else "Best"),
                 onClick = { s.trailerBest = !s.trailerBest },
             )
             SettingRow(

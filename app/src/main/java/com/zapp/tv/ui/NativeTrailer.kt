@@ -60,7 +60,23 @@ import kotlinx.coroutines.delay
 
 private const val YT_UA = "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
 
-fun trailerHeightCap(): Int = if (FocusStyle.trailerBest) 2160 else 1080
+/** What this TV can comfortably show behind the page. */
+object TrailerDevice {
+    /** Bytes of memory the box has (0 if unknown). */
+    @Volatile var totalMemory = 0L
+
+    /**
+     * Boxes with 2 GB or less: a 4K trailer drawn behind the page takes a few hundred MB of decoder
+     * and graphics memory, which makes them stall or fail, so "Best" stops at 1440p there.
+     */
+    val small: Boolean get() = totalMemory in 1 until 2_400L * 1024 * 1024
+}
+
+fun trailerHeightCap(): Int = when {
+    !FocusStyle.trailerBest -> 1080
+    TrailerDevice.small -> 1440
+    else -> 2160
+}
 
 /**
  * A YouTube video played by Zapp's own player: it stays invisible until its first frame is
@@ -90,11 +106,24 @@ fun NativeVideo(
     val ended by rememberUpdatedState(onEnded)
     val player = remember(source) {
         val factory = DefaultMediaSourceFactory(YtChunksFactory(YT_UA))
-        // Start as soon as there's half a second to play (trailers and tunes, not films).
+        // Tunes start almost at once. Pictures wait for enough to play without stopping again:
+        // a little for 1080p, more for 1440p and 4K, whose pieces are much bigger. A memory cap keeps
+        // high-bitrate trailers from crowding out the rest of the app.
+        val startMs = when {
+            audioOnly || source.video == null -> 500
+            source.height > 1080 -> 3_500
+            else -> 1_500
+        }
         val quick = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(4_000, 30_000, 500, 1_500)
+            .setBufferDurationsMs(maxOf(4_000, startMs + 2_000), 30_000, startMs, startMs + 2_000)
+            .setTargetBufferBytes(64 * 1024 * 1024)
+            .setPrioritizeTimeOverSizeThresholds(false)
             .build()
-        ExoPlayer.Builder(context).setMediaSourceFactory(factory).setLoadControl(quick).build().apply {
+        // HLS: start on the best variant straight away, rather than working up from a blurry one.
+        val meter = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(context)
+            .setInitialBitrateEstimate(30_000_000L)
+            .build()
+        ExoPlayer.Builder(context).setMediaSourceFactory(factory).setLoadControl(quick).setBandwidthMeter(meter).build().apply {
             if (audioOnly) {
                 trackSelectionParameters = trackSelectionParameters.buildUpon()
                     .setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_VIDEO, true)

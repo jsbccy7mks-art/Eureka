@@ -17,6 +17,11 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         CrashReporter.install(this, "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})")
+        runCatching {
+            val info = android.app.ActivityManager.MemoryInfo()
+            (getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager).getMemoryInfo(info)
+            com.zapp.tv.ui.TrailerDevice.totalMemory = info.totalMem
+        }
     }
 
     /** The app's shared web client (for small extra fetches, like subtitle files). */
