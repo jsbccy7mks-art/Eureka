@@ -272,7 +272,6 @@ class ScreensTest {
         val vm = AppViewModel(app)
         vm.settings.preview = false
         val tick = androidx.compose.runtime.mutableIntStateOf(0)
-        val guide = androidx.compose.runtime.mutableStateOf(false)
         rule.mainClock.autoAdvance = false
         rule.setContent {
             ZappTheme {
@@ -281,7 +280,7 @@ class ScreensTest {
                 Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
                     AmbientBackground()
                     Box(Modifier.fillMaxSize().padding(top = 56.dp)) {
-                        if (guide.value) GuideScreen(vm, tick.intValue) {} else LiveScreen(vm, playback, tick.intValue) {}
+                        LiveScreen(vm, playback, tick.intValue) {}
                     }
                 }
             }
@@ -310,14 +309,36 @@ class ScreensTest {
         save("live-category-menu")
         key(android.view.KeyEvent.KEYCODE_BACK)
         settle(600)
-        // The guide, and its category panel (Left from the channel column).
-        guide.value = true
-        settle(1500)
-        tick.intValue = 2
+    }
+
+    @Test fun tvGuide() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        val app = RuntimeEnvironment.getApplication() as ZappApp
+        seedLive(app)
+        val vm = AppViewModel(app)
+        vm.settings.preview = false
+        val tick = androidx.compose.runtime.mutableIntStateOf(0)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            ZappTheme {
+                Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
+                    AmbientBackground()
+                    Box(Modifier.fillMaxSize().padding(top = 56.dp)) { GuideScreen(vm, tick.intValue) {} }
+                }
+            }
+        }
+        settle(2500)
+        tick.intValue = 1
         settle(2500)
         save("guide")
+        // OK on the next programme sets a reminder (a bell on it, and the hint changes).
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle(400)
+        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(800)
+        save("guide-reminder")
         // Left back through the programmes (and earlier times) to the channel column, then once more.
-        repeat(14) {
+        repeat(9) {
             key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
             settle(300)
         }
