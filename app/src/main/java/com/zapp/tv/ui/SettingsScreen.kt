@@ -236,6 +236,16 @@ fun SettingsScreen(
 @Composable
 private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
     val intervals = listOf(0, 6, 12, 24)
+    val sort by vm.channelSort.collectAsState()
+    val playlists by vm.playlists.collectAsState()
+    val current = vm.scope.collectAsState().value?.playlistId
+    // Categories and hidden channels are kept per playlist: the one you're watching, unless you pick another.
+    var pid by remember { mutableStateOf(current ?: playlists.firstOrNull()?.playlist?.id) }
+    LaunchedEffect(playlists) {
+        if (pid == null || playlists.none { it.playlist.id == pid }) pid = current ?: playlists.firstOrNull()?.playlist?.id
+    }
+    val cats by remember(pid) { pid?.let { vm.categoryViews(it) } ?: kotlinx.coroutines.flow.flowOf(emptyList<com.zapp.tv.data.CategoryView>()) }.collectAsState(emptyList())
+    val hiddenChannels by remember(pid) { pid?.let { vm.hiddenChannels(it) } ?: kotlinx.coroutines.flow.flowOf(emptyList<com.zapp.tv.data.Channel>()) }.collectAsState(emptyList())
     Column(
         Modifier
             .fillMaxSize()
@@ -257,6 +267,128 @@ private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
                     if (!vm.settings.preview) playback.stop()
                 },
             )
+            SettingRow(
+                title = "Start on the last channel",
+                body = "Opening Axon plays the channel you watched last, full screen.",
+                value = SettingValue.Toggle(vm.settings.startLastChannel),
+                onClick = { vm.settings.startLastChannel = !vm.settings.startLastChannel },
+            )
+        }
+        SettingsGroup("Channel lists", "") {
+            SettingRow(
+                title = "Sort channels",
+                body = "How channels are listed in Live TV and the guide, and the order you zap through. For your own order, hold OK on a channel and choose Move up or down.",
+                value = SettingValue.Choice(
+                    when (sort) {
+                        com.zapp.tv.data.ChannelSort.NAME -> "By name"
+                        com.zapp.tv.data.ChannelSort.OWN -> "Your own order"
+                        else -> "By number"
+                    },
+                ),
+                onClick = { vm.setChannelSort((sort + 1) % 3) },
+            )
+        }
+        val playlistId = pid
+        if (playlistId != null) {
+            val shown = cats.filter { !it.hidden }
+            SettingsGroup(
+                "Categories",
+                "${shown.size} of ${cats.size} shown",
+                collapsible = true,
+                help = "Show or hide categories, and put them in your own order. Hidden ones are left out of All channels, the guide, search and zapping.",
+            ) {
+                if (playlists.size > 1) {
+                    SettingRow(
+                        title = "Playlist",
+                        body = "Categories and hidden channels are kept for each playlist.",
+                        value = SettingValue.Choice(playlists.firstOrNull { it.playlist.id == playlistId }?.playlist?.name ?: ""),
+                        onClick = {
+                            val i = playlists.indexOfFirst { it.playlist.id == playlistId }
+                            pid = playlists[(i + 1).mod(playlists.size)].playlist.id
+                        },
+                    )
+                }
+                if (cats.isEmpty()) {
+                    Text("This playlist has no categories.", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(start = 16.dp, top = 6.dp))
+                } else {
+                    // Long lists are common (some providers have hundreds), so only what's on screen is built.
+                    LazyColumn(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(cats, key = { it.category.id }) { v ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Box(Modifier.weight(1f)) {
+                                    SettingRow(
+                                        title = v.category.name,
+                                        body = if (v.hidden) "Hidden" else "Shown",
+                                        value = SettingValue.Toggle(!v.hidden),
+                                        onClick = { vm.setCategoryHidden(playlistId, v.category.remoteId, v.category.name, !v.hidden, quiet = true) },
+                                    )
+                                }
+                                // Always there (doing nothing at the ends), so focus never drops off a vanished button.
+                                if (!v.hidden) {
+                                    ZButton("Up", { vm.moveCategory(playlistId, v.category.remoteId, -1) })
+                                    ZButton("Down", { vm.moveCategory(playlistId, v.category.remoteId, 1) })
+                                }
+                            }
+                        }
+                    }
+                    Box(Modifier.padding(top = 8.dp, start = 4.dp)) {
+                        ZButton("Back to the playlist's order", { vm.resetCategoryOrder(playlistId) }, style = ButtonStyle.Quiet)
+                    }
+                }
+            }
+            SettingsGroup(
+                "Hidden channels",
+                if (hiddenChannels.isEmpty()) "None" else formatCount(hiddenChannels.size),
+                collapsible = true,
+                help = "Channels you've hidden (hold OK on a channel in Live TV). OK on one shows it again.",
+            ) {
+                // Showing one again takes it off this list, so focus moves to its neighbour.
+                var refocus by remember { mutableStateOf<Long?>(null) }
+                val none = remember { FocusRequester() }
+                if (hiddenChannels.isEmpty()) {
+                    SettingRow(
+                        title = "No hidden channels",
+                        body = "Hold OK on a channel in Live TV and choose Hide channel.",
+                        value = SettingValue.Action,
+                        onClick = {},
+                        focusRequester = none,
+                    )
+                    if (refocus == -1L) {
+                        LaunchedEffect(Unit) {
+                            delay(150)
+                            none.tryRequest()
+                            refocus = null
+                        }
+                    }
+                }
+                hiddenChannels.forEachIndexed { i, ch ->
+                    androidx.compose.runtime.key(ch.id) {
+                        val requester = remember { FocusRequester() }
+                        if (refocus == ch.id) {
+                            LaunchedEffect(Unit) {
+                                delay(150)
+                                requester.tryRequest()
+                                refocus = null
+                            }
+                        }
+                        SettingRow(
+                            title = ch.name,
+                            body = "Hidden. OK to show it again.",
+                            value = SettingValue.Choice("Show"),
+                            onClick = {
+                                refocus = (hiddenChannels.getOrNull(i + 1) ?: hiddenChannels.getOrNull(i - 1))?.id ?: -1L
+                                vm.setChannelHidden(ch, false)
+                            },
+                            focusRequester = requester,
+                        )
+                    }
+                }
+            }
         }
         SettingsGroup("Guide and playlists", "") {
             SettingRow(
@@ -276,7 +408,7 @@ private fun LiveSettingsPane(vm: AppViewModel, playback: Playback) {
             )
             SettingRow(
                 title = "Refresh playlists",
-                body = "Reloads channel lists from your providers. Favourites and history are kept.",
+                body = "Reloads channel lists from your providers. Favourites, history, hidden channels and your order are kept.",
                 value = SettingValue.Action,
                 onClick = { vm.refreshAll() },
             )

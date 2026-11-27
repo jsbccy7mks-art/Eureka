@@ -2,6 +2,18 @@
 
 package com.zapp.tv.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import com.zapp.tv.data.ChannelSort
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +72,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 private data class CategoryKey(val id: Long?)
 
 private val RowHeight = 50.dp
+private val WideRowHeight = 56.dp
 
 @Composable
 fun LiveScreen(
@@ -71,18 +84,55 @@ fun LiveScreen(
     val scope = vm.scope.collectAsState().value ?: return
     val categories by vm.categories.collectAsState()
     val playlists by vm.playlists.collectAsState()
+    val sort by vm.channelSort.collectAsState()
     val rows = vm.channels.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
+    val categoryState = rememberLazyListState()
     val now = rememberNow()
     val timeFormat = rememberTimeFormat()
+    val coroutines = rememberCoroutineScope()
 
     var focusedRow by remember { mutableStateOf<ChannelRow?>(null) }
+    var focusedIndex by remember { mutableIntStateOf(-1) }
     var pendingFocusUrl by remember { mutableStateOf<String?>(null) }
+    // After a move: the place the moved channel lands in (only that row takes focus).
+    var pendingFocusIndex by remember { mutableStateOf<Int?>(null) }
     var focusedCategory by remember { mutableStateOf<CategoryKey?>(null) }
     val categoryFocus = remember { FocusRequester() }
-    val categoryMemory = rememberFocusMemory()
     val channelMemory = rememberFocusMemory()
     var handledTick by remember { mutableIntStateOf(focusTick) }
+    // In the channel list, the categories slide away and the list takes their room (more of the guide).
+    var wide by remember { mutableStateOf(vm.lastChannelUrl != null) }
+    var categoryFocusWanted by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<Pair<Int, ChannelRow>?>(null) }
+    var moving by remember { mutableStateOf<String?>(null) }
+
+    fun showCategories() {
+        moving = null
+        wide = false
+        categoryFocusWanted = true
+    }
+
+    /** Into the channel list: the channel you were on in it, or the first. */
+    fun focusChannels() {
+        val target = (channelMemory.last as? Int)?.let { channelMemory.requester(it) }
+            ?: channelMemory.requester(listState.firstVisibleItemIndex)
+        target?.tryRequest()
+    }
+
+    /** Opens a category: the channel list takes over, from its first channel (or where you were, if it's the same one). */
+    fun openCategory(id: Long?) {
+        val changed = id != scope.categoryId
+        vm.selectCategory(id)
+        coroutines.launch {
+            if (changed) {
+                listState.scrollToItem(0)
+                channelMemory.last = 0
+            }
+            delay(30)
+            focusChannels()
+        }
+    }
 
     // Moving through categories previews them after a short pause, so scrolling past never reloads.
     LaunchedEffect(focusedCategory) {
@@ -91,7 +141,22 @@ fun LiveScreen(
         vm.selectCategory(target.id)
     }
 
-    LaunchedEffect(scope.playlistId, scope.categoryId) { listState.scrollToItem(0) }
+    // A new list starts at its first channel.
+    LaunchedEffect(scope.playlistId, scope.categoryId) {
+        listState.scrollToItem(0)
+        channelMemory.last = 0
+    }
+
+    // Back (or Left) from the channels: the categories come back, on the one you're in.
+    LaunchedEffect(categoryFocusWanted, wide) {
+        if (!categoryFocusWanted || wide) return@LaunchedEffect
+        val shown = categories.filter { !it.hidden }
+        val i = shown.indexOfFirst { it.id == scope.categoryId }
+        if (i >= 0 && categoryState.layoutInfo.visibleItemsInfo.none { it.index == i }) categoryState.scrollToItem((i - 3).coerceAtLeast(0))
+        delay(40)
+        categoryFocus.tryRequest()
+        categoryFocusWanted = false
+    }
 
     // Resting on a channel plays it in the preview window.
     LaunchedEffect(focusedRow?.channel?.streamUrl, vm.settings.preview) {
@@ -114,7 +179,31 @@ fun LiveScreen(
         } else {
             val count = withTimeoutOrNull(4_000) { snapshotFlow { rows.itemCount }.first { it > 0 } }
             val first = if (count != null) rows.peek(0) else null
-            if (first != null) pendingFocusUrl = first.channel.streamUrl else categoryFocus.tryRequest()
+            if (first != null) {
+                pendingFocusUrl = first.channel.streamUrl
+            } else {
+                wide = false
+                delay(40)
+                categoryFocus.tryRequest()
+            }
+        }
+    }
+
+    /** Moves the channel being moved one place, and keeps focus (and the list) with it. */
+    fun move(row: ChannelRow, by: Int) {
+        coroutines.launch {
+            if (!vm.moveChannel(row.channel, by)) return@launch
+            val to = vm.indexInScope(row.channel.streamUrl)
+            if (to < 0) return@launch
+            val visible = listState.layoutInfo.visibleItemsInfo
+            if (visible.isNotEmpty()) {
+                val first = visible.first().index
+                val last = visible.last().index
+                if (to <= first) listState.scrollToItem((to - 1).coerceAtLeast(0))
+                else if (to >= last) listState.scrollToItem((to - (last - first) + 2).coerceAtLeast(0))
+            }
+            pendingFocusIndex = to
+            pendingFocusUrl = row.channel.streamUrl
         }
     }
 
@@ -129,6 +218,7 @@ fun LiveScreen(
 
     val title = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
     val currentPlaylist = playlists.firstOrNull { it.playlist.id == scope.playlistId }
+    val canMove = !scope.favorites && !scope.recent
 
     Row(
         Modifier
@@ -136,64 +226,75 @@ fun LiveScreen(
             .padding(start = 28.dp, end = 32.dp, bottom = 22.dp),
     ) {
         // ------------------------------------------------------------ categories
-        Column(
-            Modifier
-                .width(200.dp)
-                .fillMaxHeight(),
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !wide,
+            enter = androidx.compose.animation.expandHorizontally(tween(220), expandFrom = Alignment.Start) + fadeIn(tween(200, delayMillis = 40)),
+            exit = androidx.compose.animation.shrinkHorizontally(tween(220), shrinkTowards = Alignment.Start) + fadeOut(tween(120)),
         ) {
-            if (playlists.size > 1 && currentPlaylist != null) {
-                FocusSurface(
-                    onClick = { vm.nextPlaylist() },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    restColor = ZappColors.Glass,
-                ) { focused ->
-                    Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Playlist",
-                                fontSize = TextSize.Label,
-                                color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                            )
-                            Text(
-                                currentPlaylist.playlist.name,
-                                fontSize = TextSize.Body,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+            Row {
+                Column(
+                    Modifier
+                        .width(200.dp)
+                        .fillMaxHeight()
+                        .onFocusChanged { if (it.hasFocus) wide = false }
+                        .onPreviewKeyEvent { e ->
+                            // Right on a category opens it straight away (not after the preview pause).
+                            if (e.key != Key.DirectionRight || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            val f = focusedCategory ?: return@onPreviewKeyEvent false
+                            if (f.id == scope.categoryId) return@onPreviewKeyEvent false
+                            openCategory(f.id)
+                            true
+                        },
+                ) {
+                    if (playlists.size > 1 && currentPlaylist != null) {
+                        FocusSurface(
+                            onClick = { vm.nextPlaylist() },
+                            onFocusChange = { if (it) focusedCategory = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            restColor = ZappColors.Glass,
+                        ) { focused ->
+                            Row(
+                                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "Playlist",
+                                        fontSize = TextSize.Label,
+                                        color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                                    )
+                                    Text(
+                                        currentPlaylist.playlist.name,
+                                        fontSize = TextSize.Body,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (focused) ZappColors.OnFocus else ZappColors.Text,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                ChevronGlyph(if (focused) ZappColors.OnFocus else ZappColors.Dim, 12.dp, down = false)
+                            }
                         }
-                        ChevronGlyph(if (focused) ZappColors.OnFocus else ZappColors.Dim, 12.dp, down = false)
+                        Spacer(Modifier.height(10.dp))
                     }
-                }
-                Spacer(Modifier.height(10.dp))
-            }
 
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .restoreFocus(categoryMemory),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-                contentPadding = PaddingValues(vertical = 4.dp),
-            ) {
-                items(categories, key = { it.id ?: -1L }) { category ->
-                    CategoryItemRow(
-                        modifier = Modifier.rememberFocus(categoryMemory, category.id ?: -1L),
-                        item = category,
-                        selected = category.id == scope.categoryId,
-                        focusRequester = if (category.id == scope.categoryId) categoryFocus else null,
-                        onFocus = { focusedCategory = CategoryKey(category.id) },
-                        onClick = { vm.selectCategory(category.id) },
+                    CategoryList(
+                        vm = vm,
+                        categories = categories,
+                        selectedId = scope.categoryId,
+                        playlistId = scope.playlistId,
+                        state = categoryState,
+                        selectedRequester = categoryFocus,
+                        modifier = Modifier.weight(1f),
+                        onFocus = { if (it.id != HIDDEN_CATEGORIES) focusedCategory = CategoryKey(it.id) },
+                        // OK opens the category: the list takes over the screen.
+                        onPick = { item -> openCategory(item.id) },
                     )
                 }
+                Spacer(Modifier.width(18.dp))
             }
         }
-
-        Spacer(Modifier.width(18.dp))
 
         // ------------------------------------------------------------ channels
         Column(
@@ -217,6 +318,10 @@ fun LiveScreen(
                 if (rows.itemCount > 0) {
                     Text(formatCount(rows.itemCount), color = ZappColors.Faint, fontSize = TextSize.Body)
                 }
+                if (wide) {
+                    Spacer(Modifier.weight(1f))
+                    Text("‹ Categories", color = ZappColors.Faint, fontSize = TextSize.Small)
+                }
             }
 
             Box(Modifier.weight(1f)) {
@@ -224,7 +329,38 @@ fun LiveScreen(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .restoreFocus(channelMemory),
+                        .restoreFocus(channelMemory)
+                        .onFocusChanged { if (it.hasFocus) wide = true }
+                        .onPreviewKeyEvent { e ->
+                            val m = moving
+                            if (m != null) {
+                                val row = focusedRow?.takeIf { it.channel.streamUrl == m }
+                                when (e.key) {
+                                    Key.DirectionUp, Key.DirectionDown -> {
+                                        if (e.type == KeyEventType.KeyDown && row != null) move(row, if (e.key == Key.DirectionUp) -1 else 1)
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Back, Key.DirectionLeft, Key.DirectionRight -> {
+                                        if (e.type == KeyEventType.KeyUp) moving = null
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    else -> return@onPreviewKeyEvent false
+                                }
+                            }
+                            when (e.key) {
+                                // Left from the channels brings the categories back.
+                                Key.DirectionLeft -> {
+                                    if (e.type == KeyEventType.KeyDown) showCategories()
+                                    true
+                                }
+                                // So does Back (and Back again goes on to the sidebar, as before).
+                                Key.Back -> {
+                                    if (e.type == KeyEventType.KeyUp) showCategories()
+                                    true
+                                }
+                                else -> false
+                            }
+                        },
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
                 ) {
@@ -234,26 +370,32 @@ fun LiveScreen(
                     items(count = rows.itemCount, key = { it }) { index ->
                         val row = rows[index]
                         val focusRequester = remember { FocusRequester() }
-                        if (row != null && row.channel.streamUrl == pendingFocusUrl) {
+                        val wanted = pendingFocusIndex
+                        if (row != null && row.channel.streamUrl == pendingFocusUrl && (wanted == null || wanted == index)) {
                             LaunchedEffect(Unit) {
                                 focusRequester.tryRequest()
                                 pendingFocusUrl = null
+                                pendingFocusIndex = null
                             }
                         }
                         ChannelItem(
                             modifier = Modifier.rememberFocus(channelMemory, index),
                             row = row,
+                            wide = wide,
+                            moving = row != null && row.channel.streamUrl == moving,
                             playing = row != null && playback.isOn(row.channel),
                             now = now,
+                            timeFormat = timeFormat,
                             focusRequester = focusRequester,
                             onFocus = {
+                                focusedIndex = index
                                 if (row != null) {
                                     focusedRow = row
                                     vm.lastChannelUrl = row.channel.streamUrl
                                 }
                             },
                             onClick = { if (row != null) onWatch(row) },
-                            onLongClick = { if (row != null) vm.toggleFavorite(row.channel) },
+                            onLongClick = { if (row != null) menuFor = index to row },
                         )
                     }
                 }
@@ -261,7 +403,7 @@ fun LiveScreen(
                 if (rows.itemCount == 0 && rows.loadState.refresh is LoadState.NotLoading) {
                     Text(
                         text = when (scope.categoryId) {
-                            FAVORITES -> "No favourites yet. Hold OK on any channel to add it."
+                            FAVORITES -> "No favourites yet. Hold OK on any channel and choose Add to favourites."
                             RECENT -> "Channels you watch will appear here."
                             else -> "No channels here."
                         },
@@ -291,71 +433,31 @@ fun LiveScreen(
         )
     }
     }
-}
 
-@Composable
-private fun CategoryItemRow(
-    modifier: Modifier,
-    item: CategoryItem,
-    selected: Boolean,
-    focusRequester: FocusRequester?,
-    onFocus: () -> Unit,
-    onClick: () -> Unit,
-) {
-    FocusSurface(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        selected = false,
-        focusRequester = focusRequester,
-        onFocusChange = { if (it) onFocus() },
-        shape = RoundedCornerShape(9.dp),
-        focusScale = 1.03f,
-    ) { focused ->
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // The open category: a short bar in the theme's colours, like the sidebar.
-            if (selected && !focused) {
-                Box(
-                    Modifier
-                        .width(3.dp)
-                        .height(14.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Brush.verticalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
-                )
-                Spacer(Modifier.width(9.dp))
-            }
-            if (item.id == FAVORITES) {
-                StarGlyph(if (focused) ZappColors.OnFocus else ZappColors.Star, 11.dp)
-                Spacer(Modifier.width(8.dp))
-            }
-            if (item.id == RECENT) {
-                ClockGlyph(if (focused) ZappColors.OnFocus else ZappColors.Dim, 11.dp)
-                Spacer(Modifier.width(8.dp))
-            }
-            Text(
-                text = item.name,
-                color = when {
-                    focused -> ZappColors.OnFocus
-                    selected -> ZappColors.Text
-                    else -> ZappColors.Dim
-                },
-                fontSize = TextSize.Body,
-                fontWeight = if (selected || focused) FontWeight.SemiBold else FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (item.count >= 0) {
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = formatCount(item.count),
-                    color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                    fontSize = TextSize.Small,
-                )
-            }
-        }
+    menuFor?.let { (index, row) ->
+        ChannelMenu(
+            vm = vm,
+            row = row,
+            onMove = if (canMove && sort != ChannelSort.NAME) ({
+                vm.useOwnOrder()
+                moving = row.channel.streamUrl
+            }) else null,
+            moveHint = when {
+                !canMove -> null
+                sort == ChannelSort.NAME -> "Channels are sorted by name. To move them, choose Your own order in Settings, Live TV, Sort channels."
+                else -> null
+            },
+            onHidden = {
+                // The last row leaves the list: focus goes to the one above.
+                if (index == rows.itemCount - 1 && index > 0) {
+                    coroutines.launch {
+                        delay(300)
+                        channelMemory.requester(index - 1)?.tryRequest()
+                    }
+                }
+            },
+            onClose = { menuFor = null },
+        )
     }
 }
 
@@ -363,8 +465,11 @@ private fun CategoryItemRow(
 private fun ChannelItem(
     modifier: Modifier,
     row: ChannelRow?,
+    wide: Boolean,
+    moving: Boolean,
     playing: Boolean,
     now: Long,
+    timeFormat: java.text.DateFormat,
     focusRequester: FocusRequester,
     onFocus: () -> Unit,
     onClick: () -> Unit,
@@ -375,11 +480,12 @@ private fun ChannelItem(
         onLongClick = onLongClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(RowHeight),
+            .height(if (wide) WideRowHeight else RowHeight),
         focusRequester = focusRequester,
         onFocusChange = { if (it) onFocus() },
         shape = RoundedCornerShape(11.dp),
-        focusScale = 1.025f,
+        focusScale = if (wide) 1.015f else 1.025f,
+        restColor = if (moving) ZappColors.GlassHigh else Color.Transparent,
     ) { focused ->
         if (row == null) return@FocusSurface
         Row(
@@ -388,39 +494,27 @@ private fun ChannelItem(
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = row.channel.number.toString(),
-                color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                fontSize = TextSize.Small,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                modifier = Modifier.width(34.dp),
-            )
+            if (moving) {
+                Text("↕", color = if (focused) ZappColors.OnFocus else ZappColors.Brand2, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(34.dp))
+            } else {
+                Text(
+                    text = row.channel.number.toString(),
+                    color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                    fontSize = TextSize.Small,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    modifier = Modifier.width(34.dp),
+                )
+            }
             LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 34.dp, onLight = focused)
             Spacer(Modifier.width(11.dp))
+            if (wide) {
+                WideChannelText(row, focused, moving, playing, now, timeFormat)
+                return@Row
+            }
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = row.channel.name,
-                        color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                        fontSize = TextSize.Body,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    qualityBadge(row.channel.name)?.let { q ->
-                        Spacer(Modifier.width(6.dp))
-                        QualityPill(q, focused)
-                    }
-                    if (row.isFavorite) {
-                        Spacer(Modifier.width(6.dp))
-                        StarGlyph(ZappColors.Star, 10.dp)
-                    }
-                    if (playing) {
-                        Spacer(Modifier.width(7.dp))
-                        LiveDot()
-                    }
+                    ChannelName(row, focused, playing, Modifier.weight(1f, fill = false))
                 }
                 val nowTitle = row.nowTitle
                 if (nowTitle != null) {
@@ -440,6 +534,100 @@ private fun ChannelItem(
                         fill = if (focused) ZappColors.OnFocus else ZappColors.Signal,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** The channel's name, with its picture quality, a star for favourites and a dot when it's playing. */
+@Composable
+private fun ChannelName(row: ChannelRow, focused: Boolean, playing: Boolean, modifier: Modifier) {
+    Text(
+        text = row.channel.name,
+        color = if (focused) ZappColors.OnFocus else ZappColors.Text,
+        fontSize = TextSize.Body,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+    qualityBadge(row.channel.name)?.let { q ->
+        Spacer(Modifier.width(6.dp))
+        QualityPill(q, focused)
+    }
+    if (row.isFavorite) {
+        Spacer(Modifier.width(6.dp))
+        StarGlyph(ZappColors.Star, 10.dp)
+    }
+    if (playing) {
+        Spacer(Modifier.width(7.dp))
+        LiveDot()
+    }
+}
+
+/**
+ * The wide list (categories put away): the name on its own, then what's on now with how far in it
+ * is and how long is left, and what's next with its start time.
+ */
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.WideChannelText(
+    row: ChannelRow,
+    focused: Boolean,
+    moving: Boolean,
+    playing: Boolean,
+    now: Long,
+    timeFormat: java.text.DateFormat,
+) {
+    Row(Modifier.width(158.dp), verticalAlignment = Alignment.CenterVertically) {
+        ChannelName(row, focused, playing, Modifier.weight(1f, fill = false))
+    }
+    Spacer(Modifier.width(14.dp))
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+        val nowTitle = row.nowTitle
+        if (moving) {
+            Text("Up and Down to move, OK to put it here", color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Small, maxLines = 1)
+            return@Column
+        }
+        if (nowTitle == null) {
+            Text("No guide information", color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+            return@Column
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = nowTitle,
+                color = if (focused) ZappColors.OnFocus else ZappColors.Text,
+                fontSize = TextSize.Small,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            row.nowStop?.let { stop ->
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${((stop - now) / 60_000).coerceAtLeast(1)} min left",
+                    color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                    fontSize = TextSize.Label,
+                    maxLines = 1,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        ProgressLine(
+            fraction = progressOf(row.nowStart, row.nowStop, now),
+            modifier = Modifier.fillMaxWidth(),
+            track = if (focused) Color(0xFFD5DBE8) else ZappColors.Line,
+            fill = if (focused) ZappColors.OnFocus else ZappColors.Signal,
+            thickness = 2.dp,
+        )
+        val next = row.nextTitle
+        val nextStart = row.nextStart
+        if (next != null && nextStart != null) {
+            Spacer(Modifier.height(4.dp))
+            Row {
+                Text(timeFormat.format(nextStart), color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Label, fontWeight = FontWeight.Medium, maxLines = 1)
+                Spacer(Modifier.width(6.dp))
+                Text(next, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -563,7 +751,7 @@ private fun PreviewPane(
         }
 
         Spacer(Modifier.weight(1f))
-        Text("OK to watch  ·  Hold OK to favourite", color = ZappColors.Faint, fontSize = TextSize.Small)
+        Text("OK to watch  ·  Hold OK for options", color = ZappColors.Faint, fontSize = TextSize.Small)
     }
 }
 

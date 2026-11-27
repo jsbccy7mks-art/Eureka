@@ -186,6 +186,20 @@ data class Favorite(
     val addedAt: Long,
 )
 
+/**
+ * Your own Live TV choices for a playlist, kept when it refreshes: a hidden or moved category
+ * ([kind] "cat", [ref] the provider's category id or group name) or channel ("ch", its stream link).
+ */
+@Entity(tableName = "live_prefs", primaryKeys = ["playlistId", "kind", "ref"])
+data class LivePref(
+    val playlistId: Long,
+    val kind: String,
+    val ref: String,
+    val hidden: Boolean = false,
+    /** Place in your own order (lower comes first); null keeps the provider's place. */
+    val position: Double? = null,
+)
+
 /** Channels you've watched, newest first. Keyed by stream link like favourites. */
 @Entity(
     tableName = "recent_channels",

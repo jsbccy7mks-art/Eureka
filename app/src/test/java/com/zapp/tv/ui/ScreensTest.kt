@@ -186,6 +186,117 @@ class ScreensTest {
         save("app-opening")
     }
 
+    /** Lets the database (real threads) and the main looper catch up, moving the clock as it goes. */
+    private fun settle(ms: Long) {
+        var left = ms
+        while (left > 0) {
+            Thread.sleep(40)
+            org.robolectric.shadows.ShadowLooper.idleMainLooper()
+            rule.mainClock.advanceTimeBy(100)
+            left -= 100
+        }
+    }
+
+    private fun longPress(code: Int) {
+        rule.runOnUiThread {
+            val t = android.os.SystemClock.uptimeMillis()
+            rule.activity.dispatchKeyEvent(android.view.KeyEvent(t, t, android.view.KeyEvent.ACTION_DOWN, code, 0))
+            rule.activity.dispatchKeyEvent(android.view.KeyEvent(t, t + 500, android.view.KeyEvent.ACTION_DOWN, code, 1))
+            rule.activity.dispatchKeyEvent(android.view.KeyEvent(t, t + 600, android.view.KeyEvent.ACTION_UP, code, 0))
+        }
+        rule.mainClock.advanceTimeBy(300)
+    }
+
+    /** A made-up playlist with categories, channels and a guide, straight into the app's database. */
+    private fun seedLive(app: ZappApp) = kotlinx.coroutines.runBlocking {
+        val f = ZappApp::class.java.getDeclaredField("database\$delegate").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        val db = (f.get(app) as Lazy<com.zapp.tv.data.AppDatabase>).value
+        val now = System.currentTimeMillis()
+        val pid = db.playlistDao().insert(com.zapp.tv.data.Playlist(name = "Home", type = com.zapp.tv.data.TYPE_M3U, url = "", lastUpdated = now, epgUpdated = now))
+        val groups = listOf("Entertainment", "Sport", "News", "Kids", "Films", "Documentaries", "Music", "Adult", "Radio")
+        val ids = db.categoryDao().insertAll(groups.mapIndexed { i, g -> com.zapp.tv.data.Category(playlistId = pid, remoteId = g, name = g, sortOrder = i) })
+        val names = listOf(
+            "One HD", "Two HD", "Three", "Four FHD", "Five", "Sport Live 1 UHD", "Sport Live 2 FHD", "Sport Extra", "News 24 HD",
+            "World News", "Cartoon Time", "Tiny Tots", "Film Classics HD", "Action Films FHD", "Nature HD", "History", "Hits", "Chill",
+        )
+        val shows = listOf("The Morning Show", "Premier Football: Live", "Evening News", "Bake Off", "Nature's Edge", "Quiz Night", "Late Film: The Long Road", "Weather")
+        val channels = names.mapIndexed { i, n ->
+            com.zapp.tv.data.Channel(playlistId = pid, categoryId = ids[(i / 2).coerceAtMost(ids.size - 1)], number = i + 1, name = n, logo = null, streamUrl = "http://example.invalid/$i", epgId = "ch$i")
+        }
+        db.channelDao().insertAll(channels)
+        val slot = 30 * 60_000L
+        val start = now - now % slot - slot
+        val programmes = channels.flatMapIndexed { i, c ->
+            (0 until 10).map { k ->
+                val s = start + k * slot + (i % 3) * 10 * 60_000L - 20 * 60_000L
+                com.zapp.tv.data.StagedProgramme(playlistId = pid, channelEpgId = c.epgId!!, start = s, stop = s + slot, title = shows[(i + k) % shows.size], description = "Something good to watch.", icon = null)
+            }
+        }
+        db.programmeDao().insertStagingBlocking(programmes)
+        db.programmeDao().promoteStaging(pid)
+        pid
+    }
+
+    @Test fun liveTv() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        val app = RuntimeEnvironment.getApplication() as ZappApp
+        seedLive(app)
+        val vm = AppViewModel(app)
+        vm.settings.preview = false
+        val tick = androidx.compose.runtime.mutableIntStateOf(0)
+        val guide = androidx.compose.runtime.mutableStateOf(false)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            ZappTheme {
+                val scope = rememberCoroutineScope()
+                val playback = remember { Playback(app, scope, vm.settings) { "" } }
+                Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
+                    AmbientBackground()
+                    Box(Modifier.fillMaxSize().padding(top = 56.dp)) {
+                        if (guide.value) GuideScreen(vm, tick.intValue) {} else LiveScreen(vm, playback, tick.intValue) {}
+                    }
+                }
+            }
+        }
+        settle(2500)
+        tick.intValue = 1
+        settle(2000)
+        // Focus lands on the first channel: the categories slide away, the list is wide.
+        repeat(2) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
+        settle(1200)
+        save("live-wide")
+        // Hold OK: the channel menu.
+        longPress(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(800)
+        save("live-channel-menu")
+        key(android.view.KeyEvent.KEYCODE_BACK)
+        settle(600)
+        // Left: the categories come back.
+        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        settle(1200)
+        save("live-categories")
+        repeat(2) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
+        settle(600)
+        longPress(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(800)
+        save("live-category-menu")
+        key(android.view.KeyEvent.KEYCODE_BACK)
+        settle(600)
+        // The guide, and its category panel (Left from the channel column).
+        guide.value = true
+        tick.intValue = 2
+        settle(2500)
+        save("guide")
+        // Left back through the programmes (and earlier times) to the channel column, then once more.
+        repeat(14) {
+            key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+            settle(300)
+        }
+        settle(900)
+        save("guide-categories")
+    }
+
     @Test fun playback() = settings("Playback", 4)
     @Test fun appearance() = settings("Appearance", 2)
     @Test fun accounts() = settings("Accounts", 1)

@@ -7,6 +7,7 @@ import androidx.paging.PagingSource
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -19,8 +20,21 @@ import java.util.zip.GZIPInputStream
 const val FAVORITES = -2L
 const val RECENT = -3L
 
+private const val KIND_CATEGORY = "cat"
+private const val KIND_CHANNEL = "ch"
+
 /** What a channel list shows: one playlist, and all channels, a category, favourites or recently watched. */
 data class GuideInfo(val hasSource: Boolean, val programmes: Int, val updated: Long)
+
+/** How channel lists are ordered (Settings, Live TV). */
+object ChannelSort {
+    const val NUMBER = 0
+    const val NAME = 1
+    const val OWN = 2
+}
+
+/** A category with whether you've hidden it, in your order. */
+data class CategoryView(val category: Category, val hidden: Boolean)
 
 data class Scope(val playlistId: Long, val categoryId: Long?) {
     val favorites: Boolean get() = categoryId == FAVORITES
@@ -49,6 +63,14 @@ class PlaylistRepository(
 
     fun categories(playlistId: Long): Flow<List<Category>> = db.categoryDao().observeForPlaylist(playlistId)
 
+    /** A playlist's categories in your order, each marked if you've hidden it. */
+    fun categoryViews(playlistId: Long): Flow<List<CategoryView>> =
+        combine(categories(playlistId), db.livePrefDao().observe(playlistId, KIND_CATEGORY)) { cats, prefs ->
+            val byRef = prefs.associateBy { it.ref }
+            cats.sortedWith(compareBy<Category>({ byRef[it.remoteId]?.position ?: it.sortOrder.toDouble() }, { it.sortOrder }))
+                .map { CategoryView(it, byRef[it.remoteId]?.hidden == true) }
+        }
+
     fun categoryCounts(playlistId: Long): Flow<List<CategoryCount>> =
         db.channelDao().observeCategoryCounts(playlistId)
 
@@ -58,7 +80,7 @@ class PlaylistRepository(
 
     // ------------------------------------------------------------------ channel lists
 
-    fun channels(scope: Scope): Flow<PagingData<ChannelRow>> =
+    fun channels(scope: Scope, sort: Int = ChannelSort.NUMBER): Flow<PagingData<ChannelRow>> =
         Pager(
             PagingConfig(
                 pageSize = 50,
@@ -73,7 +95,7 @@ class PlaylistRepository(
             val source = when {
                 scope.favorites -> dao.pagedFavoriteRows(scope.playlistId, now)
                 scope.recent -> dao.pagedRecentRows(scope.playlistId, now)
-                else -> dao.pagedRows(scope.playlistId, scope.categoryId, now)
+                else -> dao.pagedRows(scope.playlistId, scope.categoryId, now, sort)
             }
             activeSource = source
             source
@@ -84,38 +106,124 @@ class PlaylistRepository(
         activeSource?.invalidate()
     }
 
-    suspend fun neighbor(scope: Scope, current: Channel, forward: Boolean): Channel? {
+    suspend fun neighbor(scope: Scope, current: Channel, forward: Boolean, sort: Int = ChannelSort.NUMBER): Channel? {
+        val dao = db.channelDao()
+        val step = if (forward) 1 else -1
         if (scope.favorites || scope.recent) {
-            val list =
-                if (scope.favorites) db.channelDao().favoriteChannels(scope.playlistId)
-                else db.channelDao().recentChannels(scope.playlistId)
+            val list = if (scope.favorites) dao.favoriteChannels(scope.playlistId) else dao.recentChannels(scope.playlistId)
             if (list.isEmpty()) return null
             val i = list.indexOfFirst { it.streamUrl == current.streamUrl }
             if (i < 0) return list.first()
-            val step = if (forward) 1 else -1
             return list[(i + step + list.size) % list.size]
         }
-        val dao = db.channelDao()
-        val pid = scope.playlistId
-        val cat = scope.categoryId
-        return if (forward) {
-            dao.next(pid, cat, current.number) ?: dao.first(pid, cat)
-        } else {
-            dao.previous(pid, cat, current.number) ?: dao.last(pid, cat)
-        }
+        // In the order the list shows, without hidden channels; a hidden channel you're on moves to the first.
+        val order = orderOf(scope, sort)
+        if (order.isEmpty()) return null
+        val i = order.indexOfFirst { it.streamUrl == current.streamUrl }
+        val next = if (i < 0) order.first() else order[(i + step + order.size) % order.size]
+        return dao.get(next.id)
+    }
+
+    // The order of the list being zapped through, kept for a moment (the mini guide asks several times running).
+    @Volatile private var orderCache: Triple<Pair<Scope, Int>, Long, List<ChannelOrder>>? = null
+
+    private suspend fun orderOf(scope: Scope, sort: Int): List<ChannelOrder> {
+        val now = System.currentTimeMillis()
+        orderCache?.let { (key, at, list) -> if (key == (scope to sort) && now - at < 3_000) return list }
+        return db.channelDao().order(scope.playlistId, scope.categoryId, sort).also { orderCache = Triple(scope to sort, now, it) }
     }
 
     /** Position of a channel inside a list, or -1. */
-    suspend fun indexInScope(scope: Scope, streamUrl: String): Int {
-        if (scope.favorites) {
-            return db.channelDao().favoriteChannels(scope.playlistId).indexOfFirst { it.streamUrl == streamUrl }
-        }
-        if (scope.recent) {
-            return db.channelDao().recentChannels(scope.playlistId).indexOfFirst { it.streamUrl == streamUrl }
-        }
-        val channel = db.channelDao().findInScope(scope.playlistId, scope.categoryId, streamUrl) ?: return -1
-        return db.channelDao().indexOf(scope.playlistId, scope.categoryId, channel.number)
+    suspend fun indexInScope(scope: Scope, streamUrl: String, sort: Int = ChannelSort.NUMBER): Int {
+        val dao = db.channelDao()
+        if (scope.favorites) return dao.favoriteChannels(scope.playlistId).indexOfFirst { it.streamUrl == streamUrl }
+        if (scope.recent) return dao.recentChannels(scope.playlistId).indexOfFirst { it.streamUrl == streamUrl }
+        return dao.order(scope.playlistId, scope.categoryId, sort).indexOfFirst { it.streamUrl == streamUrl }
     }
+
+    // ------------------------------------------------------------------ your own order and hidden things
+
+    /** Hides a category (or shows it again) everywhere in Live TV. */
+    suspend fun setCategoryHidden(playlistId: Long, remoteId: String, hidden: Boolean) {
+        orderCache = null
+        val dao = db.livePrefDao()
+        val old = dao.get(playlistId, KIND_CATEGORY, remoteId)
+        dao.put(listOf((old ?: LivePref(playlistId, KIND_CATEGORY, remoteId)).copy(hidden = hidden)))
+    }
+
+    /**
+     * Moves a category up ([by] -1) or down (+1) among the shown ones, by swapping places with its
+     * neighbour. Returns false at either end.
+     */
+    suspend fun moveCategory(playlistId: Long, remoteId: String, by: Int): Boolean {
+        val dao = db.livePrefDao()
+        val prefs = dao.all(playlistId, KIND_CATEGORY).associateBy { it.ref }
+        val cats = db.categoryDao().forPlaylist(playlistId)
+        fun place(c: Category) = prefs[c.remoteId]?.position ?: c.sortOrder.toDouble()
+        val shown = cats.filter { prefs[it.remoteId]?.hidden != true }.sortedWith(compareBy<Category>({ place(it) }, { it.sortOrder }))
+        val i = shown.indexOfFirst { it.remoteId == remoteId }
+        val j = i + by
+        if (i < 0 || j !in shown.indices) return false
+        val a = shown[i]
+        val b = shown[j]
+        val (pa, pb) = swapped(place(a), place(b), by)
+        dao.put(
+            listOf(
+                (prefs[a.remoteId] ?: LivePref(playlistId, KIND_CATEGORY, a.remoteId)).copy(position = pa),
+                (prefs[b.remoteId] ?: LivePref(playlistId, KIND_CATEGORY, b.remoteId)).copy(position = pb),
+            ),
+        )
+        return true
+    }
+
+    /** Puts every category back in the provider's order (hidden ones stay hidden). */
+    suspend fun resetCategoryOrder(playlistId: Long) {
+        val dao = db.livePrefDao()
+        val kept = dao.all(playlistId, KIND_CATEGORY).filter { it.hidden }.map { it.copy(position = null) }
+        dao.clear(playlistId, KIND_CATEGORY)
+        if (kept.isNotEmpty()) dao.put(kept)
+    }
+
+    /** Hides a channel (or shows it again): it's left out of every list, the guide, search and zapping. */
+    suspend fun setChannelHidden(channel: Channel, hidden: Boolean) {
+        orderCache = null
+        val dao = db.livePrefDao()
+        val old = dao.get(channel.playlistId, KIND_CHANNEL, channel.streamUrl)
+        dao.put(listOf((old ?: LivePref(channel.playlistId, KIND_CHANNEL, channel.streamUrl)).copy(hidden = hidden)))
+    }
+
+    fun hiddenChannels(playlistId: Long): Flow<List<Channel>> = db.channelDao().observeHidden(playlistId)
+
+    /** The channel you watched last in a playlist (for "Start on the last channel"). */
+    suspend fun lastWatched(playlistId: Long): Channel? = db.channelDao().recentChannels(playlistId).firstOrNull()
+
+    /** Finds a channel again after a refresh gave it a new id: same playlist, same name. */
+    suspend fun channelNamed(playlistId: Long, name: String): Channel? = db.channelDao().named(playlistId, name)
+
+    /** Moves a channel up or down one place in your own order, within the list it's in. */
+    suspend fun moveChannel(scope: Scope, channel: Channel, by: Int): Boolean {
+        if (scope.favorites || scope.recent) return false
+        orderCache = null
+        val order = db.channelDao().order(scope.playlistId, scope.categoryId, ChannelSort.OWN)
+        val i = order.indexOfFirst { it.streamUrl == channel.streamUrl }
+        val j = i + by
+        if (i < 0 || j !in order.indices) return false
+        val a = order[i]
+        val b = order[j]
+        val (pa, pb) = swapped(a.position ?: a.number.toDouble(), b.position ?: b.number.toDouble(), by)
+        val dao = db.livePrefDao()
+        dao.put(
+            listOf(
+                (dao.get(scope.playlistId, KIND_CHANNEL, a.streamUrl) ?: LivePref(scope.playlistId, KIND_CHANNEL, a.streamUrl)).copy(position = pa),
+                (dao.get(scope.playlistId, KIND_CHANNEL, b.streamUrl) ?: LivePref(scope.playlistId, KIND_CHANNEL, b.streamUrl)).copy(position = pb),
+            ),
+        )
+        return true
+    }
+
+    /** New places for two neighbours swapping (the moving one first), never ending up equal. */
+    private fun swapped(moving: Double, other: Double, by: Int): Pair<Double, Double> =
+        if (moving != other) other to moving else (if (by < 0) other - 0.001 else other + 0.001) to other
 
     // ------------------------------------------------------------------ guide lookups
 
@@ -144,12 +252,12 @@ class PlaylistRepository(
     }
 
     /** Guide channels: everything in the list, or only channels with a programme on now. */
-    fun guideChannels(scope: Scope, liveOnly: Boolean): Flow<PagingData<ChannelRow>> {
-        if (!liveOnly || scope.favorites || scope.recent) return channels(scope)
+    fun guideChannels(scope: Scope, liveOnly: Boolean, sort: Int = ChannelSort.NUMBER): Flow<PagingData<ChannelRow>> {
+        if (!liveOnly || scope.favorites || scope.recent) return channels(scope, sort)
         return Pager(
             PagingConfig(pageSize = 50, prefetchDistance = 50, initialLoadSize = 100, enablePlaceholders = true, jumpThreshold = 150),
         ) {
-            db.channelDao().pagedOnNowRows(scope.playlistId, scope.categoryId, System.currentTimeMillis())
+            db.channelDao().pagedOnNowRows(scope.playlistId, scope.categoryId, System.currentTimeMillis(), sort)
         }.flow
     }
 
@@ -385,6 +493,7 @@ class PlaylistRepository(
                 db.programmeDao().clearStaging(playlistId)
                 db.favoriteDao().deleteForPlaylist(playlistId)
                 db.recentDao().deleteForPlaylist(playlistId)
+                db.livePrefDao().deleteForPlaylist(playlistId)
                 db.playlistDao().delete(playlistId) // categories and channels cascade
             }
         }

@@ -47,6 +47,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
@@ -56,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
-import androidx.paging.compose.itemKey
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.GuideInfo
 import com.zapp.tv.data.Programme
@@ -102,8 +105,33 @@ fun GuideScreen(
     var pending by remember { mutableStateOf<GuideFocus?>(null) }
     var selection by remember { mutableStateOf<GuideSelection?>(null) }
     var handledTick by remember { mutableIntStateOf(focusTick) }
+    // Left from the channel column: the categories slide in over the guide.
+    var panelOpen by remember { mutableStateOf(false) }
+    var panelReturn by remember { mutableIntStateOf(-1) }
+    val panelState = rememberLazyListState()
+    val panelSelected = remember { FocusRequester() }
+    val channelCells = rememberFocusMemory()
+    var menuFor by remember { mutableStateOf<ChannelRow?>(null) }
+    val coroutines = androidx.compose.runtime.rememberCoroutineScope()
 
     LaunchedEffect(scope.playlistId, scope.categoryId) { listState.scrollToItem(0) }
+
+    LaunchedEffect(panelOpen) {
+        if (!panelOpen) return@LaunchedEffect
+        val i = categories.filter { !it.hidden }.indexOfFirst { it.id == scope.categoryId }
+        if (i >= 0) panelState.scrollToItem((i - 3).coerceAtLeast(0))
+        delay(80)
+        panelSelected.tryRequest()
+    }
+
+    /** Closes the category panel and puts focus back in the guide ([row] -1: where it was). */
+    fun closePanel(row: Int = panelReturn) {
+        panelOpen = false
+        coroutines.launch {
+            delay(60)
+            (channelCells.requester(row) ?: channelCells.requester(listState.firstVisibleItemIndex))?.tryRequest()
+        }
+    }
 
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
@@ -136,7 +164,15 @@ fun GuideScreen(
         val dpPerMs = gridWidth.value / WINDOW
 
         Column(Modifier.fillMaxSize()) {
-            InfoPanel(selection, categoryName, now, timeFormat)
+            val sel = selection
+            val selP = sel?.programme
+            val okLabel = when {
+                sel == null || selP == null -> "Watch"
+                vm.canCatchUp(sel.row.channel, selP.start, selP.stop) -> "Replay"
+                selP.start > now -> if (vm.hasReminder(sel.row.channel, selP)) "Cancel reminder" else "Remind me"
+                else -> "Watch"
+            }
+            InfoPanel(selection, categoryName, now, timeFormat, okLabel)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Segmented(
@@ -185,7 +221,9 @@ fun GuideScreen(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     contentPadding = PaddingValues(vertical = 2.dp),
                 ) {
-                    items(count = rows.itemCount, key = rows.itemKey { it.channel.id }) { index ->
+                    // Keyed by position (like the channel list): a reloading or changing list never pulls
+                    // the row under the remote off the screen.
+                    items(count = rows.itemCount, key = { it }) { index ->
                         val row = rows[index]
                         if (row == null) {
                             Spacer(
@@ -197,6 +235,13 @@ fun GuideScreen(
                             GuideRow(
                                 vm = vm,
                                 row = row,
+                                channelCellModifier = Modifier.rememberFocus(channelCells, index),
+                                onChannelFocus = {},
+                                onOpenCategories = {
+                                    panelReturn = index
+                                    panelOpen = true
+                                },
+                                onChannelMenu = { menuFor = row },
                                 windowStart = windowStart,
                                 minStart = minStart,
                                 maxStart = maxStart,
@@ -247,11 +292,78 @@ fun GuideScreen(
             }
         }
     }
+
+    // ------------------------------------------------------------ category panel
+    androidx.compose.animation.AnimatedVisibility(
+        visible = panelOpen,
+        enter = androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { -it / 3 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)),
+        exit = androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(200)) { -it / 3 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.horizontalGradient(0f to Color(0xF0000000), 0.45f to Color(0xA0000000), 1f to Color(0x30000000))),
+            )
+            Column(
+                Modifier
+                    .width(250.dp)
+                    .fillMaxHeight()
+                    .background(ZappColors.Panel.copy(alpha = 0.96f))
+                    .padding(start = 18.dp, end = 14.dp, top = 18.dp, bottom = 16.dp)
+                    .onPreviewKeyEvent { e ->
+                        when (e.key) {
+                            Key.Back -> {
+                                if (e.type == KeyEventType.KeyUp) closePanel()
+                                true
+                            }
+                            Key.DirectionRight -> {
+                                if (e.type == KeyEventType.KeyDown) closePanel()
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                    // Focus stays in the panel while it's open.
+                    .focusProperties { exit = { FocusRequester.Cancel } }
+                    .focusGroup(),
+            ) {
+                Text("Categories", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp))
+                Spacer(Modifier.height(4.dp))
+                Text("OK to show it in the guide", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(start = 12.dp))
+                Spacer(Modifier.height(10.dp))
+                CategoryList(
+                    vm = vm,
+                    categories = categories,
+                    selectedId = scope.categoryId,
+                    playlistId = scope.playlistId,
+                    state = panelState,
+                    selectedRequester = panelSelected,
+                    modifier = Modifier.weight(1f),
+                    onPick = { item ->
+                        if (item.count == 0) {
+                            vm.showToast("No channels in ${item.name}")
+                        } else {
+                            vm.selectCategory(item.id)
+                            panelOpen = false
+                            coroutines.launch {
+                                listState.scrollToItem(0)
+                                delay(60)
+                                channelCells.requester(0)?.tryRequest()
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    menuFor?.let { row -> ChannelMenu(vm, row, onMove = null, moveHint = null) { menuFor = null } }
     }
 }
 
 @Composable
-private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Long, timeFormat: java.text.DateFormat) {
+private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Long, timeFormat: java.text.DateFormat, okLabel: String) {
     val dayFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
     Row(
         Modifier
@@ -263,7 +375,7 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
             Column(Modifier.weight(1f)) {
                 Text(categoryName, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text("Move onto a programme to see what it's about.", color = ZappColors.Dim, fontSize = TextSize.Small)
+                Text("Move onto a programme to see what it's about. OK on one that hasn't started sets a reminder.", color = ZappColors.Dim, fontSize = TextSize.Small)
             }
         } else {
             val art = selection.programme?.icon
@@ -319,7 +431,9 @@ private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Lon
         Column(horizontalAlignment = Alignment.End) {
             Text(dayFormat.format(now), color = ZappColors.Dim, fontSize = TextSize.Small)
             Spacer(Modifier.height(8.dp))
-            KeyHint("OK", "Watch")
+            KeyHint("OK", okLabel)
+            Spacer(Modifier.height(6.dp))
+            KeyHint("‹", "Categories")
         }
     }
 }
@@ -359,6 +473,10 @@ private fun TimeRuler(windowStart: Long, gridWidth: Dp, dpPerMs: Float, now: Lon
 private fun GuideRow(
     vm: AppViewModel,
     row: ChannelRow,
+    channelCellModifier: Modifier,
+    onChannelFocus: () -> Unit,
+    onOpenCategories: () -> Unit,
+    onChannelMenu: () -> Unit,
     windowStart: Long,
     minStart: Long,
     maxStart: Long,
@@ -392,10 +510,22 @@ private fun GuideRow(
         // Channel cell
         FocusSurface(
             onClick = { onWatch(row) },
-            modifier = Modifier
+            onLongClick = onChannelMenu,
+            modifier = channelCellModifier
                 .width(ChannelColumn)
-                .fillMaxHeight(),
-            onFocusChange = { if (it) onSelect(GuideSelection(row, null)) },
+                .fillMaxHeight()
+                .onPreviewKeyEvent { e ->
+                    // Left from the channel column opens the categories (instead of the sidebar).
+                    if (e.key != Key.DirectionLeft) return@onPreviewKeyEvent false
+                    if (e.type == KeyEventType.KeyDown) onOpenCategories()
+                    true
+                },
+            onFocusChange = {
+                if (it) {
+                    onChannelFocus()
+                    onSelect(GuideSelection(row, null))
+                }
+            },
             shape = RoundedCornerShape(10.dp),
             restColor = ZappColors.Glass,
         ) { focused ->
@@ -532,8 +662,16 @@ private fun GuideRow(
                                 },
                             onFocus = { onSelect(GuideSelection(row, p)) },
                             replay = vm.canCatchUp(channel, p.start, p.stop),
-                            // Past programmes on catch-up channels play from the start; anything else tunes in.
-                            onClick = { if (vm.canCatchUp(channel, p.start, p.stop)) onCatchUp(row, p) else onWatch(row) },
+                            reminder = vm.hasReminder(channel, p),
+                            // Past programmes on catch-up channels play from the start; ones still to come set
+                            // a reminder; anything else tunes in.
+                            onClick = {
+                                when {
+                                    vm.canCatchUp(channel, p.start, p.stop) -> onCatchUp(row, p)
+                                    p.start > System.currentTimeMillis() -> vm.toggleReminder(channel, p)
+                                    else -> onWatch(row)
+                                }
+                            },
                         )
                     }
                 }
@@ -553,6 +691,7 @@ private fun ProgrammeCell(
     onFocus: () -> Unit,
     onClick: () -> Unit,
     replay: Boolean = false,
+    reminder: Boolean = false,
 ) {
     val airing = programme.start <= now && programme.stop > now
     val past = programme.stop <= now
@@ -589,12 +728,18 @@ private fun ProgrammeCell(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = timeFormat.format(programme.start) + if (replay) "  ·  ↺ Replay" else "",
-                color = if (focused) ZappColors.OnFocusDim else if (replay) ZappColors.Signal else ZappColors.Faint,
-                fontSize = TextSize.Label,
-                maxLines = 1,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (reminder) {
+                    BellGlyph(if (focused) ZappColors.OnFocus else ZappColors.Brand2, 10.dp)
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    text = timeFormat.format(programme.start) + if (replay) "  ·  ↺ Replay" else "",
+                    color = if (focused) ZappColors.OnFocusDim else if (replay) ZappColors.Signal else ZappColors.Faint,
+                    fontSize = TextSize.Label,
+                    maxLines = 1,
+                )
+            }
         }
         if (airing && !focused) {
             Box(

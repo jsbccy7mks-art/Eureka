@@ -11,6 +11,8 @@ import androidx.paging.cachedIn
 import com.zapp.tv.BuildConfig
 import com.zapp.tv.ZappApp
 import com.zapp.tv.data.Channel
+import com.zapp.tv.data.ChannelSort
+import com.zapp.tv.data.CategoryView
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.FAVORITES
 import com.zapp.tv.data.GuideInfo
@@ -40,13 +42,22 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
 data class PlaylistItem(val playlist: Playlist, val channelCount: Int)
 
-data class CategoryItem(val id: Long?, val name: String, val count: Int)
+/** A line in the category list. [ref] is the category's own id (for hiding and moving it). */
+data class CategoryItem(val id: Long?, val name: String, val count: Int, val ref: String? = null, val hidden: Boolean = false)
+
+/** The "Hidden categories" line at the bottom of the category list. */
+const val HIDDEN_CATEGORIES = -4L
+
+/** A programme you asked to be told about when it starts. Channel id and name only, no links. */
+data class Reminder(val playlistId: Long, val channelId: Long, val channelName: String, val title: String, val start: Long, val stop: Long)
 
 sealed interface UpdateState {
     data object Idle : UpdateState
@@ -82,9 +93,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
     private val scopeFlow = MutableStateFlow<Scope?>(null)
     val scope: StateFlow<Scope?> = scopeFlow
 
-    val channels: Flow<PagingData<ChannelRow>> = scopeFlow
-        .filterNotNull()
-        .flatMapLatest { repo.channels(it) }
+    /** How channel lists are ordered (Settings, Live TV): number, name or your own order. */
+    private val sortFlow = MutableStateFlow(settings.channelSort)
+    val channelSort: StateFlow<Int> = sortFlow
+
+    fun setChannelSort(sort: Int) {
+        settings.channelSort = sort
+        sortFlow.value = sort
+    }
+
+    val channels: Flow<PagingData<ChannelRow>> = combine(scopeFlow.filterNotNull(), sortFlow) { s, sort -> s to sort }
+        .flatMapLatest { (s, sort) -> repo.channels(s, sort) }
         .cachedIn(viewModelScope)
 
     /** Guide grid: "On now only" filter, remembered between visits. */
@@ -97,8 +116,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         settings.guideLiveOnly = v
     }
 
-    val guideChannels: Flow<PagingData<ChannelRow>> = combine(scopeFlow.filterNotNull(), liveOnlyFlow) { s, live -> s to live }
-        .flatMapLatest { (s, live) -> repo.guideChannels(s, live) }
+    val guideChannels: Flow<PagingData<ChannelRow>> = combine(scopeFlow.filterNotNull(), liveOnlyFlow, sortFlow) { s, live, sort -> Triple(s, live, sort) }
+        .flatMapLatest { (s, live, sort) -> repo.guideChannels(s, live, sort) }
         .cachedIn(viewModelScope)
 
     suspend fun guideInfo(playlistId: Long): GuideInfo = repo.guideInfo(playlistId)
@@ -190,13 +209,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
             if (pid == null) {
                 flowOf(emptyList())
             } else {
-                combine(repo.categories(pid), repo.categoryCounts(pid), repo.favoriteCount(pid)) { cats, counts, favs ->
+                combine(repo.categoryViews(pid), repo.categoryCounts(pid), repo.favoriteCount(pid)) { cats, counts, favs ->
                     val byCategory = counts.associate { it.categoryId to it.total }
+                    val (hidden, shown) = cats.partition { it.hidden }
+                    fun item(v: CategoryView) = CategoryItem(v.category.id, v.category.name, byCategory[v.category.id] ?: 0, v.category.remoteId, v.hidden)
                     buildList {
                         add(CategoryItem(RECENT, "Recently watched", -1))
                         add(CategoryItem(FAVORITES, "Favourites", favs))
-                        add(CategoryItem(null, "All channels", counts.sumOf { it.total }))
-                        cats.forEach { add(CategoryItem(it.id, it.name, byCategory[it.id] ?: 0)) }
+                        // All channels leaves out hidden categories, so its count does too.
+                        add(CategoryItem(null, "All channels", shown.sumOf { byCategory[it.category.id] ?: 0 } + (byCategory[null] ?: 0)))
+                        shown.forEach { add(item(it)) }
+                        if (hidden.isNotEmpty()) {
+                            add(CategoryItem(HIDDEN_CATEGORIES, "Hidden categories", hidden.size))
+                            hidden.forEach { add(item(it)) }
+                        }
                     }
                 }
             }
@@ -217,8 +243,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
     var toast by mutableStateOf<ToastMessage?>(null)
         private set
 
-    fun showToast(text: String) {
-        toast = ToastMessage(text, System.nanoTime())
+    fun showToast(text: String, durationMs: Long = 2600) {
+        toast = ToastMessage(text, System.nanoTime(), durationMs)
     }
 
     fun clearError() {
@@ -257,11 +283,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 ensureScope(list)
             }
         }
-        // Quietly look for a new app version at most every six hours.
+        // Quietly look for a new app version 20 seconds after opening (once things have settled),
+        // then every four hours while the app stays open.
         viewModelScope.launch {
-            delay(8_000)
-            if (System.currentTimeMillis() - settings.lastUpdateCheck > 6 * 3_600_000L) checkForUpdates(manual = false)
+            delay(20_000)
+            while (true) {
+                checkForUpdates(manual = false)
+                delay(4 * 3_600_000L)
+            }
         }
+        viewModelScope.launch { watchReminders() }
         // Automatic guide updates, checked at start and every 30 minutes while the app is open.
         viewModelScope.launch {
             delay(5_000)
@@ -333,12 +364,130 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
 
     suspend fun neighbor(current: Channel, forward: Boolean): Channel? {
         val s = scopeFlow.value ?: return null
-        return repo.neighbor(s, current, forward)
+        return repo.neighbor(s, current, forward, sortFlow.value)
     }
 
     suspend fun indexInScope(streamUrl: String): Int {
         val s = scopeFlow.value ?: return -1
-        return repo.indexInScope(s, streamUrl)
+        return repo.indexInScope(s, streamUrl, sortFlow.value)
+    }
+
+    // ------------------------------------------------------------ hiding and moving
+
+    fun categoryViews(playlistId: Long): Flow<List<CategoryView>> = repo.categoryViews(playlistId)
+
+    fun hiddenChannels(playlistId: Long): Flow<List<Channel>> = repo.hiddenChannels(playlistId)
+
+    fun setCategoryHidden(playlistId: Long, ref: String, name: String, hidden: Boolean, quiet: Boolean = false) {
+        viewModelScope.launch {
+            repo.setCategoryHidden(playlistId, ref, hidden)
+            if (!quiet) showToast(if (hidden) "$name hidden. It's under Hidden categories." else "$name shown again")
+        }
+    }
+
+    // Moves are done one at a time, so quick presses all count.
+    private val moveLock = Mutex()
+
+    fun moveCategory(playlistId: Long, ref: String, by: Int) {
+        viewModelScope.launch { moveLock.withLock { repo.moveCategory(playlistId, ref, by) } }
+    }
+
+    fun resetCategoryOrder(playlistId: Long) {
+        viewModelScope.launch {
+            repo.resetCategoryOrder(playlistId)
+            showToast("Categories are back in the playlist's order")
+        }
+    }
+
+    fun setChannelHidden(channel: Channel, hidden: Boolean) {
+        viewModelScope.launch {
+            repo.setChannelHidden(channel, hidden)
+            showToast(if (hidden) "${channel.name} hidden. Show it again in Settings, Live TV." else "${channel.name} shown again")
+        }
+    }
+
+    /** Moving channels needs your own order; sorting by number switches to it (the order stays the same). */
+    fun useOwnOrder() {
+        if (sortFlow.value == ChannelSort.OWN) return
+        setChannelSort(ChannelSort.OWN)
+        showToast("Channels now follow your own order. You can change this in Settings, Live TV.", durationMs = 4_000)
+    }
+
+    /** Moves a channel one place up or down in the list you're in. True when it moved. */
+    suspend fun moveChannel(channel: Channel, by: Int): Boolean {
+        val s = scopeFlow.value ?: return false
+        return moveLock.withLock { repo.moveChannel(s, channel, by) }
+    }
+
+    suspend fun lastWatchedChannel(): Channel? {
+        val s = scopeFlow.value ?: return null
+        return repo.lastWatched(s.playlistId)
+    }
+
+    // ------------------------------------------------------------ reminders
+
+    var reminders by mutableStateOf(loadReminders())
+        private set
+
+    /** A reminder whose programme is starting, for the "switch over?" pop-up. */
+    var dueReminder by mutableStateOf<Reminder?>(null)
+        private set
+
+    fun hasReminder(channel: Channel, p: Programme): Boolean =
+        reminders.any { it.playlistId == channel.playlistId && it.channelName == channel.name && it.start == p.start }
+
+    fun toggleReminder(channel: Channel, p: Programme) {
+        val on = hasReminder(channel, p)
+        reminders = if (on) {
+            reminders.filterNot { it.playlistId == channel.playlistId && it.channelName == channel.name && it.start == p.start }
+        } else {
+            reminders + Reminder(channel.playlistId, channel.id, channel.name, p.title, p.start, p.stop)
+        }
+        saveReminders()
+        val at = android.text.format.DateFormat.getTimeFormat(getApplication<Application>()).format(p.start)
+        showToast(if (on) "Reminder removed" else "We'll remind you at $at when ${p.title} starts")
+    }
+
+    fun dismissReminder() {
+        dueReminder = null
+    }
+
+    /** The channel a reminder is for (found by name if the playlist has been refreshed since). */
+    suspend fun channelFor(r: Reminder): Channel? =
+        repo.channel(r.channelId)?.takeIf { it.name == r.channelName } ?: repo.channelNamed(r.playlistId, r.channelName)
+
+    private fun loadReminders(): List<Reminder> = runCatching {
+        val a = JSONArray(settings.remindersJson.ifBlank { "[]" })
+        (0 until a.length()).map { i ->
+            val o = a.getJSONObject(i)
+            Reminder(o.getLong("p"), o.getLong("c"), o.getString("n"), o.getString("t"), o.getLong("s"), o.getLong("e"))
+        }
+    }.getOrDefault(emptyList())
+
+    private fun saveReminders() {
+        val a = JSONArray()
+        reminders.forEach { r ->
+            a.put(JSONObject().put("p", r.playlistId).put("c", r.channelId).put("n", r.channelName).put("t", r.title).put("s", r.start).put("e", r.stop))
+        }
+        settings.remindersJson = a.toString()
+    }
+
+    /** Fires reminders as their programmes start (half a minute early), and forgets ones that have ended. */
+    private suspend fun watchReminders() {
+        while (true) {
+            // Waits first: this starts while the view model is still being built.
+            delay(10_000)
+            val now = System.currentTimeMillis()
+            if (reminders.isNotEmpty()) {
+                val due = reminders.filter { it.start - 30_000 <= now }
+                if (due.isNotEmpty()) {
+                    reminders = reminders - due.toSet()
+                    saveReminders()
+                    // Only ones still on air are worth a pop-up (not ones missed while the TV was off).
+                    due.filter { it.stop > now && now - it.start < 15 * 60_000L }.maxByOrNull { it.start }?.let { dueReminder = it }
+                }
+            }
+        }
     }
 
     suspend fun nowNext(channel: Channel): List<Programme> = repo.nowNext(channel)
@@ -446,6 +595,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
 
     private var downloadedUpdate: Pair<Int, File>? = null
 
+    /** A new build was found by the background check and hasn't been mentioned yet. */
+    var updateNotice by mutableStateOf(false)
+        private set
+    private var noticedBuild = -1
+
+    /** Shows the "update ready" message (called once nothing is playing). */
+    fun showUpdateNotice() {
+        if (!updateNotice) return
+        updateNotice = false
+        showToast("A new version of Axon is ready. Install it from Settings, System.", durationMs = 8_000)
+    }
+
     fun checkForUpdates(manual: Boolean) {
         if (update is UpdateState.Checking || update is UpdateState.Downloading) return
         update = UpdateState.Checking
@@ -454,7 +615,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 val release = zapp.updater.latest()
                 settings.lastUpdateCheck = System.currentTimeMillis()
                 if (release.build > currentBuild) {
-                    if (!manual) showToast("An update is ready. Install it from Settings.")
+                    // Told once per new build; the message waits until nothing is playing.
+                    if (!manual && noticedBuild != release.build) {
+                        noticedBuild = release.build
+                        updateNotice = true
+                    }
                     UpdateState.Available(release)
                 } else {
                     UpdateState.UpToDate

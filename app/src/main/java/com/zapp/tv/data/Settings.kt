@@ -744,6 +744,33 @@ class Settings(context: Context) {
             prefs.edit().putLong("lastUpdateCheck", value).apply()
         }
 
+    // ---------------------------------------------------------------- live TV lists
+
+    private val channelSortState = intState("channelSort", 0)
+    /** How channel lists are ordered: 0 by number, 1 by name, 2 your own order. */
+    var channelSort: Int
+        get() = channelSortState.intValue
+        set(value) {
+            channelSortState.intValue = value
+            prefs.edit().putInt("channelSort", value).apply()
+        }
+
+    private val startLastChannelState = mutableStateOf(prefs.getBoolean("startLastChannel", false))
+    /** Opening Axon plays the last channel you watched, full screen. */
+    var startLastChannel: Boolean
+        get() = startLastChannelState.value
+        set(value) {
+            startLastChannelState.value = value
+            prefs.edit().putBoolean("startLastChannel", value).apply()
+        }
+
+    /** Programme reminders, as JSON (channel ids and names only, never stream links). */
+    var remindersJson: String
+        get() = prefs.getString("reminders", "") ?: ""
+        set(value) {
+            prefs.edit().putString("reminders", value).apply()
+        }
+
     private val currentPlaylistState = mutableLongStateOf(prefs.getLong("currentPlaylist", -1L))
     var currentPlaylistId: Long
         get() = currentPlaylistState.longValue

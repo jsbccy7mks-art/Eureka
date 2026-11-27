@@ -64,6 +64,9 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.zapp.tv.data.ChannelRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
 
 enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
@@ -125,6 +128,16 @@ fun ZappRoot(vm: AppViewModel) {
     // A details page has its own focus requests, so the page underneath never takes focus while
     // it's showing (that left the remote "stuck" on a page you couldn't see).
     var detailTick by remember { mutableIntStateOf(0) }
+
+    // "An update is ready" waits until nothing is playing full screen (and the profile screen or
+    // opening logo is gone), then shows for about eight seconds.
+    val quiet = !playerOpen && !vodOpen && switchingTo == null && !launching
+    LaunchedEffect(vm.updateNotice, quiet) {
+        if (vm.updateNotice && quiet) {
+            delay(2_000)
+            vm.showUpdateNotice()
+        }
+    }
 
     /** Ask the visible screen (or the open details page) to take focus once it has been drawn. */
     fun requestContentFocus(waitMs: Long = 120) {
@@ -636,6 +649,21 @@ fun ZappRoot(vm: AppViewModel) {
             }
         }
 
+        // "Start on the last channel": once the opening animation (and profile choice) is done,
+        // the last channel plays full screen. Not after an update (What's new shows instead), nor for kids.
+        var autoStarted by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(launching, choosingProfile, pinFor, switchingTo) {
+            if (autoStarted || launching || choosingProfile || pinFor != null || switchingTo != null) return@LaunchedEffect
+            autoStarted = true
+            if (!vm.settings.startLastChannel || kids || pendingNotes.isNotEmpty()) return@LaunchedEffect
+            val channel = withTimeoutOrNull(5_000) {
+                snapshotFlow { vm.scope.value }.first { it != null }
+                vm.lastWatchedChannel()
+            } ?: return@LaunchedEffect
+            dest = Dest.Live
+            watchChannel(channel)
+        }
+
         if (rateAFew) {
             RateAFewScreen(mvm) {
                 rateAFew = false
@@ -786,6 +814,41 @@ fun ZappRoot(vm: AppViewModel) {
         }
 
         vm.busy?.let { BusyOverlay(it) }
+
+        // A reminder's programme is starting: offer to switch to it, whatever's on.
+        vm.dueReminder?.let { r ->
+            if (kids) {
+                LaunchedEffect(r) { vm.dismissReminder() }
+            } else {
+                ReminderPopup(
+                    reminder = r,
+                    onWatch = {
+                        vm.dismissReminder()
+                        coroutineScope.launch {
+                            val channel = vm.channelFor(r)
+                            if (channel == null) {
+                                vm.showToast("${r.channelName} isn't in your playlist any more")
+                                return@launch
+                            }
+                            // A film or episode keeps your place, as when you close it.
+                            if (vodOpen) {
+                                playback.media?.let { m ->
+                                    val d = playback.player.duration
+                                    if (d > 0) mvm.saveProgress(m, playback.player.currentPosition, d)
+                                }
+                                vodOpen = false
+                                playRequest = null
+                                playback.stop()
+                            }
+                            if (vm.scope.value?.playlistId != r.playlistId) vm.selectPlaylist(r.playlistId)
+                            dest = Dest.Live
+                            watchChannel(channel)
+                        }
+                    },
+                    onDismiss = { vm.dismissReminder() },
+                )
+            }
+        }
 
         ToastHost(
             message = vm.toast,

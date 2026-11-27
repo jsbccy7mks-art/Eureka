@@ -9,8 +9,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [Playlist::class, Category::class, Channel::class, Programme::class, Favorite::class, RecentChannel::class, StagedProgramme::class,
-        Addon::class, WatchProgress::class, LibraryItem::class, Profile::class],
-    version = 9,
+        Addon::class, WatchProgress::class, LibraryItem::class, Profile::class, LivePref::class],
+    version = 10,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recentDao(): RecentDao
     abstract fun mediaDao(): MediaDao
     abstract fun profileDao(): ProfileDao
+    abstract fun livePrefDao(): LivePrefDao
 
     companion object {
         /** Phase 1 -> Phase 2: keeps existing playlists, adds the guide and favourites. */
@@ -139,9 +140,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** Hidden and moved categories and channels, kept per playlist. */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `live_prefs` (`playlistId` INTEGER NOT NULL, `kind` TEXT NOT NULL, " +
+                        "`ref` TEXT NOT NULL, `hidden` INTEGER NOT NULL, `position` REAL, PRIMARY KEY(`playlistId`, `kind`, `ref`))",
+                )
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "zapp.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
     }

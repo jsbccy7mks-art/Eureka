@@ -34,16 +34,55 @@ data class ChannelRow(
     val nowStart: Long?,
     val nowStop: Long?,
     val isFavorite: Boolean,
+    /** What's on after this (title and start), for the wide channel list. */
+    val nextTitle: String? = null,
+    val nextStart: Long? = null,
 )
+
+/** A channel's place in a list (for zapping, and for moving channels in your own order). */
+data class ChannelOrder(val id: Long, val streamUrl: String, val number: Int, val position: Double?)
 
 private const val NOW_FILTER =
     "p.playlistId = c.playlistId AND p.channelEpgId = c.epgId AND p.start <= :now AND p.stop > :now " +
         "ORDER BY p.start DESC LIMIT 1"
 
+private const val NEXT_FILTER =
+    "p.playlistId = c.playlistId AND p.channelEpgId = c.epgId AND p.start > :now ORDER BY p.start LIMIT 1"
+
 private const val NOW_COLUMNS =
     "(SELECT p.title FROM programmes p WHERE " + NOW_FILTER + ") AS nowTitle, " +
         "(SELECT p.start FROM programmes p WHERE " + NOW_FILTER + ") AS nowStart, " +
-        "(SELECT p.stop FROM programmes p WHERE " + NOW_FILTER + ") AS nowStop"
+        "(SELECT p.stop FROM programmes p WHERE " + NOW_FILTER + ") AS nowStop, " +
+        "(SELECT p.title FROM programmes p WHERE " + NEXT_FILTER + ") AS nextTitle, " +
+        "(SELECT p.start FROM programmes p WHERE " + NEXT_FILTER + ") AS nextStart"
+
+// Your own choices for each channel (hidden, your order), joined as "o".
+private const val CHANNEL_PREFS =
+    "LEFT JOIN live_prefs o ON o.playlistId = c.playlistId AND o.kind = 'ch' AND o.ref = c.streamUrl "
+
+private const val SHOWN = "(o.hidden IS NULL OR o.hidden = 0) "
+
+private const val HIDDEN_CATEGORY_IDS =
+    "SELECT k.id FROM categories k INNER JOIN live_prefs h ON h.playlistId = k.playlistId AND h.kind = 'cat' " +
+        "AND h.ref = k.remoteId WHERE k.playlistId = :playlistId AND h.hidden = 1"
+
+// One playlist's channels in a category (or all of them), without hidden channels. All channels also
+// leaves out hidden categories; a hidden category opened on its own still lists its channels.
+private const val IN_SCOPE =
+    "c.playlistId = :playlistId AND (:categoryId IS NULL OR c.categoryId = :categoryId) AND " + SHOWN +
+        "AND (:categoryId IS NOT NULL OR c.categoryId IS NULL OR c.categoryId NOT IN (" + HIDDEN_CATEGORY_IDS + ")) "
+
+// :sort 0 by number, 1 by name, 2 your own order (moved channels take the place you gave them).
+// The id last keeps the order exact, so pages of a long list never overlap.
+private const val CHANNEL_ORDER =
+    "ORDER BY (CASE WHEN :sort = 1 THEN c.name ELSE '' END) COLLATE NOCASE, " +
+        "(CASE WHEN :sort = 2 THEN COALESCE(o.position, c.number) ELSE 0 END), c.number, c.id"
+
+// For lists across playlists (search): hidden channels and channels in hidden categories left out.
+private const val NOT_HIDDEN_ANYWHERE =
+    "NOT EXISTS(SELECT 1 FROM live_prefs h WHERE h.playlistId = c.playlistId AND h.kind = 'ch' AND h.ref = c.streamUrl AND h.hidden = 1) " +
+        "AND NOT EXISTS(SELECT 1 FROM categories k INNER JOIN live_prefs h ON h.playlistId = k.playlistId AND h.kind = 'cat' " +
+        "AND h.ref = k.remoteId AND h.hidden = 1 WHERE k.id = c.categoryId) "
 
 @Dao
 interface PlaylistDao {
@@ -77,6 +116,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE playlistId = :playlistId ORDER BY sortOrder")
     fun observeForPlaylist(playlistId: Long): Flow<List<Category>>
 
+    @Query("SELECT * FROM categories WHERE playlistId = :playlistId ORDER BY sortOrder")
+    suspend fun forPlaylist(playlistId: Long): List<Category>
+
     @Insert
     suspend fun insertAll(items: List<Category>): List<Long>
 
@@ -89,27 +131,26 @@ interface ChannelDao {
     @Query(
         "SELECT c.*, " + NOW_COLUMNS + ", " +
             "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
-            "FROM channels c WHERE c.playlistId = :playlistId AND (:categoryId IS NULL OR c.categoryId = :categoryId) " +
-            "ORDER BY c.number",
+            "FROM channels c " + CHANNEL_PREFS + "WHERE " + IN_SCOPE + CHANNEL_ORDER,
     )
-    fun pagedRows(playlistId: Long, categoryId: Long?, now: Long): PagingSource<Int, ChannelRow>
+    fun pagedRows(playlistId: Long, categoryId: Long?, now: Long, sort: Int): PagingSource<Int, ChannelRow>
 
     /** Only channels with a programme on right now (guide "On now" filter). */
     @Query(
         "SELECT c.*, " + NOW_COLUMNS + ", " +
             "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
-            "FROM channels c WHERE c.playlistId = :playlistId AND (:categoryId IS NULL OR c.categoryId = :categoryId) " +
+            "FROM channels c " + CHANNEL_PREFS + "WHERE " + IN_SCOPE +
             "AND c.epgId IS NOT NULL AND EXISTS(SELECT 1 FROM programmes p WHERE p.playlistId = c.playlistId " +
-            "AND p.channelEpgId = c.epgId AND p.start <= :now AND p.stop > :now) ORDER BY c.number",
+            "AND p.channelEpgId = c.epgId AND p.start <= :now AND p.stop > :now) " + CHANNEL_ORDER,
     )
-    fun pagedOnNowRows(playlistId: Long, categoryId: Long?, now: Long): PagingSource<Int, ChannelRow>
+    fun pagedOnNowRows(playlistId: Long, categoryId: Long?, now: Long, sort: Int): PagingSource<Int, ChannelRow>
 
     /** Channel search across every playlist; the current playlist comes first. */
     @Query(
         "SELECT c.*, " + NOW_COLUMNS + ", " +
             "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
-            "FROM channels c WHERE c.name LIKE '%' || :query || '%' " +
-            "ORDER BY (c.playlistId = :preferPlaylist) DESC, (c.name LIKE :query || '%') DESC, c.number LIMIT :limit",
+            "FROM channels c WHERE c.name LIKE '%' || :query || '%' AND " + NOT_HIDDEN_ANYWHERE +
+            "ORDER BY (c.playlistId = :preferPlaylist) DESC, (c.name LIKE :query || '%') DESC, c.number, c.id LIMIT :limit",
     )
     suspend fun searchRows(query: String, preferPlaylist: Long, now: Long, limit: Int): List<ChannelRow>
 
@@ -124,7 +165,7 @@ interface ChannelDao {
         "SELECT c.*, " + NOW_COLUMNS + ", " +
             "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
             "FROM recent_channels r INNER JOIN channels c ON c.playlistId = r.playlistId AND c.streamUrl = r.streamUrl " +
-            "WHERE r.playlistId = :playlistId GROUP BY r.id ORDER BY r.watchedAt DESC",
+            "WHERE r.playlistId = :playlistId GROUP BY r.id ORDER BY r.watchedAt DESC, r.id DESC",
     )
     fun pagedRecentRows(playlistId: Long, now: Long): PagingSource<Int, ChannelRow>
 
@@ -151,7 +192,7 @@ interface ChannelDao {
             "EXISTS(SELECT 1 FROM favorites f WHERE f.playlistId = c.playlistId AND f.streamUrl = c.streamUrl) AS isFavorite " +
             "FROM channels c WHERE c.playlistId = :playlistId AND c.epgId IS NOT NULL AND EXISTS(" +
             "SELECT 1 FROM programmes p WHERE p.playlistId = c.playlistId AND p.channelEpgId = c.epgId " +
-            "AND p.start <= :now AND p.stop > :now) ORDER BY c.number LIMIT :limit",
+            "AND p.start <= :now AND p.stop > :now) AND " + NOT_HIDDEN_ANYWHERE + "ORDER BY c.number LIMIT :limit",
     )
     fun observeOnNowRows(playlistId: Long, now: Long, limit: Int): Flow<List<ChannelRow>>
 
@@ -177,26 +218,25 @@ interface ChannelDao {
     @Query("SELECT * FROM channels WHERE id = :id")
     suspend fun get(id: Long): Channel?
 
+    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND name = :name ORDER BY number LIMIT 1")
+    suspend fun named(playlistId: Long, name: String): Channel?
+
     @Query(
         "SELECT * FROM channels WHERE playlistId = :playlistId AND streamUrl = :streamUrl " +
             "AND (:categoryId IS NULL OR categoryId = :categoryId) ORDER BY number LIMIT 1",
     )
     suspend fun findInScope(playlistId: Long, categoryId: Long?, streamUrl: String): Channel?
 
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND (:categoryId IS NULL OR categoryId = :categoryId) AND number > :number ORDER BY number ASC LIMIT 1")
-    suspend fun next(playlistId: Long, categoryId: Long?, number: Int): Channel?
+    /** Every channel in a list, in the order it's shown (for zapping and moving channels). */
+    @Query("SELECT c.id, c.streamUrl, c.number, o.position FROM channels c " + CHANNEL_PREFS + "WHERE " + IN_SCOPE + CHANNEL_ORDER)
+    suspend fun order(playlistId: Long, categoryId: Long?, sort: Int): List<ChannelOrder>
 
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND (:categoryId IS NULL OR categoryId = :categoryId) AND number < :number ORDER BY number DESC LIMIT 1")
-    suspend fun previous(playlistId: Long, categoryId: Long?, number: Int): Channel?
-
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND (:categoryId IS NULL OR categoryId = :categoryId) ORDER BY number ASC LIMIT 1")
-    suspend fun first(playlistId: Long, categoryId: Long?): Channel?
-
-    @Query("SELECT * FROM channels WHERE playlistId = :playlistId AND (:categoryId IS NULL OR categoryId = :categoryId) ORDER BY number DESC LIMIT 1")
-    suspend fun last(playlistId: Long, categoryId: Long?): Channel?
-
-    @Query("SELECT COUNT(*) FROM channels WHERE playlistId = :playlistId AND (:categoryId IS NULL OR categoryId = :categoryId) AND number < :number")
-    suspend fun indexOf(playlistId: Long, categoryId: Long?, number: Int): Int
+    /** Channels you've hidden in a playlist, for Settings. */
+    @Query(
+        "SELECT c.* FROM live_prefs h INNER JOIN channels c ON c.playlistId = h.playlistId AND c.streamUrl = h.ref " +
+            "WHERE h.playlistId = :playlistId AND h.kind = 'ch' AND h.hidden = 1 GROUP BY h.ref ORDER BY c.number",
+    )
+    fun observeHidden(playlistId: Long): Flow<List<Channel>>
 
     @Query("SELECT COUNT(*) FROM channels WHERE playlistId = :playlistId")
     suspend fun count(playlistId: Long): Int
@@ -210,7 +250,10 @@ interface ChannelDao {
     @Query("SELECT playlistId, COUNT(*) AS total FROM channels GROUP BY playlistId")
     fun observeCounts(): Flow<List<PlaylistCount>>
 
-    @Query("SELECT categoryId, COUNT(*) AS total FROM channels WHERE playlistId = :playlistId GROUP BY categoryId")
+    @Query(
+        "SELECT c.categoryId, COUNT(*) AS total FROM channels c " + CHANNEL_PREFS +
+            "WHERE c.playlistId = :playlistId AND " + SHOWN + "GROUP BY c.categoryId",
+    )
     fun observeCategoryCounts(playlistId: Long): Flow<List<CategoryCount>>
 
     @Query("SELECT DISTINCT epgId FROM channels WHERE playlistId = :playlistId AND epgId IS NOT NULL AND epgId != ''")
@@ -446,4 +489,25 @@ interface ProfileDao {
 
     @Query("DELETE FROM library WHERE profileId = :id")
     suspend fun deleteLibrary(id: Long)
+}
+
+@Dao
+interface LivePrefDao {
+    @Query("SELECT * FROM live_prefs WHERE playlistId = :playlistId AND kind = :kind")
+    fun observe(playlistId: Long, kind: String): Flow<List<LivePref>>
+
+    @Query("SELECT * FROM live_prefs WHERE playlistId = :playlistId AND kind = :kind")
+    suspend fun all(playlistId: Long, kind: String): List<LivePref>
+
+    @Query("SELECT * FROM live_prefs WHERE playlistId = :playlistId AND kind = :kind AND ref = :ref")
+    suspend fun get(playlistId: Long, kind: String, ref: String): LivePref?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun put(items: List<LivePref>)
+
+    @Query("DELETE FROM live_prefs WHERE playlistId = :playlistId AND kind = :kind")
+    suspend fun clear(playlistId: Long, kind: String)
+
+    @Query("DELETE FROM live_prefs WHERE playlistId = :playlistId")
+    suspend fun deleteForPlaylist(playlistId: Long)
 }

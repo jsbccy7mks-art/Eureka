@@ -151,6 +151,9 @@ class FocusMemory {
 
     /** The remembered item if it is on screen; otherwise Compose's normal choice. */
     fun target(): FocusRequester = last?.let { requesters[it] } ?: FocusRequester.Default
+
+    /** The item under [key], if it's on screen. */
+    fun requester(key: Any): FocusRequester? = requesters[key]
 }
 
 @Composable
@@ -956,7 +959,7 @@ fun BusyOverlay(message: String) {
     }
 }
 
-data class ToastMessage(val text: String, val id: Long)
+data class ToastMessage(val text: String, val id: Long, val durationMs: Long = 2600)
 
 @Composable
 fun ToastHost(message: ToastMessage?, modifier: Modifier = Modifier) {
@@ -966,7 +969,7 @@ fun ToastHost(message: ToastMessage?, modifier: Modifier = Modifier) {
         val m = message ?: return@LaunchedEffect
         shown = m
         visibleId = m.id
-        delay(2600)
+        delay(m.durationMs)
         if (visibleId == m.id) visibleId = -1L
     }
     AnimatedVisibility(

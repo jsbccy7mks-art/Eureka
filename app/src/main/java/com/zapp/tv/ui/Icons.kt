@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 
 /** Line icons drawn in code, so they stay crisp at any size and match each other. */
-enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock, Sports, Collections, Discover }
+enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock, Sports, Collections, Discover, Bell }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifier) {
@@ -112,6 +112,20 @@ fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifie
                 line(color, w, 0.5f, 0.5f, 0.5f, 0.27f, stroke)
                 line(color, w, 0.5f, 0.5f, 0.67f, 0.6f, stroke)
             }
+            Glyph.Bell -> {
+                // A bell: rounded dome, flared rim and the clapper below.
+                val p = Path().apply {
+                    moveTo(w * 0.2f, w * 0.72f)
+                    lineTo(w * 0.8f, w * 0.72f)
+                    cubicTo(w * 0.7f, w * 0.62f, w * 0.72f, w * 0.52f, w * 0.72f, w * 0.42f)
+                    cubicTo(w * 0.72f, w * 0.26f, w * 0.62f, w * 0.16f, w * 0.5f, w * 0.16f)
+                    cubicTo(w * 0.38f, w * 0.16f, w * 0.28f, w * 0.26f, w * 0.28f, w * 0.42f)
+                    cubicTo(w * 0.28f, w * 0.52f, w * 0.3f, w * 0.62f, w * 0.2f, w * 0.72f)
+                    close()
+                }
+                drawPath(p, color, style = stroke)
+                line(color, w, 0.43f, 0.85f, 0.57f, 0.85f, stroke)
+            }
         }
     }
 }
@@ -122,3 +136,6 @@ private fun DrawScope.line(color: Color, w: Float, x1: Float, y1: Float, x2: Flo
 
 @Composable
 fun ClockGlyph(color: Color, size: Dp) = GlyphIcon(Glyph.Clock, color, size)
+
+@Composable
+fun BellGlyph(color: Color, size: Dp) = GlyphIcon(Glyph.Bell, color, size)

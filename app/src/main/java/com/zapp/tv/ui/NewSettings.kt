@@ -18,7 +18,11 @@ object NewSettings {
     private data class Entry(val key: String, val section: String, val group: String? = null)
 
     private val entries = listOf<Entry>(
-        // None at the moment: Settings was redesigned in 0.48.0.
+        // 0.61.0: Live TV lists.
+        Entry("Start on the last channel", "Live", "Watching"),
+        Entry("Sort channels", "Live", "Channel lists"),
+        Entry("group:Categories", "Live"),
+        Entry("group:Hidden channels", "Live"),
     )
 
     private var settings: com.zapp.tv.data.Settings? = null

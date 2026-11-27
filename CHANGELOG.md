@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.61.0
+
+**New**
+- Live TV, Channels: open a category (OK or Right) and the category list slides away. The channel
+  list moves left and gets wider: each channel shows what's on with how far in it is and the
+  minutes left, and what's next with its start time. Back, or Left, brings the categories back on
+  the one you're in.
+- Hide categories: hold OK on a category and choose Hide. Hidden categories are left out of the
+  list, All channels, the TV guide, search and channel up/down. They wait under Hidden categories
+  at the bottom of the list.
+- Move categories: hold OK on one, choose Move up or down, then Up and Down to move it and OK to
+  put it down.
+- Hold OK on a channel for a menu: favourite it, hide it, or move it in your own order.
+- Settings, Live TV: Sort channels (by number, by name or your own order); Categories (every
+  category, to show, hide and reorder, kept per playlist); Hidden channels (to show them again);
+  Start on the last channel (opening Axon plays it full screen).
+- TV guide: Left from the channel column opens the categories over the guide; pick one and it
+  closes.
+- TV guide reminders: OK on a programme that hasn't started sets a reminder (a bell shows on it).
+  When it starts, a pop-up offers to switch to it, even from a film.
+
+**Changed**
+- App updates: checked 20 seconds after Axon opens, then every 4 hours while it's open. The "new
+  version" message waits until nothing is playing and stays up for about 8 seconds. The dot on
+  Settings stays until you install it.
+
+**Fixed**
+- TV guide: rows are kept in place by position, so a list that changes while you scroll can't
+  trip it up.
+
 ## 0.60.0
 
 **New**
