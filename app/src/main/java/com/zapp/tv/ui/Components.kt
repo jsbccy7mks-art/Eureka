@@ -204,6 +204,8 @@ fun FocusSurface(
     /** Cards: draw the theme's focus ring (and glow, if switched on) instead of filling with colour. */
     ring: Boolean = false,
     ringCorner: Dp = 10.dp,
+    /** How quickly it grows on focus (the player's buttons use a quicker one). */
+    scaleMs: Int = 140,
     content: @Composable BoxScope.(focused: Boolean) -> Unit,
 ) {
     val pulse = LocalFocusPulse.current
@@ -221,7 +223,7 @@ fun FocusSurface(
             focused -> focusScale
             else -> 1f
         },
-        tween(if (pressed) 80 else 140),
+        tween(if (pressed) 80 else scaleMs),
         label = "scale",
     )
     val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")

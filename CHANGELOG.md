@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.56.3
+
+**Fixed**
+- Moving between the player's buttons is much lighter. The icons' soft shadows were a real blur,
+  redrawn over the film every time focus moved; they're now drawn cheaply (they look the same).
+  A button press no longer makes the whole player work itself out again, and neither does the
+  check for intros and credits every half second.
+- Up from the top of the player's controls closes them, in films, episodes and Live TV (it
+  could land on nothing and then do nothing).
+- Holding Right on the progress bar stops a second short of the end instead of finishing the film.
+
 ## 0.56.2
 
 **Fixed**

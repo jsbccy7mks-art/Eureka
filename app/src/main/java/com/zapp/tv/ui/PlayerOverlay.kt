@@ -112,7 +112,8 @@ fun PlayerOverlay(
     var panel by remember { mutableStateOf(PlayerPanel.None) }
     var infoVisible by remember { mutableStateOf(true) }
     var infoTick by remember { mutableIntStateOf(0) }
-    var idleTick by remember { mutableIntStateOf(0) }
+    // When a key was last pressed (not state: a press shouldn't rebuild the whole player).
+    val lastKey = remember { longArrayOf(System.currentTimeMillis()) }
     var zapJob by remember { mutableStateOf<Job?>(null) }
     var favTick by remember { mutableIntStateOf(0) }
     // The channel you were on before this one (for "Last channel").
@@ -150,9 +151,14 @@ fun PlayerOverlay(
     LaunchedEffect(playback.error) { if (playback.error != null) panel = PlayerPanel.Controls }
 
     // Controls tidy themselves away after a while without key presses.
-    LaunchedEffect(idleTick, panel) {
+    LaunchedEffect(panel) {
         if (panel == PlayerPanel.Controls && playback.error == null) {
-            delay(9_000)
+            lastKey[0] = System.currentTimeMillis()
+            while (true) {
+                val left = 9_000 - (System.currentTimeMillis() - lastKey[0])
+                if (left <= 0) break
+                delay(left)
+            }
             // Paused: the controls stay until you play again.
             while (!playback.player.playWhenReady) delay(500)
             panel = PlayerPanel.None
@@ -202,7 +208,7 @@ fun PlayerOverlay(
             .onPreviewKeyEvent {
                 // Any key while a panel is open keeps the controls from hiding; channel keys always zap.
                 if (it.type == KeyEventType.KeyDown) {
-                    idleTick++
+                    lastKey[0] = System.currentTimeMillis()
                     if (panel != PlayerPanel.None && (it.key == Key.ChannelUp || it.key == Key.ChannelDown)) {
                         zap(it.key == Key.ChannelUp)
                         return@onPreviewKeyEvent true
@@ -306,16 +312,8 @@ fun PlayerOverlay(
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
-            val controlsFocus = androidx.compose.ui.platform.LocalFocusManager.current
             BottomScrim {
-                // Up from the top of the controls puts them away, like Back.
-                Box(
-                    Modifier.onKeyEvent { e ->
-                        if (e.type != KeyEventType.KeyDown || e.key != Key.DirectionUp || panel != PlayerPanel.Controls) return@onKeyEvent false
-                        if (!controlsFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)) panel = PlayerPanel.None
-                        true
-                    },
-                ) {
+                Box {
                 ControlsPanel(
                     playback = playback,
                     channel = channel,
@@ -324,6 +322,8 @@ fun PlayerOverlay(
                     now = now,
                     timeFormat = timeFormat,
                     focusable = panel == PlayerPanel.Controls,
+                    // Up from the top of the controls puts them away, like Back.
+                    onUpFromTop = { panel = PlayerPanel.None },
                     onChannels = { panel = PlayerPanel.Channels },
                     onAudio = { panel = PlayerPanel.Audio },
                     onSubtitles = { panel = PlayerPanel.Subtitles },
@@ -443,6 +443,7 @@ private fun ControlsPanel(
     now: Long,
     timeFormat: java.text.DateFormat,
     focusable: Boolean,
+    onUpFromTop: (() -> Unit)? = null,
     onChannels: () -> Unit,
     onAudio: () -> Unit,
     onSubtitles: () -> Unit,
@@ -469,7 +470,9 @@ private fun ControlsPanel(
             Spacer(Modifier.height(12.dp))
             ErrorBanner("$it Try again, or move to another channel.")
         }
-        if (playback.timeshiftOn) LiveTimeshiftBar(playback, focusable) else SeekBar(playback, focusable)
+        Box(Modifier.upCloses(onUpFromTop)) {
+            if (playback.timeshiftOn) LiveTimeshiftBar(playback, focusable) else SeekBar(playback, focusable)
+        }
         Spacer(Modifier.height(12.dp))
         var caption by remember { mutableStateOf<String?>(null) }
         Box(Modifier.fillMaxWidth().height(18.dp), contentAlignment = Alignment.Center) {
@@ -479,7 +482,8 @@ private fun ControlsPanel(
         }
         // Transport in the middle (always the same buttons, so nothing shifts as you press them);
         // channel choices on the left; tracks, favourite and info on the right.
-        Box(Modifier.fillMaxWidth().focusGroup()) {
+        // The buttons are the top row when there's no bar above them.
+        Box(Modifier.fillMaxWidth().upCloses(onUpFromTop) { !playback.timeshiftOn && !playback.hasSeekBar() }.focusGroup()) {
             @Composable
             fun opt(icon: PlayerIcon, label: String, value: String? = null, accent: Boolean = false, requester: FocusRequester? = null, onClick: () -> Unit) {
                 Box(Modifier.onFocusChanged { if (it.hasFocus) caption = listOfNotNull(label, value).joinToString("  ·  ") else if (caption?.startsWith(label) == true) caption = null }) {
@@ -602,7 +606,8 @@ internal fun SeekBar(
                     val step = if (e.nativeKeyEvent.repeatCount > 4) 60_000L else 10_000L
                     when (e.key) {
                         Key.DirectionRight -> {
-                            player.seekTo((player.currentPosition + step).coerceAtMost(player.duration))
+                            // A second short of the end, so holding Right never finishes the film by accident.
+                            player.seekTo((player.currentPosition + step).coerceAtMost((player.duration - 1_000).coerceAtLeast(0)))
                             true
                         }
                         Key.DirectionLeft -> {

@@ -54,6 +54,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -104,7 +107,8 @@ fun VodPlayer(
     var panel by remember { mutableStateOf(VodPanel.None) }
     var barTick by remember { mutableIntStateOf(0) }
     var barVisible by remember { mutableStateOf(true) }
-    var idleTick by remember { mutableIntStateOf(0) }
+    // When a key was last pressed (not state: a press shouldn't rebuild the whole player).
+    val lastKey = remember { longArrayOf(System.currentTimeMillis()) }
     var ended by remember { mutableStateOf(false) }
     var paused by remember { mutableStateOf(false) }
     var nextCard by remember(info.videoId) { mutableStateOf(false) }
@@ -268,17 +272,23 @@ fun VodPlayer(
         delay(4_000)
         barVisible = false
     }
-    LaunchedEffect(idleTick, panel) {
+    LaunchedEffect(panel) {
         if (panel == VodPanel.Controls && playback.error == null) {
-            // Playing: controls go after 5 s. Paused: after 7 s, and the paused view takes over.
-            delay(if (player.isPlaying) 5_000 else 7_000)
+            // Playing: controls go 5 s after the last key press. Paused: after 7 s, and the paused view takes over.
+            lastKey[0] = System.currentTimeMillis()
+            while (true) {
+                val left = (if (player.isPlaying) 5_000 else 7_000) - (System.currentTimeMillis() - lastKey[0])
+                if (left <= 0) break
+                delay(left)
+            }
             panel = VodPanel.None
         }
     }
 
     // ---- IntroDB: skip intros and recaps, and offer the next episode when the credits start.
     val segments by produceState<com.zapp.tv.data.Segments?>(null, info.videoId) { value = mvm.segments(info.videoId, info.type) }
-    val positionNow by produceState(0L, info.videoId) {
+    // Read only where needed (and through derived states below), so the player isn't rebuilt every 0.4 s.
+    val position = produceState(0L, info.videoId) {
         while (true) {
             value = player.currentPosition
             delay(400)
@@ -294,8 +304,8 @@ fun VodPlayer(
             else -> null
         }
     }
-    val inIntro = segments?.intro?.let { positionNow in it } == true
-    val inRecap = segments?.recap?.let { positionNow in it } == true
+    val inIntro by remember(segments) { derivedStateOf { segments?.intro?.let { position.value in it } == true } }
+    val inRecap by remember(segments) { derivedStateOf { segments?.recap?.let { position.value in it } == true } }
     val skipTarget = when {
         inIntro && mvm.settings.skipIntro > 0 -> segments?.intro
         inRecap && mvm.settings.skipRecap > 0 -> segments?.recap
@@ -313,8 +323,10 @@ fun VodPlayer(
     }
     // End credits (and no scene after them): count down to the next episode early.
     var creditsDismissed by remember(info.videoId) { mutableStateOf(false) }
-    val credits = next != null && !creditsDismissed && segments?.postCredits == null &&
-        segments?.outro?.let { positionNow >= it.startMs && player.duration > 0 && it.startMs > player.duration / 2 } == true
+    val inOutro by remember(segments) {
+        derivedStateOf { segments?.outro?.let { position.value >= it.startMs && player.duration > 0 && it.startMs > player.duration / 2 } == true }
+    }
+    val credits = next != null && !creditsDismissed && segments?.postCredits == null && inOutro
 
     val suggestHere = mvm.settings.postPlaySuggest && (request.video == null || next == null) && !info.videoId.startsWith("catchup:") && request.meta.id.startsWith("tt")
     val suggestions by produceState<List<MediaViewModel.Suggestion>?>(null, info.videoId, suggestHere) {
@@ -324,10 +336,11 @@ fun VodPlayer(
             value = runCatching { mvm.suggestionsAfter(request.meta) }.getOrDefault(emptyList())
         }
     }
-    LaunchedEffect(positionNow, suggestions) {
-        if (!suggestHere || endDismissed || !started || suggestions.isNullOrEmpty()) return@LaunchedEffect
+    LaunchedEffect(suggestions) {
+        snapshotFlow { position.value }.collect { positionNow ->
+        if (!suggestHere || endDismissed || !started || suggestions.isNullOrEmpty()) return@collect
         val d = player.duration
-        if (d <= 0) return@LaunchedEffect
+        if (d <= 0) return@collect
         val creditsAt = segments?.outro?.startMs?.takeIf { it > d / 2 } ?: (d * 0.97).toLong()
         val after = segments?.postCredits
         if (!endScreen && positionNow >= creditsAt && (after == null || positionNow < after.startMs - 2_000)) {
@@ -340,6 +353,7 @@ fun VodPlayer(
             endScreen = false
             endDismissed = true
             focus.tryRequest()
+        }
         }
     }
 
@@ -384,7 +398,7 @@ fun VodPlayer(
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent {
-                if (it.type == KeyEventType.KeyDown) idleTick++
+                if (it.type == KeyEventType.KeyDown) lastKey[0] = System.currentTimeMillis()
                 false
             }
             .onKeyEvent { e ->
@@ -518,16 +532,8 @@ fun VodPlayer(
             enter = fadeIn() + slideInVertically { it / 3 },
             exit = fadeOut(),
         ) {
-            val controlsFocus = androidx.compose.ui.platform.LocalFocusManager.current
             BottomScrim {
-                // Up from the top of the controls puts them away, like Back.
-                Column(
-                    Modifier.onKeyEvent { e ->
-                        if (e.type != KeyEventType.KeyDown || e.key != Key.DirectionUp || panel != VodPanel.Controls) return@onKeyEvent false
-                        if (!controlsFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Up)) panel = VodPanel.None
-                        true
-                    },
-                ) {
+                Column {
                 PlayerInfoBlock(playback, request, info, synopsis = false)
                 VodControls(
                     playback = playback,
@@ -545,6 +551,8 @@ fun VodPlayer(
                     onNext = { next?.let { playNext(it) } },
                     chapterAt = chapterAt,
                     thumbs = thumbs,
+                    // Up from the top of the controls puts them away, like Back.
+                    onUpFromTop = { panel = VodPanel.None },
                 )
                 }
             }
@@ -678,7 +686,7 @@ fun VodPlayer(
             SkipPill(
                 if (seg == segments?.recap && !inIntro) "Skip recap" else "Skip intro",
                 // The ring empties as the intro runs out.
-                remaining = seg?.let { ((it.endMs - positionNow).toFloat() / (it.endMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f,
+                remaining = seg?.let { ((it.endMs - position.value).toFloat() / (it.endMs - it.startMs).coerceAtLeast(1)).coerceIn(0f, 1f) } ?: 0f,
                 requester = skipFocus,
             ) {
                 skipTarget?.let { player.seekTo(it.endMs) }
@@ -1007,29 +1015,66 @@ internal fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequest
         focusRequester = requester,
         shape = CircleShape,
         focusScale = 1.16f,
+        scaleMs = 90,
         restColor = Color.Transparent,
         focusColor = Color.Transparent,
     ) { focused ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val g = if (big) 32.dp else 26.dp
-            PlayerGlyph(icon, Color.Black.copy(alpha = 0.55f), g, Modifier.graphicsLayer { translationY = 1.5.dp.toPx() }.blur(3.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
+            GlyphShadow(icon, g)
             PlayerGlyph(icon, if (focused) Color.White else Color.White.copy(alpha = 0.8f), g)
             FocusUnderline(focused, Modifier.align(Alignment.BottomCenter))
         }
     }
 }
 
-/** A short theme-coloured line under whatever has focus in the player. */
+/**
+ * A short theme-coloured line under whatever has focus in the player. Drawn (growing from the
+ * middle), never re-laid out, so moving between buttons stays light.
+ */
 @Composable
 internal fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
-    val w by androidx.compose.animation.core.animateDpAsState(if (focused) 18.dp else 0.dp, androidx.compose.animation.core.tween(160), label = "underline")
-    Box(
-        modifier
-            .width(w)
-            .height(2.dp)
-            .clip(RoundedCornerShape(50))
-            .background(Brush.horizontalGradient(listOf(ZappColors.Brand1, ZappColors.Brand2))),
-    )
+    val w = androidx.compose.animation.core.animateFloatAsState(if (focused) 1f else 0f, androidx.compose.animation.core.tween(120), label = "underline")
+    val b1 = ZappColors.Brand1
+    val b2 = ZappColors.Brand2
+    androidx.compose.foundation.Canvas(modifier.width(18.dp).height(2.dp)) {
+        val ww = size.width * w.value
+        if (ww <= 0.5f) return@Canvas
+        val x = (size.width - ww) / 2f
+        drawRoundRect(
+            Brush.horizontalGradient(listOf(b1, b2), startX = x, endX = x + ww),
+            topLeft = Offset(x, 0f),
+            size = androidx.compose.ui.geometry.Size(ww, size.height),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
+        )
+    }
+}
+
+/**
+ * The soft shadow under a player icon: the icon itself, twice, slightly lower and see-through.
+ * (A real blur looked the same but was costly to redraw over a playing film.)
+ */
+@Composable
+internal fun GlyphShadow(icon: PlayerIcon, size: Dp) {
+    PlayerGlyph(icon, Color.Black.copy(alpha = 0.22f), size, Modifier.offset(y = 2.5.dp))
+    PlayerGlyph(icon, Color.Black.copy(alpha = 0.3f), size, Modifier.offset(y = 1.2.dp))
+}
+
+/** Up (while something inside has focus) runs [onUp] instead of moving focus, whenever [now] says so. */
+internal fun Modifier.upCloses(onUp: (() -> Unit)?, now: () -> Boolean = { true }): Modifier =
+    if (onUp == null) this else this.onPreviewKeyEvent { e ->
+        if (e.key == Key.DirectionUp && now()) {
+            if (e.type == KeyEventType.KeyDown) onUp()
+            true
+        } else {
+            false
+        }
+    }
+
+/** Whether the seek bar is showing (it hides for streams that can't be moved through). */
+internal fun Playback.hasSeekBar(): Boolean {
+    val d = player.duration
+    return player.isCurrentMediaItemSeekable && d > 0 && d != C.TIME_UNSET
 }
 
 /**
@@ -1044,11 +1089,12 @@ internal fun IconOption(icon: PlayerIcon, label: String, value: String?, onClick
         focusRequester = requester,
         shape = CircleShape,
         focusScale = 1.16f,
+        scaleMs = 90,
         restColor = Color.Transparent,
         focusColor = Color.Transparent,
     ) { focused ->
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            PlayerGlyph(icon, Color.Black.copy(alpha = 0.55f), 22.dp, Modifier.graphicsLayer { translationY = 1.5.dp.toPx() }.blur(3.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded))
+            GlyphShadow(icon, 22.dp)
             PlayerGlyph(
                 icon,
                 when {
@@ -1112,6 +1158,7 @@ private fun VodControls(
     markers: List<com.zapp.tv.data.Segment> = emptyList(),
     chapterAt: (Long) -> String? = { null },
     thumbs: SeekThumbs? = null,
+    onUpFromTop: (() -> Unit)? = null,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
@@ -1140,9 +1187,12 @@ private fun VodControls(
         playback.error?.let {
             ErrorBanner("This source isn't playing. Try again, or choose another source.")
         }
-        SeekBar(playback, active = focusable, markers = markers, chapterAt = chapterAt, thumbs = thumbs)
+        Box(Modifier.upCloses(onUpFromTop)) {
+            SeekBar(playback, active = focusable, markers = markers, chapterAt = chapterAt, thumbs = thumbs)
+        }
         Spacer(Modifier.height(10.dp))
-        Row(Modifier.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
+        // The buttons are the top row when there's no seek bar (or the source failed).
+        Row(Modifier.upCloses(onUpFromTop) { playback.error != null || !playback.hasSeekBar() }.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
             if (playback.error != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ChipButton("Choose another source", null, onSources, requester = first, accent = true)
