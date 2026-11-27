@@ -66,7 +66,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.first
-import androidx.compose.runtime.snapshotFlow
 
 enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
@@ -657,7 +656,7 @@ fun ZappRoot(vm: AppViewModel) {
             autoStarted = true
             if (!vm.settings.startLastChannel || kids || pendingNotes.isNotEmpty()) return@LaunchedEffect
             val channel = withTimeoutOrNull(5_000) {
-                snapshotFlow { vm.scope.value }.first { it != null }
+                vm.scope.first { it != null }
                 vm.lastWatchedChannel()
             } ?: return@LaunchedEffect
             dest = Dest.Live

@@ -42,10 +42,25 @@ import java.io.File
 class ScreensTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
+    /** Windows on screen, bottom first (the activity, then any dialogs). */
+    private fun windows(): List<android.view.View> = runCatching {
+        val wmg = Class.forName("android.view.WindowManagerGlobal")
+        val global = wmg.getMethod("getInstance").invoke(null)
+        val f = wmg.getDeclaredField("mViews").apply { isAccessible = true }
+        @Suppress("UNCHECKED_CAST")
+        (f.get(global) as List<android.view.View>).filter { it.isShown && it.width > 0 }
+    }.getOrDefault(emptyList())
+
+    /** Keys go to the top window, as on a TV (an open menu gets them, not the page under it). */
+    private fun send(e: android.view.KeyEvent) {
+        val top = windows().lastOrNull()
+        if (top == null || top === rule.activity.window.decorView) rule.activity.dispatchKeyEvent(e) else top.dispatchKeyEvent(e)
+    }
+
     private fun key(code: Int) {
         rule.runOnUiThread {
-            rule.activity.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
-            rule.activity.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code))
+            send(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, code))
+            send(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, code))
         }
         rule.mainClock.advanceTimeBy(300)
     }
@@ -59,13 +74,7 @@ class ScreensTest {
                 val canvas = android.graphics.Canvas(b)
                 v.draw(canvas)
                 // Dialogs (menus, pop-ups) are windows of their own: drawn on top, centred, over a dim.
-                val extra = runCatching {
-                    val wmg = Class.forName("android.view.WindowManagerGlobal")
-                    val global = wmg.getMethod("getInstance").invoke(null)
-                    val f = wmg.getDeclaredField("mViews").apply { isAccessible = true }
-                    @Suppress("UNCHECKED_CAST")
-                    (f.get(global) as List<android.view.View>).filter { it !== v && it.isShown && it.width > 0 }
-                }.getOrDefault(emptyList())
+                val extra = windows().filter { it !== v }
                 extra.forEach { w ->
                     canvas.drawColor(0x99000000.toInt())
                     canvas.save()
@@ -218,9 +227,9 @@ class ScreensTest {
     private fun longPress(code: Int) {
         rule.runOnUiThread {
             val t = android.os.SystemClock.uptimeMillis()
-            rule.activity.dispatchKeyEvent(android.view.KeyEvent(t, t, android.view.KeyEvent.ACTION_DOWN, code, 0))
-            rule.activity.dispatchKeyEvent(android.view.KeyEvent(t, t + 500, android.view.KeyEvent.ACTION_DOWN, code, 1))
-            rule.activity.dispatchKeyEvent(android.view.KeyEvent(t, t + 600, android.view.KeyEvent.ACTION_UP, code, 0))
+            send(android.view.KeyEvent(t, t, android.view.KeyEvent.ACTION_DOWN, code, 0))
+            send(android.view.KeyEvent(t, t + 500, android.view.KeyEvent.ACTION_DOWN, code, 1))
+            send(android.view.KeyEvent(t, t + 600, android.view.KeyEvent.ACTION_UP, code, 0))
         }
         rule.mainClock.advanceTimeBy(300)
     }
