@@ -1,7 +1,9 @@
-@file:OptIn(ExperimentalComposeUiApi::class)
+@file:OptIn(ExperimentalComposeUiApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 
 package com.zapp.tv.ui
 
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
@@ -1421,6 +1423,14 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
         item(key = "onHead") { LayoutHeading("On Home", "${shown.size} rows  ·  OK for options") }
         items(shown.size, key = { "on:" + shown[it].id }) { i ->
             val r = shown[i]
+            // While a row is being moved, the list follows it (with a row or two of room around it).
+            val follow = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+            var rowHeight by remember { mutableStateOf(0f) }
+            LaunchedEffect(i, moving == r.id) {
+                if (moving == r.id && rowHeight > 0f) {
+                    follow.bringIntoView(androidx.compose.ui.geometry.Rect(0f, -rowHeight * 1.6f, 1f, rowHeight * 2.6f))
+                }
+            }
             LayoutRow(
                 r,
                 moving = moving == r.id,
@@ -1428,6 +1438,9 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
                 onClick = { if (moving == r.id) moving = null else menuFor = r },
                 onMove = { by -> mvm.moveShownRow(rows, r.id, by) },
                 onDrop = { moving = null },
+                modifier = Modifier
+                    .bringIntoViewRequester(follow)
+                    .onGloballyPositioned { rowHeight = it.size.height.toFloat() },
             )
         }
         // ---- Not on Home, grouped by where they come from
@@ -1477,7 +1490,7 @@ private fun LayoutHeading(title: String, hint: String) {
 
 /** One slim line per row: its name, where it's from, and its size and shape. Moving: Up/Down move it, OK drops it. */
 @Composable
-private fun LayoutRow(r: HomeRowSetting, moving: Boolean, pinned: Boolean, onClick: () -> Unit, onMove: (Int) -> Unit, onDrop: () -> Unit) {
+private fun LayoutRow(r: HomeRowSetting, moving: Boolean, pinned: Boolean, onClick: () -> Unit, onMove: (Int) -> Unit, onDrop: () -> Unit, modifier: Modifier = Modifier) {
     val tags = if (!r.on) emptyList() else listOfNotNull(
         listOf("S", "M", "L")[r.size.coerceIn(0, 2)],
         if (r.landscape) "Wide" else "Poster",
@@ -1485,7 +1498,7 @@ private fun LayoutRow(r: HomeRowSetting, moving: Boolean, pinned: Boolean, onCli
     )
     FocusSurface(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .onPreviewKeyEvent { e ->
                 if (!moving || e.type != androidx.compose.ui.input.key.KeyEventType.KeyDown) return@onPreviewKeyEvent false

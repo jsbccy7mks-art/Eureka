@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.57.1
+
+**Changed**
+- A clearer mark for what you've started: a slim bar in your theme's colours along the bottom of
+  the poster, showing how far you got, with the next episode just above it for series. The tick
+  (watched) and the heart (loved) sit side by side in one small capsule, top right, so the marks
+  never cover each other. The same marks everywhere, collections included.
+- A collection shelf added to Home goes near the top (just below Continue watching), not to the
+  bottom.
+
+**Fixed**
+- Moving a row in Settings, Home: the list follows the row you're moving, so it no longer slides
+  out of sight.
+- Inside a streaming service, Up from "Series · Films" goes back to the poster you were on.
+- Streaming cards: the service's logo no longer touches the "STREAMING" label and name.
+- Collection rows on Home: hold OK for the row's settings (size, move, rename, remove), like every
+  other row.
+
 ## 0.57.0
 
 **New**

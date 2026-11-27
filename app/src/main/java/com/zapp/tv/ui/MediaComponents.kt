@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,19 +67,26 @@ object ProgressMarks {
     var marks by androidx.compose.runtime.mutableStateOf<Map<String, ProgressMark>>(emptyMap())
 }
 
-/** The corner mark on a card: a tick when watched, otherwise a ring when started (and the next episode). */
+/**
+ * The marks on a card. Top right, side by side in one small capsule (so they never overlap): a
+ * heart when loved and a tick when watched. Started but not finished: a slim bar in the theme's
+ * colours along the bottom, with the next episode just above it for series.
+ */
 @Composable
-fun CardMark(id: String?, modifier: Modifier = Modifier) {
+fun BoxScope.CardMarks(id: String?) {
     if (id == null) return
-    if (id in WatchedMarks.ids) {
-        WatchedTick(modifier)
-        return
-    }
-    val m = ProgressMarks.marks[id] ?: return
-    Column(modifier, horizontalAlignment = Alignment.End) {
-        ProgressRing(m.fraction)
-        m.next?.let {
-            Spacer(Modifier.height(3.dp))
+    val loved = id in LovedMarks.ids
+    val watched = id in WatchedMarks.ids
+    val progress = if (watched) null else ProgressMarks.marks[id]
+    if (progress != null) {
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(40.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x8C000000)))),
+        )
+        progress.next?.let {
             Text(
                 it,
                 fontSize = 8.5.sp,
@@ -86,10 +94,49 @@ fun CardMark(id: String?, modifier: Modifier = Modifier) {
                 color = Color.White,
                 maxLines = 1,
                 modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 7.dp, bottom = 14.dp)
                     .clip(RoundedCornerShape(50))
                     .background(Color(0x99000000))
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
             )
+        }
+        val b1 = ZappColors.Brand1
+        val b2 = ZappColors.Brand2
+        androidx.compose.foundation.Canvas(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 7.dp, end = 7.dp, bottom = 6.dp)
+                .fillMaxWidth()
+                .height(3.dp),
+        ) {
+            val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2f)
+            drawRoundRect(Color.White.copy(alpha = 0.28f), cornerRadius = r)
+            val w = size.width * progress.fraction.coerceIn(0.04f, 1f)
+            drawRoundRect(
+                Brush.horizontalGradient(listOf(b1, b2), startX = 0f, endX = size.width),
+                size = androidx.compose.ui.geometry.Size(w, size.height),
+                cornerRadius = r,
+            )
+        }
+    }
+    if (loved || watched) {
+        Row(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0x8C0A0A12))
+                .padding(horizontal = 4.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (loved) {
+                Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
+                    RatingGlyph(com.zapp.tv.data.Rating.Love, filled = true, color = Color(0xFFFF5F8F), size = 12.dp)
+                }
+            }
+            if (watched) WatchedTick(size = 14.dp)
         }
     }
 }
@@ -212,16 +259,7 @@ fun PosterCard(
             } else {
                 Artwork(meta.poster, meta.name, fallback = fallbackPoster(meta.id))
             }
-            CardMark(meta.id, Modifier.align(Alignment.TopEnd).padding(7.dp))
-            if (meta.id in LovedMarks.ids) {
-                RatingGlyph(
-                    com.zapp.tv.data.Rating.Love,
-                    filled = true,
-                    color = Color(0xFFFF5F8F),
-                    size = 13.dp,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = if (meta.id in WatchedMarks.ids) 26.dp else 8.dp),
-                )
-            }
+            CardMarks(meta.id)
             if (rank != null) {
                 // Minimal: a small number on the left, with just a soft drop shadow.
                 Text(

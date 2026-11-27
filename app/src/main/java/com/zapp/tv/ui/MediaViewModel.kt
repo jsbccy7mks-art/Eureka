@@ -1310,17 +1310,20 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         collectionLayoutTick++
     }
 
-    /** Puts a collection shelf on Home (switched on, at the end if it wasn't there). */
+    /** Puts a collection shelf on Home, switched on, near the top (just below Continue watching). */
     fun addShelfToHome(shelfId: String) {
         val rowId = if (shelfId == "yours") COLLECTIONS_ROW else "collections:$shelfId"
-        val a = try { JSONArray(settings.homeRowsJson.ifBlank { "[]" }) } catch (e: Exception) { JSONArray() }
-        var found = false
-        for (i in 0 until a.length()) {
-            val o = a.optJSONObject(i) ?: continue
-            if (o.optString("id") == rowId) { o.put("on", true); found = true }
+        val old = try { JSONArray(settings.homeRowsJson.ifBlank { "[]" }) } catch (e: Exception) { JSONArray() }
+        var row: JSONObject? = null
+        val rest = ArrayList<JSONObject>()
+        for (i in 0 until old.length()) {
+            val o = old.optJSONObject(i) ?: continue
+            if (o.optString("id") == rowId) row = o else rest.add(o)
         }
-        if (!found) a.put(JSONObject().put("id", rowId).put("on", true).put("size", 1).put("landscape", true))
-        settings.homeRowsJson = a.toString()
+        val r = (row ?: JSONObject().put("id", rowId).put("size", 1).put("landscape", true)).put("on", true)
+        val at = rest.indexOfFirst { it.optString("id") == CONTINUE_ROW } + 1
+        rest.add(at.coerceIn(0, rest.size), r)
+        settings.homeRowsJson = JSONArray().apply { rest.forEach { put(it) } }.toString()
     }
 
     /** The shelves in your order, the hidden and empty ones left out. */

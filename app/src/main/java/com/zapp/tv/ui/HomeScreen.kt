@@ -273,7 +273,8 @@ fun HomeScreen(
                             contentPadding = PaddingValues(start = RowInset + extra, end = RowInset),
                         ) {
                             items(shelfItems, key = { it.id }) { c ->
-                                CollectionCard(c, w, onFocus = {
+                                // Hold OK: the row's own settings, like every other row.
+                                CollectionCard(c, w, onLongClick = { options = RowOptions(row.id) }, onFocus = {
                                     mvm.prefetchTheme(c.id, c.name)
                                     val line = c.note ?: if (c.yours > 0) "${c.yours} of yours in this collection" else null
                                     focused = HeroItem(MetaPreview("collection:${c.id}", "collection", c.name, c.poster, "poster", c.backdrop, null, line, null, null, emptyList()), shelfTitle)

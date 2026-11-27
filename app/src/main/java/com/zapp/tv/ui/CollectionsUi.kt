@@ -52,6 +52,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -214,14 +216,16 @@ private fun ServiceTile(c: MediaViewModel.CollectionSummary) {
         )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xE6000000))))
         if (c.poster != null) {
-            Box(Modifier.align(Alignment.Center).padding(bottom = 18.dp)) {
+            // In the space above the name, sized to fit it, so it never touches the words.
+            BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = 50.dp, top = 8.dp), contentAlignment = Alignment.Center) {
+                val logo = (maxHeight * 0.8f).coerceAtMost(50.dp)
                 // A soft halo in the service's colour.
-                Box(Modifier.size(84.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(tint.copy(alpha = 0.55f), Color.Transparent))))
+                Box(Modifier.size(logo * 1.7f).background(Brush.radialGradient(listOf(tint.copy(alpha = 0.55f), Color.Transparent))))
                 AsyncImage(
                     model = c.poster,
                     contentDescription = c.name,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(50.dp).align(Alignment.Center).clip(RoundedCornerShape(11.dp)),
+                    modifier = Modifier.size(logo).clip(RoundedCornerShape(logo * 0.22f)),
                 )
             }
         }
@@ -329,6 +333,8 @@ fun CollectionScreen(
         }
     }
     var index by remember(collectionId) { mutableIntStateOf(0) }
+    // Each poster's focus, so Up from Series · Films lands on the one you were on.
+    val posterFocus = remember(collectionId) { HashMap<Int, FocusRequester>() }
     val first = remember { FocusRequester() }
 
     // The page takes the artwork's colour (glow, sidebar).
@@ -421,6 +427,8 @@ fun CollectionScreen(
                             if (k > 0) Text("·", color = ZappColors.Faint, fontSize = TextSize.Body, modifier = Modifier.padding(horizontal = 6.dp))
                             FocusSurface(
                                 onClick = { series = isSeries },
+                                // Up goes back to the poster you were on (it sits too low for Up to find it alone).
+                                modifier = Modifier.focusProperties { up = posterFocus[index] ?: first },
                                 shape = RoundedCornerShape(50),
                                 focusScale = 1.05f,
                             ) { f ->
@@ -481,7 +489,7 @@ fun CollectionScreen(
                                         val imdbId = id ?: return@FocusSurface
                                         onOpen(MetaPreview(imdbId, p.item.type, p.item.name, p.item.poster, "poster", p.item.backdrop, null, p.overview, p.item.year, null, emptyList()))
                                     },
-                                    modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
+                                    modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f).focusRequester(posterFocus.getOrPut(i) { FocusRequester() }),
                                     focusRequester = if (i == (if (nextIndex >= 0) nextIndex else 0)) first else null,
                                     onFocusChange = { if (it) index = i },
                                     shape = RoundedCornerShape(10.dp),
@@ -492,8 +500,7 @@ fun CollectionScreen(
                                     ringCorner = 10.dp,
                                 ) {
                                     Artwork(p.item.poster, p.item.name)
-                                    if (id != null && id in watched) WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
-                                    else CardMark(id, Modifier.align(Alignment.TopEnd).padding(7.dp))
+                                    CardMarks(id)
                                 }
                                 // A soft reflection underneath.
                                 Box(

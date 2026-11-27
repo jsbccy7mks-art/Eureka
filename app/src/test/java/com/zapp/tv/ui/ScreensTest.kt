@@ -144,6 +144,37 @@ class ScreensTest {
         save("collection-cards")
     }
 
+    @Test fun cardMarks() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        rule.mainClock.autoAdvance = false
+        WatchedMarks.ids = setOf("w", "lw")
+        LovedMarks.ids = setOf("lw", "lp", "ls")
+        ProgressMarks.marks = mapOf("p" to ProgressMark(0.4f), "lp" to ProgressMark(0.7f), "s" to ProgressMark(0.35f, "S2 E5"), "ls" to ProgressMark(0.6f, "S1 E8"))
+        val colours = listOf(0xFF1D3557, 0xFF9D3C5C, 0xFF2D6A4F, 0xFF6C4AB6, 0xFF3A3A48, 0xFFA0522D)
+        rule.setContent {
+            ZappTheme {
+                androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxSize().background(ZappColors.Bg).padding(40.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                ) {
+                    listOf("w", "lw", "p", "lp", "s", "ls").forEachIndexed { i, id ->
+                        Box(
+                            Modifier
+                                .width(132.dp)
+                                .height(198.dp)
+                                .background(
+                                    androidx.compose.ui.graphics.Brush.verticalGradient(listOf(androidx.compose.ui.graphics.Color(colours[i]), androidx.compose.ui.graphics.Color(0xFFE9C46A))),
+                                    androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                ),
+                        ) { CardMarks(id) }
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(800)
+        save("card-marks")
+    }
+
     @Test fun app() {
         assumeTrue(System.getenv("SCREENS") == "1")
         val app = RuntimeEnvironment.getApplication() as ZappApp
