@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -109,6 +110,9 @@ fun VodPlayer(
     var barVisible by remember { mutableStateOf(true) }
     // When a key was last pressed (not state: a press shouldn't rebuild the whole player).
     val lastKey = remember { longArrayOf(System.currentTimeMillis()) }
+    // The controls' first button, and whether the player itself (not a control) holds focus.
+    val controlsEntry = remember { FocusRequester() }
+    var rootFocused by remember { mutableStateOf(false) }
     var ended by remember { mutableStateOf(false) }
     var paused by remember { mutableStateOf(false) }
     var nextCard by remember(info.videoId) { mutableStateOf(false) }
@@ -402,6 +406,12 @@ fun VodPlayer(
                 false
             }
             .onKeyEvent { e ->
+                // The controls are up but focus slipped out of them (a panel closed under it, say):
+                // any arrow or OK puts it back on the controls instead of doing nothing.
+                if (rootFocused && panel == VodPanel.Controls && e.type == KeyEventType.KeyDown) {
+                    controlsEntry.tryRequest()
+                    return@onKeyEvent true
+                }
                 if (endScreen || panel != VodPanel.None || e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 val fast = e.nativeKeyEvent.repeatCount > 4
                 when (e.key) {
@@ -431,6 +441,7 @@ fun VodPlayer(
                 }
             }
             .focusRequester(focus)
+            .onFocusChanged { rootFocused = it.isFocused }
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
@@ -553,6 +564,7 @@ fun VodPlayer(
                     thumbs = thumbs,
                     // Up from the top of the controls puts them away, like Back.
                     onUpFromTop = { panel = VodPanel.None },
+                    entry = controlsEntry,
                 )
                 }
             }
@@ -1159,9 +1171,24 @@ private fun VodControls(
     chapterAt: (Long) -> String? = { null },
     thumbs: SeekThumbs? = null,
     onUpFromTop: (() -> Unit)? = null,
+    entry: FocusRequester? = null,
 ) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
+    val first = entry ?: remember { FocusRequester() }
+    val seekFocus = remember { FocusRequester() }
+    // Back from Audio or Subtitles: to the button you opened it from (or play/pause), and again a
+    // moment later if the closing panel still had it.
+    val optionFocus = remember { HashMap<String, FocusRequester>() }
+    var lastOption by remember { mutableStateOf<String?>(null) }
+    var inside by remember { mutableStateOf(false) }
+    LaunchedEffect(focusable) {
+        if (!focusable) return@LaunchedEffect
+        repeat(6) { attempt ->
+            val back = if (attempt < 2) lastOption?.let { optionFocus[it] } else null
+            (back ?: first).tryRequest()
+            delay(90)
+            if (inside) return@LaunchedEffect
+        }
+    }
     val playing by produceState(playback.player.playWhenReady) {
         while (true) {
             value = playback.player.playWhenReady
@@ -1183,16 +1210,23 @@ private fun VodControls(
         p.seekTo(if (d > 0 && d != C.TIME_UNSET) target.coerceAtMost(d - 1_000) else target)
     }
 
-    Column {
+    Column(Modifier.onFocusChanged { inside = it.hasFocus }) {
         playback.error?.let {
             ErrorBanner("This source isn't playing. Try again, or choose another source.")
         }
         Box(Modifier.upCloses(onUpFromTop)) {
-            SeekBar(playback, active = focusable, markers = markers, chapterAt = chapterAt, thumbs = thumbs)
+            SeekBar(playback, active = focusable, markers = markers, chapterAt = chapterAt, thumbs = thumbs, requester = seekFocus)
         }
         Spacer(Modifier.height(10.dp))
         // The buttons are the top row when there's no seek bar (or the source failed).
-        Row(Modifier.upCloses(onUpFromTop) { playback.error != null || !playback.hasSeekBar() }.focusGroup(), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier
+                .upCloses(onUpFromTop) { playback.error != null || !playback.hasSeekBar() }
+                .focusGroup()
+                // Up from any button goes to the seek bar.
+                .focusProperties { if (playback.error == null && playback.hasSeekBar()) up = seekFocus },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (playback.error != null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ChipButton("Choose another source", null, onSources, requester = first, accent = true)
@@ -1200,9 +1234,13 @@ private fun VodControls(
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    RoundButton(PlayerIcon.Back10, false, null) { seekBy(-10_000) }
-                    RoundButton(if (playing) PlayerIcon.Pause else PlayerIcon.Play, true, first) { playback.togglePause() }
-                    RoundButton(PlayerIcon.Forward10, false, null) { seekBy(10_000) }
+                    Box(Modifier.onFocusChanged { if (it.hasFocus) lastOption = null }) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RoundButton(PlayerIcon.Back10, false, null) { seekBy(-10_000) }
+                            RoundButton(if (playing) PlayerIcon.Pause else PlayerIcon.Play, true, first) { playback.togglePause() }
+                            RoundButton(PlayerIcon.Forward10, false, null) { seekBy(10_000) }
+                        }
+                    }
                 }
             }
             Spacer(Modifier.weight(1f))
@@ -1215,8 +1253,17 @@ private fun VodControls(
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     @Composable
                     fun opt(icon: PlayerIcon, label: String, value: String?, accent: Boolean = false, onClick: () -> Unit) {
-                        Box(Modifier.onFocusChanged { if (it.hasFocus) caption = listOfNotNull(label, value).joinToString("  ·  ") else if (caption?.startsWith(label) == true) caption = null }) {
-                            IconOption(icon, label, value, onClick, accent = accent)
+                        Box(
+                            Modifier.onFocusChanged {
+                                if (it.hasFocus) {
+                                    caption = listOfNotNull(label, value).joinToString("  ·  ")
+                                    lastOption = label
+                                } else if (caption?.startsWith(label) == true) {
+                                    caption = null
+                                }
+                            },
+                        ) {
+                            IconOption(icon, label, value, onClick, requester = optionFocus.getOrPut(label) { FocusRequester() }, accent = accent)
                         }
                     }
                     opt(PlayerIcon.Audio, "Audio", audioNow ?: "Default", onClick = onAudio)

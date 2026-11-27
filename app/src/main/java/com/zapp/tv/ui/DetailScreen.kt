@@ -743,6 +743,10 @@ private fun EpisodeMenu(
     val idx = regular.indexOfFirst { it.id == episode.id }
     val before = if (idx > 0) regular.take(idx) else emptyList()
     val unwatchedBefore = before.count { v -> progress.none { it.videoId == v.id && it.watched } }
+    // The same, but only earlier episodes of this season.
+    val beforeInSeason = before.filter { it.season == episode.season }
+    val unwatchedInSeason = beforeInSeason.count { v -> progress.none { it.videoId == v.id && it.watched } }
+    fun count(n: Int) = "$n episode" + if (n == 1) "" else "s"
     val seasonEps = videos.filter { it.season == episode.season }
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         DialogBlurBehind()
@@ -770,12 +774,24 @@ private fun EpisodeMenu(
                     onClose()
                 }
             }
-            if (before.isNotEmpty()) {
+            // Earlier episodes: this season's, and (when there are earlier seasons) all of them.
+            if (beforeInSeason.isNotEmpty()) {
                 MenuItem(
                     "⇤",
-                    if (unwatchedBefore > 0) "Mark previous as watched" else "Previous episodes are watched",
+                    if (unwatchedInSeason > 0) "Mark previous in this season as watched" else "Previous in this season are watched",
                     null,
-                    trailing = if (unwatchedBefore > 0) "$unwatchedBefore episode" + if (unwatchedBefore == 1) "" else "s" else null,
+                    trailing = if (unwatchedInSeason > 0) count(unwatchedInSeason) else null,
+                ) {
+                    if (unwatchedInSeason > 0) mvm.setEpisodesWatched(meta, beforeInSeason, true)
+                    onClose()
+                }
+            }
+            if (before.size > beforeInSeason.size) {
+                MenuItem(
+                    "⇤",
+                    if (unwatchedBefore > 0) "Mark all previous as watched" else "All previous episodes are watched",
+                    null,
+                    trailing = if (unwatchedBefore > 0) count(unwatchedBefore) else null,
                 ) {
                     if (unwatchedBefore > 0) mvm.setEpisodesWatched(meta, before, true)
                     onClose()

@@ -60,6 +60,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
@@ -114,6 +115,9 @@ fun PlayerOverlay(
     var infoTick by remember { mutableIntStateOf(0) }
     // When a key was last pressed (not state: a press shouldn't rebuild the whole player).
     val lastKey = remember { longArrayOf(System.currentTimeMillis()) }
+    // The controls' first button, and whether the player itself (not a control) holds focus.
+    val controlsEntry = remember { FocusRequester() }
+    var rootFocused by remember { mutableStateOf(false) }
     var zapJob by remember { mutableStateOf<Job?>(null) }
     var favTick by remember { mutableIntStateOf(0) }
     // The channel you were on before this one (for "Last channel").
@@ -217,6 +221,12 @@ fun PlayerOverlay(
                 false
             }
             .onKeyEvent { e ->
+                // The controls are up but focus slipped out of them (a panel closed under it, say):
+                // any key puts it back on the controls instead of doing nothing.
+                if (rootFocused && panel == PlayerPanel.Controls && e.type == KeyEventType.KeyDown) {
+                    controlsEntry.tryRequest()
+                    return@onKeyEvent true
+                }
                 if (panel != PlayerPanel.None) return@onKeyEvent false
                 val key = e.key
                 when (e.type) {
@@ -283,6 +293,7 @@ fun PlayerOverlay(
                 }
             }
             .focusRequester(focus)
+            .onFocusChanged { rootFocused = it.isFocused }
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {
@@ -324,6 +335,7 @@ fun PlayerOverlay(
                     focusable = panel == PlayerPanel.Controls,
                     // Up from the top of the controls puts them away, like Back.
                     onUpFromTop = { panel = PlayerPanel.None },
+                    entry = controlsEntry,
                     onChannels = { panel = PlayerPanel.Channels },
                     onAudio = { panel = PlayerPanel.Audio },
                     onSubtitles = { panel = PlayerPanel.Subtitles },
@@ -444,6 +456,7 @@ private fun ControlsPanel(
     timeFormat: java.text.DateFormat,
     focusable: Boolean,
     onUpFromTop: (() -> Unit)? = null,
+    entry: FocusRequester? = null,
     onChannels: () -> Unit,
     onAudio: () -> Unit,
     onSubtitles: () -> Unit,
@@ -453,8 +466,22 @@ private fun ControlsPanel(
     onLastChannel: (() -> Unit)? = null,
     onRestart: (() -> Unit)? = null,
 ) {
-    val first = remember { FocusRequester() }
-    LaunchedEffect(focusable) { if (focusable) first.tryRequest() }
+    val first = entry ?: remember { FocusRequester() }
+    val barFocus = remember { FocusRequester() }
+    // Back from Audio or Subtitles: to the button you opened it from (or play/pause), and again a
+    // moment later if the closing panel still had it.
+    val optionFocus = remember { HashMap<String, FocusRequester>() }
+    var lastOption by remember { mutableStateOf<String?>(null) }
+    var inside by remember { mutableStateOf(false) }
+    LaunchedEffect(focusable) {
+        if (!focusable) return@LaunchedEffect
+        repeat(6) { attempt ->
+            val back = if (attempt < 2) lastOption?.let { optionFocus[it] } else null
+            (back ?: first).tryRequest()
+            delay(90)
+            if (inside) return@LaunchedEffect
+        }
+    }
     val audio = playback.choices(C.TRACK_TYPE_AUDIO)
     val subtitles = playback.choices(C.TRACK_TYPE_TEXT)
     val playing by produceState(playback.player.playWhenReady) {
@@ -464,14 +491,14 @@ private fun ControlsPanel(
         }
     }
 
-    Column {
+    Column(Modifier.onFocusChanged { inside = it.hasFocus }) {
         InfoBar(channel, favorite, programmes, now, timeFormat, hints = false, playback = playback)
         playback.error?.let {
             Spacer(Modifier.height(12.dp))
             ErrorBanner("$it Try again, or move to another channel.")
         }
         Box(Modifier.upCloses(onUpFromTop)) {
-            if (playback.timeshiftOn) LiveTimeshiftBar(playback, focusable) else SeekBar(playback, focusable)
+            if (playback.timeshiftOn) LiveTimeshiftBar(playback, focusable, requester = barFocus) else SeekBar(playback, focusable, requester = barFocus)
         }
         Spacer(Modifier.height(12.dp))
         var caption by remember { mutableStateOf<String?>(null) }
@@ -483,11 +510,27 @@ private fun ControlsPanel(
         // Transport in the middle (always the same buttons, so nothing shifts as you press them);
         // channel choices on the left; tracks, favourite and info on the right.
         // The buttons are the top row when there's no bar above them.
-        Box(Modifier.fillMaxWidth().upCloses(onUpFromTop) { !playback.timeshiftOn && !playback.hasSeekBar() }.focusGroup()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .upCloses(onUpFromTop) { !playback.timeshiftOn && !playback.hasSeekBar() }
+                .focusGroup()
+                // Up from any button goes to the bar above.
+                .focusProperties { if (playback.timeshiftOn || playback.hasSeekBar()) up = barFocus },
+        ) {
             @Composable
             fun opt(icon: PlayerIcon, label: String, value: String? = null, accent: Boolean = false, requester: FocusRequester? = null, onClick: () -> Unit) {
-                Box(Modifier.onFocusChanged { if (it.hasFocus) caption = listOfNotNull(label, value).joinToString("  ·  ") else if (caption?.startsWith(label) == true) caption = null }) {
-                    IconOption(icon, label, value, onClick, requester = requester, accent = accent)
+                Box(
+                    Modifier.onFocusChanged {
+                        if (it.hasFocus) {
+                            caption = listOfNotNull(label, value).joinToString("  ·  ")
+                            lastOption = label.takeIf { requester == null }
+                        } else if (caption?.startsWith(label) == true) {
+                            caption = null
+                        }
+                    },
+                ) {
+                    IconOption(icon, label, value, onClick, requester = requester ?: optionFocus.getOrPut(label) { FocusRequester() }, accent = accent)
                 }
             }
             Row(Modifier.align(Alignment.CenterStart), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -532,6 +575,8 @@ internal fun SeekBar(
     /** The name of the part at a moment ("Intro", "Credits"), shown with the preview. */
     chapterAt: (Long) -> String? = { null },
     thumbs: SeekThumbs? = null,
+    /** For Up from the buttons below to land here. */
+    requester: FocusRequester? = null,
 ) {
     val player = playback.player
     var barFocused by remember { mutableStateOf(false) }
@@ -597,6 +642,7 @@ internal fun SeekBar(
         }
         FocusSurface(
             onClick = { playback.togglePause() },
+            focusRequester = requester,
             onFocusChange = { barFocused = it },
             modifier = Modifier
                 .fillMaxWidth()
@@ -1250,7 +1296,7 @@ internal fun SubtitleStylePanel(playback: Playback, settings: com.zapp.tv.data.S
  * move back and forward (hold for bigger steps); OK pauses; it says "Live" or how far behind.
  */
 @Composable
-internal fun LiveTimeshiftBar(playback: Playback, active: Boolean) {
+internal fun LiveTimeshiftBar(playback: Playback, active: Boolean, requester: FocusRequester? = null) {
     val state by produceState(Triple(0L, 0L, 0L), active) {
         while (true) {
             val now = System.currentTimeMillis()
@@ -1268,6 +1314,7 @@ internal fun LiveTimeshiftBar(playback: Playback, active: Boolean) {
     Column {
         FocusSurface(
             onClick = { playback.togglePause() },
+            focusRequester = requester,
             onFocusChange = { barFocused = it },
             modifier = Modifier
                 .fillMaxWidth()

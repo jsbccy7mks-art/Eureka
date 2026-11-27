@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -506,7 +507,7 @@ private fun FilterDialog(which: String, kind: DKind, f: DFilters, onPick: (DFilt
             Modifier
                 .width(360.dp)
                 .clip(Shapes.Panel)
-                .panelSurface()
+                .background(ZappColors.Panel)
                 .padding(horizontal = 12.dp, vertical = 18.dp),
         ) {
             Text(title, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp, bottom = 10.dp))

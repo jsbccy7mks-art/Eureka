@@ -13,9 +13,17 @@
   becomes a grid of everything that matches, loading more as you go down. Clear brings the rows
   back. Discover needs your TMDB key; children's profiles only see family titles.
 
+**Changed**
+- An episode's menu (hold OK on it): "Mark previous in this season as watched", and separately
+  "Mark all previous as watched" (every earlier season too).
+- In the player, Up from any button goes to the seek bar (and Up again closes the controls).
+
 **Fixed**
 - Your month and Your year: titles synced from Nuvio or Stremio showed as "tt" and a number with
   no poster. They now show their real names and posters.
+- In the player, closing Subtitles or Audio (turning subtitles off, say) could leave nothing
+  selected, so the remote did nothing. Focus now goes back to the button you opened it from, and
+  if it's ever lost while the controls are up, any button brings it back.
 
 ## 0.57.1
 
