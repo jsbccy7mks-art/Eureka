@@ -1,81 +1,67 @@
 package com.zapp.tv.ui
 
-import android.media.MediaMetadataRetriever
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.util.LruCache
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import tv.seekr.previews.android.SeekrTrack
 
 /**
- * Little pictures for the seek bar: frames read from the film itself, around wherever you're
- * seeking to (every ten seconds), one at a time in the background and kept for a while.
- * Streams that can't be read this way (HLS) simply show no pictures.
+ * Little pictures for the seek bar, from Seekr: ready-made, downloaded as small sheets, so
+ * nothing is read from the film or decoded on the TV while you seek. Titles Seekr doesn't have
+ * (or no Seekr key) simply show the time without a picture.
  */
-class SeekThumbs(private val url: String, private val headers: Map<String, String>) {
-    private val worker = Executors.newSingleThreadExecutor()
-    private val main = Handler(Looper.getMainLooper())
-    private val cache = LruCache<Long, ImageBitmap>(80)
-    private var retriever: MediaMetadataRetriever? = null
-    @Volatile private var wanted = -1L
-    @Volatile private var broken = false
-    @Volatile private var closed = false
-
-    /** The nearest picture so far: where it's from, and the picture. */
+class SeekThumbs(private val track: SeekrTrack, private val scope: CoroutineScope) {
+    /** The picture for where you're seeking: the moment it's from, and the picture. */
     var shown by mutableStateOf<Pair<Long, ImageBitmap>?>(null)
         private set
 
+    private var job: Job? = null
+    private var wanted = -1L
+
     fun request(ms: Long) {
-        if (broken || closed) return
-        val key = (ms / 10_000L) * 10_000L
-        cache.get(key)?.let { shown = key to it; return }
-        if (wanted == key) return
-        wanted = key
-        worker.execute {
-            if (closed || wanted != key) return@execute // already moved on
-            try {
-                val r = retriever ?: MediaMetadataRetriever().also { it.setDataSource(url, headers); retriever = it }
-                val frame = if (Build.VERSION.SDK_INT >= 27) {
-                    r.getScaledFrameAtTime(key * 1000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180)
-                } else {
-                    r.getFrameAtTime(key * 1000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                }
-                if (frame != null) {
-                    val img = frame.asImageBitmap()
-                    cache.put(key, img)
-                    main.post { if (!closed) shown = key to img }
-                }
-            } catch (e: Exception) {
-                broken = true
-            } catch (e: Error) {
-                broken = true
-            }
+        if (ms == wanted) return
+        wanted = ms
+        // Only the latest position matters: an older request still downloading is dropped.
+        job?.cancel()
+        job = scope.launch {
+            val t = runCatching { track.thumbnailFor(ms) }.getOrNull() ?: return@launch
+            // Past the middle of a picture's stretch, the next one is closer to where you are.
+            val pick = if (ms - t.cueStartMs > t.cueEndMs - ms) runCatching { track.thumbnailFor(t.cueEndMs) }.getOrNull() ?: t else t
+            shown = pick.cueStartMs to pick.bitmap.asImageBitmap()
         }
     }
 
-    fun close() {
-        closed = true
-        worker.execute { runCatching { retriever?.release() } }
-        worker.shutdown()
+    /** Fetches the sheets around [ms] ahead of time, so the first pictures are instant. */
+    fun warm(ms: Long) {
+        scope.launch { runCatching { track.warm(ms, limit = 3) } }
     }
 }
 
-/** Pictures for what [playback] is playing (films and episodes only). */
+/** Seek-bar pictures for what [playback] is playing, once Seekr has found them (null otherwise). */
 @Composable
-fun rememberSeekThumbs(playback: Playback): SeekThumbs? {
-    val uri = playback.player.currentMediaItem?.localConfiguration?.uri?.toString()
-    val thumbs = remember(uri) {
-        if (uri == null || !uri.startsWith("http") || uri.contains(".m3u8") || uri.contains("/hls/")) null
-        else SeekThumbs(uri, playback.media?.headers.orEmpty())
+fun rememberSeekThumbs(playback: Playback, mvm: MediaViewModel): SeekThumbs? {
+    val info = playback.media ?: return null
+    val scope = rememberCoroutineScope()
+    val thumbs by produceState<SeekThumbs?>(null, info.videoId, mvm.seekr.enabled) {
+        value = null
+        if (!mvm.seekr.enabled || info.videoId.startsWith("catchup:")) return@produceState
+        // Seekr matches its pictures to the file's length, so wait until the player knows it.
+        var d = playback.player.duration
+        while (d <= 0 || d == androidx.media3.common.C.TIME_UNSET) {
+            delay(500)
+            d = playback.player.duration
+        }
+        val track = mvm.seekr.track(info.videoId, info.type, d, playback.player.currentPosition) ?: return@produceState
+        value = SeekThumbs(track, scope).also { it.warm(playback.player.currentPosition) }
     }
-    DisposableEffect(thumbs) { onDispose { thumbs?.close() } }
     return thumbs
 }

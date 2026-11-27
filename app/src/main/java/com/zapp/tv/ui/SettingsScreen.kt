@@ -866,6 +866,36 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
                 if (mvm.mdblist.enabled) ZButton("Remove key", { mvm.settings.setSecret("mdblistKey", "") }, style = ButtonStyle.Quiet)
             }
         }
+        SettingsGroup(
+            "Seekr",
+            when {
+                // (Reading the key version redraws this when a key is added or removed.)
+                mvm.settings.debridVersion < 0 || !mvm.seekr.hasKey -> "Not set up"
+                mvm.settings.seekrOn -> "Connected"
+                else -> "Switched off"
+            },
+            collapsible = true,
+            help = "Your Seekr key: pictures on the seek bar while you skip through films and episodes.",
+        ) {
+            Text(
+                "With your own Seekr key, the seek bar shows a picture of where you're skipping to in films and episodes. The pictures are ready-made by Seekr, so nothing slows the player down. Titles Seekr doesn't have show just the time.",
+                color = ZappColors.Dim,
+                fontSize = TextSize.Small,
+                lineHeight = 17.sp,
+            )
+            if (mvm.seekr.hasKey) {
+                SettingRow(
+                    title = "Use Seekr",
+                    body = "Pictures on the seek bar.",
+                    value = SettingValue.Toggle(mvm.settings.seekrOn),
+                    onClick = { mvm.settings.seekrOn = !mvm.settings.seekrOn },
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton(if (mvm.seekr.hasKey) "Change key on my phone" else "Add key on my phone", { onPhone("seekr") }, style = ButtonStyle.Primary)
+                if (mvm.seekr.hasKey) ZButton("Remove key", { mvm.settings.setSecret(com.zapp.tv.data.SeekrPreviews.KEY, "") }, style = ButtonStyle.Quiet)
+            }
+        }
         SettingsCaption("Streaming")
         SettingsGroup("Debrid", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Not connected", collapsible = true, help = "Real-Debrid, AllDebrid, Premiumize or TorBox, so torrent sources can play.") {
             DebridSection(vm, mvm)

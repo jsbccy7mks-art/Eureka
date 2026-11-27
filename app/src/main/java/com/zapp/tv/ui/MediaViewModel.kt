@@ -1557,6 +1557,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- your ratings (Dislike / Like / Love) and the taste they add up to
 
+    /** Seek-bar pictures from Seekr. */
+    val seekr get() = zapp.seekr
+
     val ratings get() = zapp.ratings
     fun ratingOf(id: String): com.zapp.tv.data.Rating? = ratings.get(id)
 
@@ -1649,7 +1652,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val m = today.monthValue
         val d = today.dayOfMonth
         return when {
-            (m == 11 && d >= 15) || m == 12 || (m == 1 && d <= 6) -> Season("christmas", "Christmas picks", emptyMap(), "christmas", tv = true)
+            // Well-known Christmas films only (no horror), not obscure ones or series.
+            (m == 11 && d >= 15) || m == 12 || (m == 1 && d <= 6) -> Season("christmas", "Christmas picks", mapOf("without_genres" to "27"), "christmas")
             m == 10 -> Season("halloween", "Halloween picks", emptyMap(), "halloween")
             m == 2 && d <= 14 -> Season("valentine", "Love stories", mapOf("with_genres" to "10749"))
             (m == 3 && d >= 20) || (m == 4 && d <= 25) -> Season("easter", "Easter holiday picks", mapOf("with_genres" to "10751"))
@@ -1673,9 +1677,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val kw = season.keyword?.let { tmdb.keywordId(it) }
         if (season.keyword != null && kw == null) return emptyList()
         val p = season.params + (kw?.let { mapOf("with_keywords" to it.toString()) } ?: emptyMap())
+        // Only titles plenty of people know: the most-voted, plus what's popular now among those.
+        val known = if ("vote_count.gte" in p) p else p + ("vote_count.gte" to "1000")
         val pool = runCatching {
-            tmdb.discoverItems(p + ("sort_by" to "vote_count.desc"), 5) +
-                tmdb.discoverItems(p + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "50"), 2) +
+            tmdb.discoverItems(known + ("sort_by" to "vote_count.desc"), 4) +
+                tmdb.discoverItems(known + ("sort_by" to "popularity.desc"), 1) +
                 (if (season.tv) tmdb.discoverItems(mapOf("sort_by" to "popularity.desc") + (kw?.let { mapOf("with_keywords" to it.toString()) } ?: emptyMap()), 1, tv = true) else emptyList())
         }.getOrDefault(emptyList()).distinctBy { it.first.type + it.first.id }
         val liked = taste.filterKeys { it.startsWith("g:") }.filterValues { it > 0 }.keys.mapNotNull { it.removePrefix("g:").toIntOrNull() }.toSet()

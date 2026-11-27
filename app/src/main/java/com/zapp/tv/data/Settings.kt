@@ -358,6 +358,13 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    private val seekrOnState = mutableStateOf(prefs.getBoolean("seekrOn", true))
+
+    /** Seek-bar pictures from Seekr (when there's a key). */
+    var seekrOn: Boolean
+        get() = seekrOnState.value
+        set(value) { seekrOnState.value = value; prefs.edit().putBoolean("seekrOn", value).apply() }
+
     private val trailerQualityState = mutableIntStateOf(prefs.getInt("trailerQuality", if (prefs.getBoolean("trailerBest", true)) 2 else 0))
     /** Trailer picture: 0 up to 1080p, 1 up to 1440p, 2 up to 4K (each only where this TV can play it). */
     var trailerQuality: Int

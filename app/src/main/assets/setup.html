@@ -114,6 +114,7 @@
     <button type="button" data-type="debrid" aria-pressed="false">Debrid</button>
     <button type="button" data-type="tmdb" aria-pressed="false">TMDB</button>
     <button type="button" data-type="mdblist" aria-pressed="false">MDBList</button>
+    <button type="button" data-type="seekr" aria-pressed="false">Seekr</button>
     <button type="button" data-type="sportsdb" aria-pressed="false">Sports</button>
   </div>
 
@@ -243,6 +244,16 @@
       </div>
     </div>
 
+    <!-- Seekr -->
+    <div data-for="seekr" hidden>
+      <h2>Seekr</h2>
+      <p>Pictures on the seek bar while you skip through films and episodes, ready-made by Seekr, so nothing slows the player down. Use the API key from your Seekr account (sign up at seekr.tv/join).</p>
+      <div class="field">
+        <label for="seekrKey">API key</label>
+        <input id="seekrKey" autocapitalize="off" spellcheck="false">
+      </div>
+    </div>
+
     <!-- TMDB -->
     <div data-for="tmdb" hidden>
       <h2>TMDB</h2>
@@ -295,7 +306,7 @@
   let format = 'ts';
   let debridService = 'pm';
   const remembered = { playlist: 'xtream', accounts: 'stremio' };
-  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect', mdblist: 'Connect', sportsdb: 'Save' };
+  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect', mdblist: 'Connect', seekr: 'Connect', sportsdb: 'Save' };
 
   if (!token) $('codeBox').hidden = false;
   function currentToken() { return token || $('code').value.trim().toUpperCase(); }
@@ -360,7 +371,7 @@
   // The TV can open a particular part of this page (?tab=stremio and so on).
   const want = params.get('tab');
   if (want === 'xtream' || want === 'm3u') { remembered.playlist = want; choose('playlist'); }
-  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb' || want === 'mdblist' || want === 'sportsdb') { remembered.accounts = want; choose('accounts'); }
+  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb' || want === 'mdblist' || want === 'seekr' || want === 'sportsdb') { remembered.accounts = want; choose('accounts'); }
   else if (want === 'addon' || want === 'help') { choose(want); }
   else { show(); }
 
@@ -403,6 +414,7 @@
     debrid: (b) => !b.debridKey.trim() && 'Paste the API key first.',
     tmdb: (b) => !b.tmdbKey.trim() && 'Paste your TMDB key first.',
     mdblist: (b) => !b.mdblistKey.trim() && 'Paste your MDBList key first.',
+    seekr: (b) => !b.seekrKey.trim() && 'Paste your Seekr key first.',
     sportsdb: (b) => !b.sportsDbKey.trim() && 'Paste your TheSportsDB key first.',
   };
   const working = {
@@ -415,6 +427,7 @@
     debrid: 'Connecting…',
     tmdb: 'Checking the key with TMDB…',
     mdblist: 'Checking the key with MDBList…',
+    seekr: 'Checking the key with Seekr…',
   };
 
   $('form').addEventListener('submit', async (e) => {
@@ -441,6 +454,7 @@
       nuvioServer: $('nuvioServer').value,
       tmdbKey: $('tmdbKey').value,
       mdblistKey: $('mdblistKey').value,
+      seekrKey: $('seekrKey').value,
       sportsDbKey: $('sportsDbKey').value,
     };
     const problem = missing[type] && missing[type](body);

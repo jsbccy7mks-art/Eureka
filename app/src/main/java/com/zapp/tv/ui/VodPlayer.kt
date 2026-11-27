@@ -295,7 +295,7 @@ fun VodPlayer(
         }
     }
     // Pictures for the seek bar, and the names of the parts it passes through.
-    val thumbs = rememberSeekThumbs(playback)
+    val thumbs = rememberSeekThumbs(playback, mvm)
     val chapterAt: (Long) -> String? = { p ->
         when {
             segments?.recap?.let { p in it } == true -> "Recap"

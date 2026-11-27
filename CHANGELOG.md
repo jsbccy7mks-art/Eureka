@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.57.0
+
+**New**
+- Seek-bar pictures from Seekr. With your own Seekr key, skipping through a film or episode shows
+  a picture of where you're heading. The pictures are ready-made by Seekr and downloaded as small
+  sheets, so nothing is read from the film or worked out on the TV while you skip, and the player
+  stays quick (4K included). Add the key from your phone (the setup page, Accounts, Seekr) or
+  Settings, Accounts, Seekr, where it can also be switched off. Titles Seekr doesn't have show
+  just the time. The key is stored encrypted and only ever sent to Seekr.
+
+**Changed**
+- The old seek-bar pictures (frames read from the film on the TV) are gone; they slowed the
+  player down.
+- Christmas picks are well-known Christmas films only: plenty of votes on TMDB, no horror and
+  no series.
+
+**Fixed**
+- The Christmas row's warm glow fades out softly at the top and bottom instead of ending in a
+  hard line.
+
 ## 0.56.3
 
 **Fixed**

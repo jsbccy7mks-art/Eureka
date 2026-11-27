@@ -54,6 +54,7 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
     val tmdb: com.zapp.tv.data.Tmdb by lazy { com.zapp.tv.data.Tmdb(httpClient, settings) }
     val youtube: com.zapp.tv.data.YouTube by lazy { com.zapp.tv.data.YouTube(httpClient) }
     val introDb: com.zapp.tv.data.IntroDb by lazy { com.zapp.tv.data.IntroDb(httpClient) }
+    val seekr: com.zapp.tv.data.SeekrPreviews by lazy { com.zapp.tv.data.SeekrPreviews(httpClient, settings) }
     val profiles: com.zapp.tv.data.ProfileStore by lazy { com.zapp.tv.data.ProfileStore(database.profileDao(), settings) }
 
     val settings: Settings by lazy { Settings(this) }

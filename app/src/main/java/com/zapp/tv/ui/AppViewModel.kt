@@ -532,6 +532,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
             .put("debrid", if (debrid.isNotEmpty()) st(true, "Connected: " + debrid.joinToString(", ")) else st(false, "Not connected"))
             .put("tmdb", if (zapp.tmdb.enabled) st(true, "Connected") else st(false, "Not connected"))
             .put("mdblist", if (zapp.mdblist.enabled) st(true, "Connected") else st(false, "Not connected"))
+            .put("seekr", when {
+                !zapp.seekr.hasKey -> st(false, "Not connected")
+                !settings.seekrOn -> st(false, "Key saved, switched off on the TV")
+                else -> st(true, "Connected")
+            })
             .put("sportsdb", if (settings.secret("sportsDbKey").isNotBlank()) st(true, "Using your own key") else st(false, "Using the free shared key"))
     }
 
@@ -604,6 +609,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     }
                     showToast("TMDB connected from your phone")
                     return@withContext "TMDB is connected. Details pages now show cast photos, reviews and more."
+                }
+                "seekr" -> {
+                    val key = body.optString("seekrKey").trim()
+                    if (key.length < 12) fail("Paste your Seekr API key.")
+                    if (!zapp.seekr.check(key)) fail("Seekr didn't accept that key. Copy it again from your Seekr account.")
+                    settings.setSecret(com.zapp.tv.data.SeekrPreviews.KEY, key)
+                    settings.seekrOn = true
+                    zapp.seekr.keyChanged()
+                    showToast("Seekr connected from your phone")
+                    return@withContext "Seekr is connected. The seek bar now shows pictures while you skip through films and episodes."
                 }
                 "sportsdb" -> {
                     val key = body.optString("sportsDbKey").trim()

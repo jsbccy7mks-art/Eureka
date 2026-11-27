@@ -10,3 +10,11 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# Seekr: its JSON models are read by kotlinx-serialization (the library ships the same rules).
+-keepclassmembers class tv.seekr.previews.core.internal.** {
+    *** Companion;
+}
+-keepclasseswithmembers class tv.seekr.previews.core.internal.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}

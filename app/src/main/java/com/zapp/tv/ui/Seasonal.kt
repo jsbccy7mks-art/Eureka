@@ -18,7 +18,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.sin
@@ -47,8 +50,9 @@ fun SeasonalRow(key: String, on: Boolean, content: @Composable () -> Unit) {
     }
     val look = seasonLook(key)
     Box {
-        // The glow: soft colour behind the row, strongest at the start.
-        Canvas(Modifier.matchParentSize()) {
+        // The glow: soft colour behind the row, strongest at the start, fading out smoothly at
+        // the top and bottom so it never ends in a line.
+        Canvas(Modifier.matchParentSize().graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
             drawRect(
                 Brush.radialGradient(
                     listOf(look.glow[0], Color.Transparent),
@@ -59,10 +63,12 @@ fun SeasonalRow(key: String, on: Boolean, content: @Composable () -> Unit) {
             drawRect(
                 Brush.radialGradient(
                     listOf(look.glow[1], Color.Transparent),
-                    center = Offset(size.width * 0.7f, 0f),
+                    center = Offset(size.width * 0.7f, size.height * 0.35f),
                     radius = size.width * 0.4f,
                 ),
             )
+            drawRect(Brush.verticalGradient(*easedMask(start = 0f, end = 0.35f)), blendMode = BlendMode.DstIn)
+            drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.6f)), blendMode = BlendMode.DstIn)
         }
         CompositionLocalProvider(LocalRingTint provides look.ring) { content() }
         if (look.snow) Snow(look.flake, Modifier.fillMaxWidth().height(46.dp))
