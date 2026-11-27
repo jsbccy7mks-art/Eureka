@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.58.2
+
+**New**
+- Leave a title out of Your month (or Your year): on a card with posters (top series, your films,
+  your biggest night), press Down, pick one with Left and Right, and press OK. The story works
+  itself out again without it: hours, top lists, genres, the face you saw most and the biggest
+  night. It's left out of that month and its year; your watch history stays as it is.
+
 ## 0.58.1
 
 **Changed**

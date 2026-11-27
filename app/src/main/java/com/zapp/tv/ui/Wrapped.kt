@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -121,19 +122,37 @@ object WrappedState {
 object WrappedMaker {
     private val episodeId = Regex(":(\\d+):(\\d+)$")
 
+    /**
+     * Titles left out of a year's story (and every month in it), per profile: usually something
+     * someone else watched. Only the story changes; watch history stays as it is.
+     */
+    fun leftOut(app: ZappApp, year: Int): Set<String> =
+        app.getSharedPreferences("wrapped", android.content.Context.MODE_PRIVATE)
+            .getString("out:${app.settings.profileId}:$year", "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+
+    fun leaveOut(app: ZappApp, year: Int, id: String) {
+        val p = app.getSharedPreferences("wrapped", android.content.Context.MODE_PRIVATE)
+        p.edit().putString("out:${app.settings.profileId}:$year", (leftOut(app, year) + id).joinToString(",")).apply()
+    }
+
     suspend fun make(app: ZappApp, period: WrappedPeriod): WrappedData = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val pid = app.settings.profileId
-        val all = app.mediaDao.allProgress(pid).filter { !it.videoId.startsWith("catchup:") }
+        val everything = app.mediaDao.allProgress(pid).filter { !it.videoId.startsWith("catchup:") }
+        val out = leftOut(app, period.year)
+        val all = everything.filter { it.metaId !in out }
 
-        fun estimateSeconds(p: WrappedPeriod): Long =
-            all.filter { it.updatedAt in p.start until p.end }.sumOf { r ->
+        fun estimateSeconds(rows: List<com.zapp.tv.data.WatchProgress>, p: WrappedPeriod): Long =
+            rows.filter { it.updatedAt in p.start until p.end }.sumOf { r ->
                 val isEp = episodeId.containsMatchIn(r.videoId)
                 val dur = if (r.duration > 0) r.duration else if (isEp) 45 * 60_000L else 110 * 60_000L
                 (if (r.watched) dur else r.position.coerceAtMost(dur)) / 1000
             }
         fun hours(p: WrappedPeriod): Int {
-            val logged = com.zapp.tv.data.WatchLog.seconds(app, p.months, "vod") + com.zapp.tv.data.WatchLog.seconds(app, p.months, "live")
-            return ((maxOf(logged, estimateSeconds(p)) + 1800) / 3600).toInt()
+            // The running totals can't tell titles apart, so what was left out comes off them.
+            val skip = leftOut(app, p.year)
+            val gone = estimateSeconds(everything.filter { it.metaId in skip }, p)
+            val logged = com.zapp.tv.data.WatchLog.seconds(app, p.months, "vod") + com.zapp.tv.data.WatchLog.seconds(app, p.months, "live") - gone
+            return ((maxOf(logged, estimateSeconds(everything.filter { it.metaId !in skip }, p)) + 1800) / 3600).toInt()
         }
 
         val rows = all.filter { it.updatedAt in period.start until period.end }
@@ -228,13 +247,20 @@ object WrappedMaker {
 @Composable
 fun WrappedScreen(period: WrappedPeriod, onClose: () -> Unit) {
     val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as ZappApp
-    val data by produceState<WrappedData?>(null, period) { value = runCatching { WrappedMaker.make(app, period) }.getOrNull() }
-    BackHandler(onBack = onClose)
+    var redo by remember { mutableIntStateOf(0) }
+    val data by produceState<WrappedData?>(null, period, redo) { value = runCatching { WrappedMaker.make(app, period) }.getOrNull() }
+    // Down on a card with posters: pick one (Left and Right), OK to leave it out of the story.
+    var choosing by remember { mutableStateOf(false) }
+    var chosen by remember { mutableIntStateOf(0) }
+    var confirm by remember { mutableStateOf<WrappedTitle?>(null) }
+    BackHandler { if (choosing) choosing = false else onClose() }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.tryRequest() }
     val d = data
     val pages = remember(d) { if (d == null) emptyList() else wrappedPages(d) }
-    var page by remember(d) { mutableIntStateOf(0) }
+    var page by remember(period) { mutableIntStateOf(0) }
+    LaunchedEffect(pages.size) { if (pages.isNotEmpty() && page > pages.size - 1) page = pages.size - 1 }
+    val titlesHere = pages.getOrNull(page)?.titles.orEmpty()
 
     Box(
         Modifier
@@ -242,6 +268,16 @@ fun WrappedScreen(period: WrappedPeriod, onClose: () -> Unit) {
             .background(Color(0xFF07070C))
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (choosing) {
+                    when (e.key) {
+                        Key.DirectionRight -> chosen = (chosen + 1).coerceAtMost(titlesHere.size - 1)
+                        Key.DirectionLeft -> chosen = (chosen - 1).coerceAtLeast(0)
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> confirm = titlesHere.getOrNull(chosen)
+                        Key.DirectionUp -> choosing = false
+                        else -> return@onKeyEvent false
+                    }
+                    return@onKeyEvent true
+                }
                 when (e.key) {
                     Key.DirectionRight, Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
                         if (page < pages.size - 1) page++ else onClose()
@@ -249,6 +285,13 @@ fun WrappedScreen(period: WrappedPeriod, onClose: () -> Unit) {
                     }
                     Key.DirectionLeft -> {
                         if (page > 0) page--
+                        true
+                    }
+                    Key.DirectionDown -> {
+                        if (titlesHere.isNotEmpty()) {
+                            choosing = true
+                            chosen = 0
+                        }
                         true
                     }
                     else -> false
@@ -279,15 +322,65 @@ fun WrappedScreen(period: WrappedPeriod, onClose: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
         ) { i ->
             Box(Modifier.fillMaxSize().padding(horizontal = 80.dp, vertical = 60.dp), contentAlignment = Alignment.Center) {
-                pages.getOrNull(i)?.invoke()
+                pages.getOrNull(i)?.content?.invoke(if (choosing && i == page) chosen else null)
             }
         }
         Text(
-            if (page < pages.size - 1) "OK for next   ·   Back to close" else "OK to finish",
+            when {
+                choosing -> "Left and Right to pick   ·   OK to leave it out   ·   Back when done"
+                titlesHere.isNotEmpty() -> "OK for next   ·   Down to leave a title out   ·   Back to close"
+                page < pages.size - 1 -> "OK for next   ·   Back to close"
+                else -> "OK to finish"
+            },
             color = Color.White.copy(alpha = 0.45f),
             fontSize = TextSize.Label,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 22.dp),
         )
+    }
+    confirm?.let { t ->
+        LeaveOutDialog(
+            t,
+            period,
+            onLeaveOut = {
+                WrappedMaker.leaveOut(app, period.year, t.id)
+                confirm = null
+                choosing = false
+                redo++
+                focus.tryRequest()
+            },
+        ) {
+            confirm = null
+            focus.tryRequest()
+        }
+    }
+}
+
+/** "Leave … out of Your October?" */
+@Composable
+private fun LeaveOutDialog(t: WrappedTitle, period: WrappedPeriod, onLeaveOut: () -> Unit, onCancel: () -> Unit) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(60)
+        first.tryRequest()
+    }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onCancel) {
+        DialogBlurBehind()
+        Column(
+            Modifier.width(440.dp).clip(Shapes.Panel).background(ZappColors.Panel).padding(22.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("Leave ${t.name} out of Your ${period.title}?", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                if (period.month != null) "It won't count towards your ${period.title} or your ${period.year}. It stays in your watch history."
+                else "It won't count towards your ${period.year} or any month in it. It stays in your watch history.",
+                color = ZappColors.Dim,
+                fontSize = TextSize.Body,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ZButton("Leave out", onLeaveOut, style = ButtonStyle.Primary, focusRequester = first)
+                ZButton("Cancel", onCancel, style = ButtonStyle.Quiet)
+            }
+        }
     }
 }
 
@@ -320,7 +413,11 @@ private fun WrappedBackdrop(page: Int) {
     }
 }
 
-private fun wrappedPages(d: WrappedData): List<@Composable () -> Unit> = buildList<@Composable () -> Unit> {
+/** One card of the story: what it draws (with the picked poster, when picking) and the titles on it. */
+private class WPage(val titles: List<WrappedTitle> = emptyList(), val content: @Composable (picked: Int?) -> Unit)
+
+private fun wrappedPages(d: WrappedData): List<WPage> = buildList<WPage> {
+    fun add(content: @Composable () -> Unit) = add(WPage { content() })
     val p = d.period
     add {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -348,8 +445,8 @@ private fun wrappedPages(d: WrappedData): List<@Composable () -> Unit> = buildLi
             )
         }
     }
-    if (d.topSeries.isNotEmpty()) add { PosterPage("Your top series", d.topSeries) { "${it.count} episode" + if (it.count == 1) "" else "s" } }
-    if (d.topFilms.isNotEmpty()) add { PosterPage("Your films", d.topFilms) { null } }
+    if (d.topSeries.isNotEmpty()) add(WPage(d.topSeries) { picked -> PosterPage("Your top series", d.topSeries, picked) { "${it.count} episode" + if (it.count == 1) "" else "s" } })
+    if (d.topFilms.isNotEmpty()) add(WPage(d.topFilms) { picked -> PosterPage("Your films", d.topFilms, picked) { null } })
     if (d.genres.isNotEmpty()) add { GenrePage(d.genres) }
     d.actor?.let { a ->
         add {
@@ -372,9 +469,9 @@ private fun wrappedPages(d: WrappedData): List<@Composable () -> Unit> = buildLi
         }
     }
     d.binge?.let { b ->
-        add {
+        add(WPage(listOf(b)) { picked ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Poster(b.poster, b.name, 150.dp)
+                Poster(b.poster, b.name, 150.dp, picked = picked == 0)
                 Spacer(Modifier.width(36.dp))
                 Column {
                     SmallLine("Your biggest night", center = false)
@@ -384,7 +481,7 @@ private fun wrappedPages(d: WrappedData): List<@Composable () -> Unit> = buildLi
                     SmallLine("of ${b.name} in one sitting", center = false)
                 }
             }
-        }
+        })
     }
     d.lateNight?.let { t ->
         add {
@@ -457,14 +554,29 @@ private fun CountUp(target: Int, suffix: String, size: androidx.compose.ui.unit.
 }
 
 @Composable
-private fun Poster(url: String?, name: String, width: androidx.compose.ui.unit.Dp) {
-    Box(Modifier.width(width).aspectRatio(2f / 3f).clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.08f))) {
+private fun Poster(url: String?, name: String, width: androidx.compose.ui.unit.Dp, picked: Boolean = false, dim: Boolean = false) {
+    // Picking one to leave out: the picked poster lifts with a white edge, the others step back.
+    val lift by androidx.compose.animation.core.animateFloatAsState(if (picked) 1f else 0f, tween(160), label = "pick")
+    val fade by androidx.compose.animation.core.animateFloatAsState(if (dim) 0.4f else 1f, tween(160), label = "dim")
+    Box(
+        Modifier
+            .width(width)
+            .aspectRatio(2f / 3f)
+            .graphicsLayer {
+                scaleX = 1f + 0.06f * lift
+                scaleY = 1f + 0.06f * lift
+                alpha = fade
+            }
+            .border(2.5.dp, Color.White.copy(alpha = lift), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.08f)),
+    ) {
         Artwork(url, name)
     }
 }
 
 @Composable
-private fun PosterPage(title: String, items: List<WrappedTitle>, note: (WrappedTitle) -> String?) {
+private fun PosterPage(title: String, items: List<WrappedTitle>, picked: Int? = null, note: (WrappedTitle) -> String?) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         BigLine(title, 40.sp)
         Spacer(Modifier.height(28.dp))
@@ -481,7 +593,7 @@ private fun PosterPage(title: String, items: List<WrappedTitle>, note: (WrappedT
                 ) {
                     Text("${i + 1}", fontSize = if (i == 0) 30.sp else 22.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.85f))
                     Spacer(Modifier.height(6.dp))
-                    Poster(t.poster, t.name, if (i == 0) 150.dp else 118.dp)
+                    Poster(t.poster, t.name, if (i == 0) 150.dp else 118.dp, picked = picked == i, dim = picked != null && picked != i)
                     Spacer(Modifier.height(8.dp))
                     Text(t.name, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     note(t)?.let { Text(it, fontSize = TextSize.Label, color = Color.White.copy(alpha = 0.6f), maxLines = 1) }
