@@ -208,7 +208,7 @@ class ScreensTest {
     }
 
     /** A made-up playlist with categories, channels and a guide, straight into the app's database. */
-    private fun seedLive(app: ZappApp) = kotlinx.coroutines.runBlocking {
+    private fun seedLive(app: ZappApp) = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
         val f = ZappApp::class.java.getDeclaredField("database\$delegate").apply { isAccessible = true }
         @Suppress("UNCHECKED_CAST")
         val db = (f.get(app) as Lazy<com.zapp.tv.data.AppDatabase>).value
