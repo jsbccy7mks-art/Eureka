@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.54.0
+
+**New**
+- Your month on Axon, and Your year: a story you step through with OK, like Spotify Wrapped. Hours
+  watched (and how that compares with the month before), your top series and films, what you
+  were into, the face you saw most, your biggest night, the latest you stayed up watching, your
+  go-to channel, and your month in a sentence. It's ready in the first week of each month (a
+  "Your November" button by the clock on Home), and the year's from mid-December. Library always
+  has last month. Each profile has its own.
+- Axon now notes how long things are on screen (films, episodes and live channels), kept on this
+  TV, so the next ones are more exact; this first one is worked out from your watch history.
+
 ## 0.53.0
 
 **New**

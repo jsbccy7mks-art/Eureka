@@ -390,6 +390,21 @@ class Playback(
         }
     }
 
+    // Counts watching time for Your month / Your year (every half minute while something plays).
+    init {
+        scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30_000)
+                if (player.isPlaying && !fullscreenPreviewOnly()) {
+                    runCatching { com.zapp.tv.data.WatchLog.add(appContext, if (media != null) "vod" else "live", channel?.name, 30) }
+                }
+            }
+        }
+    }
+
+    /** A channel playing only as a small preview (Live TV corner, Home header) isn't counted as watching. */
+    private fun fullscreenPreviewOnly(): Boolean = media == null && !fullscreen
+
     init {
         player.addListener(listener)
     }

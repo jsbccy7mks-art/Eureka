@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -197,6 +198,24 @@ fun HeaderShortcuts() {
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Your month / Your year, when one is ready (first week of the month; mid-December on).
+        WrappedPeriod.ready()?.let { p ->
+            FocusSurface(
+                onClick = { WrappedState.open = p },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                focusScale = 1.06f,
+                restColor = Color.White.copy(alpha = 0.1f),
+            ) { focused ->
+                Text(
+                    "✦  Your ${p.title}",
+                    fontSize = TextSize.Small,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (focused) ZappColors.OnFocus else ZappColors.Text,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+        }
         listOf(Glyph.Search to { NavShortcuts.search() }, Glyph.Settings to { NavShortcuts.settings() }).forEachIndexed { i, (g, go) ->
             // Just the icon with a soft drop shadow; on focus it brightens and grows a little.
             FocusSurface(

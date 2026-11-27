@@ -226,6 +226,16 @@ fun LibraryScreen(
                 fontSize = TextSize.Small,
                 modifier = Modifier.padding(bottom = 4.dp),
             )
+            Spacer(Modifier.weight(1f))
+            // Your month (and, from mid-December, your year) on Axon.
+            val lastMonth = WrappedPeriod.lastMonth()
+            ZButton("✦  Your ${lastMonth.title}", { WrappedState.open = lastMonth }, style = ButtonStyle.Quiet)
+            val today = java.time.LocalDate.now()
+            if (today.monthValue == 12 && today.dayOfMonth >= 15 || today.monthValue == 1) {
+                val y = WrappedPeriod(if (today.monthValue == 1) today.year - 1 else today.year, null)
+                Spacer(Modifier.width(8.dp))
+                ZButton("✦  Your ${y.title}", { WrappedState.open = y }, style = ButtonStyle.Quiet)
+            }
         }
         Spacer(Modifier.height(14.dp))
         Row(Modifier.padding(start = 40.dp, end = 40.dp), verticalAlignment = Alignment.CenterVertically) {

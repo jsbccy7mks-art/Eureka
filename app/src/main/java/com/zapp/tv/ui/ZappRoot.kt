@@ -143,7 +143,7 @@ fun ZappRoot(vm: AppViewModel) {
     // Trailers stop whenever something covers them.
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
     TrailerGate.detailOpen = detail != null || collectionOpen != null
-    OverlayFocus.open = rateAFew || WhatsNewState.notes != null
+    OverlayFocus.open = rateAFew || WhatsNewState.notes != null || WrappedState.open != null
     CollectionArtSource.load = { id -> mvm.collectionArt(id) }
     val marks = mvm.posterMarks.collectAsState().value
     WatchedMarks.ids = mvm.watchedTitles.collectAsState().value + marks.first
@@ -564,6 +564,12 @@ fun ZappRoot(vm: AppViewModel) {
         }
         if (mvm.settings.showFps) FrameCounter(Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
 
+        WrappedState.open?.let { period ->
+            WrappedScreen(period) {
+                WrappedState.open = null
+                requestContentFocus()
+            }
+        }
         WhatsNewState.notes?.let { notes ->
             WhatsNewScreen(notes) {
                 WhatsNewState.notes = null
