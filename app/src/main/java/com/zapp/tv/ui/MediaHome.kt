@@ -118,8 +118,6 @@ fun ImmersiveLayout(
         val screenHeight = maxHeight
         val heroHeight = screenHeight * 0.47f
         val backdropUrl = hero?.meta?.let { it.background ?: detail?.preview?.background ?: it.poster }
-        // Glass: the glass panes take their colours from this picture.
-        LaunchedEffect(backdropUrl) { if (glassOn && backdropUrl != null) GlassScene.url = backdropUrl }
         // The hero breathes: once the trailer is actually playing, the text steps back and the picture
         // grows; the moment you move, it all comes back.
         var trailerOn by remember { mutableStateOf(false) }
@@ -157,7 +155,7 @@ fun ImmersiveLayout(
                     .fillMaxSize()
                     .fadeAbove(heroHeight)
                     // Down never leaves the rows; Up from the top row goes to Search and Settings.
-                    .trapVertical(up = if (topRight != null || glassOn) NavShortcuts.requester else null),
+                    .trapVertical(up = if (topRight != null) NavShortcuts.requester else null),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(top = heroHeight + 4.dp, bottom = screenHeight * 0.5f),
                 content = rows,
@@ -181,7 +179,7 @@ fun ImmersiveLayout(
             val d = detail?.takeIf { it.preview.id == m.id }
             Box(
                 Modifier
-                    .padding(start = if (glassOn) RowInset else 64.dp, top = 30.dp)
+                    .padding(start = 64.dp, top = 30.dp)
                     .height(64.dp)
                     .widthIn(max = 320.dp)
                     .graphicsLayer { alpha = logoAlpha },
@@ -218,10 +216,6 @@ fun easedFade(start: Float, end: Float): Array<Pair<Float, Color>> {
 /** Artwork of the title you're on, filling the top right and fading into the page. */
 @Composable
 private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = null, grow: Float = 0f, onTrailer: (Boolean) -> Unit = {}) {
-    if (glassOn) {
-        GlassBackdrop(url, trailer, trailerKey, onTrailer)
-        return
-    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val fullW = constraints.maxWidth.toFloat()
         val fullH = constraints.maxHeight.toFloat()
@@ -280,43 +274,6 @@ private fun Backdrop(url: String?, trailer: String? = null, trailerKey: Any? = n
     }
 }
 
-/**
- * Glass: the picture runs edge to edge across the top of the screen and melts into the softened
- * copy of itself behind the rows; the details float over it on a pane of glass.
- */
-@Composable
-private fun GlassBackdrop(url: String?, trailer: String?, trailerKey: Any?, onTrailer: (Boolean) -> Unit) {
-    Box(
-        Modifier
-            .bleedStart()
-            .fillMaxWidth()
-            .fillMaxHeight(0.82f)
-            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = 0.5f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
-            },
-    ) {
-        Crossfade(targetState = url, animationSpec = tween(650), label = "backdrop", modifier = Modifier.fillMaxSize()) { u ->
-            Box(Modifier.fillMaxSize()) {
-                if (u != null) {
-                    AsyncImage(
-                        model = u,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        alignment = Alignment.TopCenter,
-                        modifier = Modifier.fillMaxSize().drift(),
-                    )
-                }
-            }
-        }
-        DelayedTrailer(trailer, trailerKey, Modifier.fillMaxSize(), onShowing = onTrailer)
-        // A little shade top and bottom-left, so the clock and the glass read over bright pictures.
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.28f), 0.22f to Color.Transparent)))
-        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to Color.Black.copy(alpha = 0.3f), 0.5f to Color.Transparent)))
-    }
-}
-
 /** Mask stops: clear at [start], fully shown at [end], on the same smooth curve as [easedFade]. */
 fun easedMask(start: Float, end: Float): Array<Pair<Float, Color>> =
     easedFade(start, end).map { (pos, c) -> pos to Color.Black.copy(alpha = 1f - c.alpha) }.toTypedArray()
@@ -330,19 +287,8 @@ private fun HeroInfo(item: HeroItem?, detail: com.zapp.tv.addons.MetaDetail?, ra
     Column(
         Modifier
             .align(Alignment.BottomStart)
-            .then(
-                if (glassOn) {
-                    Modifier
-                        .padding(start = RowInset, bottom = 16.dp)
-                        .width(420.dp)
-                        .glass(Shapes.Panel, elevation = 20.dp)
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
-                } else {
-                    Modifier
-                        .padding(start = 64.dp, bottom = 20.dp)
-                        .width(380.dp)
-                },
-            ),
+            .padding(start = 64.dp, bottom = 20.dp)
+            .width(380.dp),
     ) {
         AnimatedContent(
             targetState = item,
@@ -455,7 +401,7 @@ fun RowOptionsDialog(
             Modifier
                 .width(440.dp)
                 .clip(Shapes.Panel)
-                .panelSurface()
+                .background(ZappColors.Panel)
                 .padding(horizontal = 14.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -639,7 +585,7 @@ fun RenameRowDialog(row: HomeRowSetting, onRename: (String?) -> Unit, onClose: (
             Modifier
                 .width(440.dp)
                 .clip(Shapes.Panel)
-                .panelSurface()
+                .background(ZappColors.Panel)
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

@@ -1248,19 +1248,12 @@ private fun ScenePanel(
         segments?.intro?.let { add("Intro" to it.startMs); add("After the intro" to it.endMs) }
         segments?.outro?.let { add("Credits" to it.startMs) }
     }
-    val scenePanel: @Composable (@Composable () -> Unit) -> Unit = { inner ->
-        if (glassOn) {
-            GlassPlayerPane(inner)
-        } else {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f), Color.Black.copy(alpha = 0.92f))))
-                    .padding(start = 56.dp, end = 56.dp, top = 80.dp, bottom = 30.dp),
-            ) { inner() }
-        }
-    }
-    scenePanel {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f), Color.Black.copy(alpha = 0.92f))))
+            .padding(start = 56.dp, end = 56.dp, top = 80.dp, bottom = 30.dp),
+    ) {
         Column(Modifier.focusGroup()) {
             Text("PARTS", color = ZappColors.Brand2, fontSize = TextSize.Label, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
             Spacer(Modifier.height(8.dp))

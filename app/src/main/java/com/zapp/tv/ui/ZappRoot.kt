@@ -64,11 +64,6 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.zapp.tv.data.ChannelRow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.layout.positionInParent
-import androidx.compose.ui.layout.onGloballyPositioned
 
 enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
@@ -399,7 +394,6 @@ fun ZappRoot(vm: AppViewModel) {
             },
     ) {
         AmbientBackground()
-        GlassSceneLoader()
 
         when {
             !vm.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -433,7 +427,7 @@ fun ZappRoot(vm: AppViewModel) {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .padding(start = if (FocusStyle.glass) GlassInset else RailWidth),
+                        .padding(start = RailWidth),
                 ) {
                     androidx.compose.animation.AnimatedContent(
                         targetState = dest,
@@ -515,19 +509,7 @@ fun ZappRoot(vm: AppViewModel) {
                         railTick++
                     }
                 }
-                if (FocusStyle.glass) GlassTabBar(
-                    locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null || rateAFew || WhatsNewState.notes != null,
-                    dests = Dest.entries.filter { (!kids || it != Dest.Live) && (it != Dest.Collections || (mvm.tmdb.enabled && mvm.settings.libraryCollections)) },
-                    profile = mvm.currentProfile?.takeIf { profiles.size > 1 || it.kids },
-                    onProfiles = { choosingProfile = true },
-                    current = dest,
-                    updateReady = vm.update is UpdateState.Available,
-                    railFocus = railFocus,
-                    open = railFocused,
-                    onOpenChange = { railFocused = it },
-                    onDown = { requestContentFocus(0) },
-                    onSelect = { open(it) },
-                ) else Sidebar(
+                Sidebar(
                     locked = (railTick >= 0 && System.currentTimeMillis() < railLockUntil) || detail != null || playRequest != null || collectionOpen != null || rateAFew || WhatsNewState.notes != null,
                     onRight = { requestContentFocus(0) },
                     dests = Dest.entries.filter { (!kids || it != Dest.Live) && (it != Dest.Collections || (mvm.tmdb.enabled && mvm.settings.libraryCollections)) },
@@ -1004,172 +986,6 @@ private fun Sidebar(
             if (Dest.Settings in dests) {
                 Item(Dest.Settings)
                 Spacer(Modifier.height(6.dp))
-            }
-        }
-    }
-}
-
-/**
- * Glass style navigation: a floating glass bar across the top instead of the sidebar. It appears
- * when you go to it (Up from the top of a page, or Back) and fades away when you go back down to
- * the page, so it never covers anything while you browse. A "liquid" highlight slides and
- * stretches from tab to tab.
- */
-@Composable
-internal fun GlassTabBar(
-    locked: Boolean,
-    dests: List<Dest>,
-    profile: com.zapp.tv.data.Profile?,
-    onProfiles: () -> Unit,
-    current: Dest,
-    updateReady: Boolean,
-    railFocus: FocusRequester,
-    open: Boolean,
-    onOpenChange: (Boolean) -> Unit,
-    onDown: () -> Unit,
-    onSelect: (Dest) -> Unit,
-) {
-    var hasFocus by remember { mutableStateOf(false) }
-    val shown by androidx.compose.animation.core.animateFloatAsState(if (open) 1f else 0f, tween(if (open) 260 else 180), label = "bar")
-    // Each tab's place in the bar, for the highlight to slide to.
-    val spots = remember { androidx.compose.runtime.mutableStateMapOf<String, Pair<Float, Float>>() }
-    var focusedTab by remember { mutableStateOf<String?>(null) }
-    val target = spots[focusedTab ?: current.name]
-    val left = remember { androidx.compose.animation.core.Animatable(0f) }
-    val right = remember { androidx.compose.animation.core.Animatable(0f) }
-    LaunchedEffect(target) {
-        val t = target ?: return@LaunchedEffect
-        if (right.value == 0f) {
-            left.snapTo(t.first)
-            right.snapTo(t.second)
-            return@LaunchedEffect
-        }
-        // The leading edge moves first and the trailing edge catches up: the highlight stretches like liquid.
-        val goingRight = t.first > left.value
-        launch { left.animateTo(t.first, androidx.compose.animation.core.spring(dampingRatio = 0.74f, stiffness = if (goingRight) 240f else 520f)) }
-        launch { right.animateTo(t.second, androidx.compose.animation.core.spring(dampingRatio = 0.74f, stiffness = if (goingRight) 520f else 240f)) }
-    }
-    // A spare requester per tab, so each tab always has the same focus nodes (adding one would drop focus).
-    val spare = remember { HashMap<String, FocusRequester>() }
-    fun spareFor(k: String) = spare.getOrPut(k) { FocusRequester() }
-    val order = listOfNotNull(Dest.Search.takeIf { it in dests }) + dests.filter { it != Dest.Search && it != Dest.Settings }
-    val wrapped = WrappedPeriod.ready()
-    val focusFill = Color.White.copy(alpha = 0.94f)
-    val ink = Color(0xFF101017)
-    Box(Modifier.fillMaxWidth().padding(top = 18.dp), contentAlignment = Alignment.TopCenter) {
-        Row(
-            Modifier
-                .graphicsLayer {
-                    alpha = shown
-                    translationY = (1f - shown) * -16.dp.toPx()
-                    val k = 0.95f + 0.05f * shown
-                    scaleX = k
-                    scaleY = k
-                }
-                .onFocusChanged {
-                    if (it.hasFocus == hasFocus) return@onFocusChanged
-                    hasFocus = it.hasFocus
-                    onOpenChange(it.hasFocus)
-                    if (!it.hasFocus) focusedTab = null
-                }
-                .focusProperties {
-                    enter = { if (current in dests) railFocus else FocusRequester.Default }
-                    // Only Down leaves the bar (handled below), so the ends never jump into the page.
-                    exit = { FocusRequester.Cancel }
-                }
-                .onPreviewKeyEvent { e ->
-                    if (e.key == androidx.compose.ui.input.key.Key.DirectionDown) {
-                        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown) onDown()
-                        true
-                    } else {
-                        false
-                    }
-                }
-                .focusGroup()
-                .glass(RoundedCornerShape(50), elevation = 18.dp, dark = 0.3f)
-                .drawBehind {
-                    // The liquid highlight: under the focused tab, or a quieter one under the current page.
-                    if (right.value > left.value) {
-                        val inset = 5.dp.toPx()
-                        drawRoundRect(
-                            if (focusedTab != null) focusFill else Color.White.copy(alpha = 0.16f),
-                            topLeft = androidx.compose.ui.geometry.Offset(left.value, inset),
-                            size = androidx.compose.ui.geometry.Size(right.value - left.value, size.height - inset * 2),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height),
-                        )
-                    }
-                }
-                .padding(horizontal = 6.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            @Composable
-            fun Tab(key: String, onClick: () -> Unit, requester: FocusRequester?, content: @Composable (Boolean) -> Unit) {
-                FocusSurface(
-                    onClick = onClick,
-                    modifier = Modifier
-                        .focusProperties { canFocus = !locked }
-                        .onGloballyPositioned { c ->
-                            val x = c.positionInParent().x
-                            spots[key] = x to x + c.size.width
-                        }
-                        .focusRequester(if (key == current.name) NavShortcuts.requester else spareFor(key)),
-                    focusRequester = requester,
-                    onFocusChange = { if (it) focusedTab = key },
-                    shape = RoundedCornerShape(50),
-                    focusScale = 1f,
-                    restColor = Color.Transparent,
-                    focusColor = Color.Transparent,
-                ) { focused -> content(focused) }
-            }
-            if (profile != null) {
-                Tab("profile", onProfiles, null) { Box(Modifier.padding(5.dp)) { Avatar(profile, 28.dp) } }
-            }
-            order.forEach { d ->
-                Tab(d.name, { onSelect(d) }, if (d == current) railFocus else null) { focused ->
-                    val selected = d == current
-                    if (d == Dest.Search) {
-                        Box(Modifier.padding(horizontal = 13.dp, vertical = 8.dp)) {
-                            GlyphIcon(Glyph.Search, if (focused) ink else Color.White.copy(alpha = if (selected) 1f else 0.75f), 18.dp)
-                        }
-                    } else Box(Modifier.padding(horizontal = 18.dp, vertical = 9.dp)) {
-                        Text(
-                            d.label,
-                            fontSize = TextSize.Body,
-                            fontWeight = if (focused || selected) FontWeight.SemiBold else FontWeight.Medium,
-                            color = when {
-                                focused -> ink
-                                selected -> Color.White
-                                else -> Color.White.copy(alpha = 0.7f)
-                            },
-                            maxLines = 1,
-                        )
-                        if (d == Dest.Library && SideBadges.newEpisodes > 0) {
-                            Box(Modifier.align(Alignment.TopEnd).offset(x = 9.dp, y = (-1).dp).size(6.dp).background(ZappColors.Brand2, RoundedCornerShape(50)))
-                        }
-                    }
-                }
-            }
-            if (wrapped != null) {
-                Tab("wrapped", { WrappedState.open = wrapped }, null) { focused ->
-                    Text(
-                        "✦  Your ${wrapped.title}",
-                        fontSize = TextSize.Small,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (focused) ink else ZappColors.Brand2,
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    )
-                }
-            }
-            if (Dest.Settings in dests) {
-                Tab(Dest.Settings.name, { onSelect(Dest.Settings) }, if (current == Dest.Settings) railFocus else null) { focused ->
-                    Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        GlyphIcon(Glyph.Settings, if (focused) ink else Color.White.copy(alpha = if (current == Dest.Settings) 1f else 0.75f), 18.dp)
-                        if (updateReady) {
-                            Box(Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-3).dp).size(6.dp).background(ZappColors.Brand2, RoundedCornerShape(50)))
-                        }
-                    }
-                }
             }
         }
     }

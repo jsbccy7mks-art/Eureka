@@ -187,7 +187,7 @@ fun PinPad(title: String, subtitle: String?, check: (String) -> Boolean, onDone:
             Modifier
                 .width(340.dp)
                 .clip(Shapes.Panel)
-                .panelSurface()
+                .background(ZappColors.Panel)
                 .padding(26.dp)
                 .onPreviewKeyEvent { e ->
                     if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
@@ -359,7 +359,7 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
             Modifier
                 .width(520.dp)
                 .clip(Shapes.Panel)
-                .panelSurface()
+                .background(ZappColors.Panel)
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
