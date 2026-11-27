@@ -111,7 +111,7 @@ class RealDebrid(private val http: OkHttpClient, private val settings: Settings)
         val expires = settings.secret("rdExpires").toLongOrNull() ?: 0
         if (settings.secret("rdAccess").isNotBlank() && System.currentTimeMillis() < expires) return settings.secret("rdAccess")
         val o = token(settings.secret("rdClientId"), settings.secret("rdClientSecret"), settings.secret("rdRefresh"))
-            ?: throw DebridException("Real-Debrid signed Axon out. Connect it again in Settings, Accounts and sync.")
+            ?: throw DebridException("Real-Debrid signed Axon out. Connect it again in Settings, Accounts.")
         saveTokens(o)
         return settings.secret("rdAccess")
     }
@@ -161,7 +161,7 @@ class RealDebrid(private val http: OkHttpClient, private val settings: Settings)
     private fun rdError(body: String, fallback: String): String = try {
         val o = JSONObject(body)
         when (o.optInt("error_code")) {
-            8, 9 -> "Real-Debrid signed Axon out. Connect it again in Settings, Accounts and sync."
+            8, 9 -> "Real-Debrid signed Axon out. Connect it again in Settings, Accounts."
             20, 21 -> "Real-Debrid needs a premium account for this."
             else -> o.optString("error").takeIf { it.isNotBlank() }?.let { "Real-Debrid: ${it.replace('_', ' ')}" } ?: fallback
         }
@@ -209,7 +209,7 @@ class AllDebrid(private val http: OkHttpClient, private val settings: Settings) 
             val code = err?.optString("code").orEmpty()
             throw DebridException(
                 when {
-                    code.startsWith("AUTH") -> "AllDebrid signed Axon out. Connect it again in Settings, Accounts and sync."
+                    code.startsWith("AUTH") -> "AllDebrid signed Axon out. Connect it again in Settings, Accounts."
                     code == "MUST_BE_PREMIUM" -> "AllDebrid needs a premium account for this."
                     code.contains("NO_SERVER") -> "AllDebrid doesn't allow this network (VPN or server address)."
                     else -> err?.optString("message")?.takeIf { it.isNotBlank() }?.let { "AllDebrid: $it" } ?: "AllDebrid refused that."
@@ -416,7 +416,7 @@ class Debrid(http: OkHttpClient, settings: Settings) {
     /** Tries each connected service in turn; the first that returns a link wins. */
     suspend fun resolve(t: TorrentRef): Pair<DebridService, String> {
         val services = connected
-        if (services.isEmpty()) throw DebridException("Connect a debrid service in Settings, Accounts and sync to play torrent sources.")
+        if (services.isEmpty()) throw DebridException("Connect a debrid service in Settings, Accounts to play torrent sources.")
         var last: Exception? = null
         for (s in services) {
             try {

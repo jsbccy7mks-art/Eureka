@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,10 +53,14 @@ fun LibraryScreen(
     menuFor?.let { m -> TitleMenu(mvm, m) { menuFor = null } }
     var handledTick by remember { mutableIntStateOf(focusTick) }
     val first = remember { FocusRequester() }
+    // Back from a title: to the card you opened (if it's still here), else the first.
+    val cardFocus = remember { HashMap<String, FocusRequester>() }
+    var lastId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(focusTick) {
         if (focusTick == handledTick) return@LaunchedEffect
         handledTick = focusTick
-        first.tryRequest()
+        val back = lastId?.let { cardFocus[it] }
+        if (back == null || runCatching { back.requestFocus() }.isFailure) first.tryRequest()
     }
 
     val loved = mvm.ratings.all().filter { it.rating == com.zapp.tv.data.Rating.Love }
@@ -143,8 +148,10 @@ fun LibraryScreen(
                 Box(contentAlignment = Alignment.TopCenter) {
                     PosterCard(
                         meta = meta,
-                        modifier = if (item == shown.firstOrNull()) Modifier.focusRequesterSafe(first) else Modifier,
-                        onFocus = {},
+                        modifier = Modifier
+                            .focusRequester(cardFocus.getOrPut(item.metaId) { FocusRequester() })
+                            .then(if (item == shown.firstOrNull()) Modifier.focusRequesterSafe(first) else Modifier),
+                        onFocus = { lastId = item.metaId },
                         onClick = { onOpen(meta) },
                         onLongClick = { menuFor = meta },
                     )

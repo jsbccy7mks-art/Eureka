@@ -526,7 +526,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
             .put("nuvio", if (nuvio.signedIn(pid)) st(true, "Connected" + nuvio.user(pid).takeIf { it.isNotBlank() }?.let { " as $it" }.orEmpty() + nuvio.linkedProfileName(pid).takeIf { it.isNotBlank() }?.let { ", profile $it" }.orEmpty()) else st(false, "Not connected"))
             .put("simkl", when {
                 zapp.simkl.client.signedIn -> st(true, "Connected")
-                settings.simklClientId.isNotBlank() -> st(false, "App ID saved. Connect Simkl on the TV (Settings, Accounts and sync).")
+                settings.simklClientId.isNotBlank() -> st(false, "App ID saved. Connect Simkl on the TV (Settings, Accounts).")
                 else -> st(false, "Not connected")
             })
             .put("debrid", if (debrid.isNotEmpty()) st(true, "Connected: " + debrid.joinToString(", ")) else st(false, "Not connected"))
@@ -544,7 +544,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
         if (lastCrash != null) {
             viewModelScope.launch {
                 delay(2_500)
-                showToast("Axon closed unexpectedly last time. The report is in Settings, Updates and about.")
+                showToast("Axon closed unexpectedly last time. The report is in Settings, System.")
             }
         }
     }
@@ -666,8 +666,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     val id = body.optString("simklClientId").filter { it.isLetterOrDigit() }
                     if (id.length < 10) fail("That doesn't look like a Simkl Client ID.")
                     settings.simklClientId = id
-                    showToast("Simkl app ID saved. Connect Simkl in Settings, Accounts and sync.")
-                    return@withContext "Saved. On your TV, go to Settings, Accounts and sync, then Connect Simkl."
+                    showToast("Simkl app ID saved. Connect Simkl in Settings, Accounts.")
+                    return@withContext "Saved. On your TV, go to Settings, Accounts, then Connect Simkl."
                 }
                 "addon" -> {
                     val link = body.optString("addonUrl")

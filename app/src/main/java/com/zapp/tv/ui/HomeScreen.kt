@@ -63,6 +63,7 @@ import com.zapp.tv.addons.MetaPreview
 import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.WatchProgress
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.withPermit
 
 private data class HomeFocus(val rowKey: String, val itemKey: String)
 
@@ -121,22 +122,27 @@ fun HomeScreen(
     val layout = remember(catalogs, mvm.settings.homeRowsJson, kids) { if (kids) mvm.kidsLayout() else mvm.homeLayout(catalogs) }
     val kidsCert = if (kids) mvm.kidsCert else ""
     // The kids rows, each filled in as it arrives.
-    val kidsRows by produceState(emptyMap<String, List<MetaPreview>>(), kids, kidsCert) {
+    val kidsRows by produceState(emptyMap<String, MediaViewModel.KidsRow>(), kids, kidsCert) {
         value = emptyMap()
         if (!kids || !mvm.tmdb.enabled) return@produceState
+        // Top rows first: a few at a time, in order, so the first ones are ready soonest.
+        val gate = kotlinx.coroutines.sync.Semaphore(3)
         kotlinx.coroutines.coroutineScope {
             KIDS_ROWS.forEach { (id, _) ->
                 launch {
                     for (wait in listOf(0L, 20_000L, 60_000L)) {
                         delay(wait)
-                        val got = runCatching { mvm.kidsRow(id) }.getOrDefault(emptyList())
-                        if (got.isNotEmpty()) value = value + (id to got)
-                        if (got.size >= 3) break
+                        val got = gate.withPermit { runCatching { mvm.kidsRow(id) }.getOrNull() }
+                        if (got != null && got.items.isNotEmpty()) value = value + (id to got)
+                        if ((got?.items?.size ?: 0) >= 3) break
                     }
                 }
             }
         }
     }
+    // See all, for a kids row: its id and name.
+    var seeAll by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var gridTick by remember { mutableIntStateOf(0) }
     // Rows further down are got ready now, so they're already there when you scroll to them.
     LaunchedEffect(layout) { mvm.warmRows(catalogs.filter { c -> layout.any { it.id == c.key && it.on } }) }
     // Smart rows: what to suggest from what you've watched and saved.
@@ -175,7 +181,7 @@ fun HomeScreen(
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
             SPORTS_ROW -> !mvm.isKids && sportsSoon.isNotEmpty()
             else -> when {
-                r.id.startsWith("kids:") -> kidsRows[r.id].orEmpty().size >= 3
+                r.id.startsWith("kids:") -> (kidsRows[r.id]?.items?.size ?: 0) >= 3
                 r.id.startsWith("collections:") -> mvm.collectionShelf(r.id.removePrefix("collections:")) != null
                 else -> catalogs.any { it.key == r.id }
             }
@@ -183,8 +189,15 @@ fun HomeScreen(
     }
 
     var focused by remember { mutableStateOf<HeroItem?>(null) }
-    // Opening animation waits for this: something on Home has focus (its rows have loaded).
-    LaunchedEffect(focused != null) { if (focused != null) { delay(700); HomeReady.ready = true } }
+    // The opening animation (and the profile switching screen) waits for this: the first few rows
+    // are filled and something on Home has focus.
+    val settled = rows.size >= minOf(3, layout.count { it.on })
+    LaunchedEffect(focused != null, settled) {
+        if (focused != null && settled) {
+            delay(500)
+            HomeReady.ready = true
+        }
+    }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
     var pending by remember { mutableStateOf<HomeFocus?>(null) }
     var handledTick by remember { mutableIntStateOf(focusTick) }
@@ -203,6 +216,11 @@ fun HomeScreen(
     LaunchedEffect(focusTick, firstRowId, OverlayFocus.open) {
         val tickChanged = focusTick != handledTick
         handledTick = focusTick
+        // A See all grid is open: it looks after its own focus.
+        if (seeAll != null) {
+            if (tickChanged) gridTick++
+            return@LaunchedEffect
+        }
         val first = rows.firstOrNull()
         val start = when {
             first == null -> null
@@ -423,9 +441,11 @@ fun HomeScreen(
                     onLongPress = { m -> options = RowOptions(row.id, meta = m) },
                 )
             } else if (row.id.startsWith("kids:")) {
+                val kidsTitle = kidsRows[row.id]?.title ?: row.label
                 MetaRow(
-                    title = row.label,
-                    items = kidsRows[row.id].orEmpty(),
+                    title = kidsTitle,
+                    items = kidsRows[row.id]?.items.orEmpty(),
+                    onSeeAll = if (row.id == "kids:because") null else ({ seeAll = row.id to kidsTitle }),
                     badges = emptyMap(),
                     size = 1,
                     landscape = false,
@@ -461,6 +481,14 @@ fun HomeScreen(
                     onLongPress = { m -> options = RowOptions(row.id, meta = m) },
                 )
             }
+        }
+    }
+
+    // See all, for a kids row: everything in it, in a grid that keeps loading as you go down.
+    seeAll?.let { (id, title) ->
+        KidsGrid(mvm, id, title, gridTick, onOpen = onOpenTitle) {
+            seeAll = null
+            pending = HomeFocus(id, "")
         }
     }
 
@@ -657,6 +685,8 @@ internal fun MetaRow(
     onLongPress: (MetaPreview) -> Unit,
     /** New episodes: cards like Continue watching, each with its "New · S2 E5". */
     newLabels: Map<String, String>? = null,
+    /** A "See all" card at the end of the row. */
+    onSeeAll: (() -> Unit)? = null,
 ) {
     val memory = rememberFocusMemory()
     val width = cardWidth(size, landscape)
@@ -724,6 +754,9 @@ internal fun MetaRow(
                         }
                     }
                 }
+                if (onSeeAll != null && items.size >= 3) {
+                    item(key = "seeAll") { SeeAllCard(width, landscape, onSeeAll) }
+                }
             }
         }
     }
@@ -745,3 +778,97 @@ private fun <T> retrying(initial: T, vararg keys: Any?, enough: (T) -> Boolean, 
             if (enough(v)) break
         }
     }
+
+/** The last card of a row: everything in it. */
+@Composable
+private fun SeeAllCard(width: androidx.compose.ui.unit.Dp, landscape: Boolean, onClick: () -> Unit) {
+    FocusSurface(
+        onClick = onClick,
+        modifier = Modifier.width(width).aspectRatio(if (landscape) WideAspect else 2f / 3f),
+        shape = RoundedCornerShape(10.dp),
+        focusScale = 1f,
+        restColor = ZappColors.Glass,
+        focusColor = ZappColors.Glass,
+        ring = true,
+    ) {
+        Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("→", fontSize = 26.sp, color = ZappColors.Text)
+            Spacer(Modifier.height(6.dp))
+            Text("See all", fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = ZappColors.Text)
+        }
+    }
+}
+
+/**
+ * A kids row in full: a grid of everything in it (up to the profile's age limit), loading more as
+ * you go down. Back returns to Home; back from a title returns to the card you opened.
+ */
+@Composable
+private fun KidsGrid(mvm: MediaViewModel, id: String, title: String, focusTick: Int, onOpen: (MetaPreview) -> Unit, onClose: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onClose)
+    val items = remember(id) { androidx.compose.runtime.mutableStateListOf<MetaPreview>() }
+    var page by remember(id) { mutableIntStateOf(1) }
+    var loadedPage by remember(id) { mutableIntStateOf(0) }
+    var finished by remember(id) { mutableStateOf(false) }
+    LaunchedEffect(id, page) {
+        val got = runCatching { mvm.kidsRow(id, page).items }.getOrDefault(emptyList())
+        val more = got.filter { m -> items.none { it.id == m.id } }
+        if (got.isEmpty() || page >= 15) finished = true
+        items.addAll(more)
+        loadedPage = page
+    }
+    val first = remember { FocusRequester() }
+    val cardFocus = remember(id) { HashMap<String, FocusRequester>() }
+    var lastId by remember(id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(items.isNotEmpty()) {
+        if (items.isNotEmpty() && lastId == null) {
+            delay(80)
+            first.tryRequest()
+        }
+    }
+    var handled by remember { mutableIntStateOf(focusTick) }
+    LaunchedEffect(focusTick) {
+        if (focusTick == handled) return@LaunchedEffect
+        handled = focusTick
+        delay(120)
+        (lastId?.let { cardFocus[it] } ?: first).tryRequest()
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(ZappColors.Bg)
+            .trapFocus(),
+    ) {
+        AmbientGlow(0.5f)
+        Column(Modifier.fillMaxSize().padding(start = RowInset, top = 30.dp)) {
+            Text(title, fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
+            Spacer(Modifier.height(14.dp))
+            if (items.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                    if (finished) Text("Nothing here right now.", color = ZappColors.Dim, fontSize = TextSize.Body) else ZappLoader(36.dp)
+                }
+            }
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(PosterWidth + 10.dp),
+                contentPadding = PaddingValues(end = RowInset, bottom = 40.dp, top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                androidx.compose.foundation.lazy.grid.itemsIndexed(items, key = { _, m -> m.id }) { i, m ->
+                    // Near the end: the next page.
+                    if (i >= items.size - 8 && !finished && page == loadedPage) {
+                        LaunchedEffect(items.size) { if (page == loadedPage) page = loadedPage + 1 }
+                    }
+                    PosterCard(
+                        meta = m,
+                        modifier = Modifier
+                            .focusRequester(cardFocus.getOrPut(m.id) { FocusRequester() })
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier),
+                        onFocus = { lastId = m.id },
+                        onClick = { onOpen(m) },
+                    )
+                }
+            }
+        }
+    }
+}

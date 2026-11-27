@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.60.0
+
+**New**
+- Switching profile shows their avatar and "Getting ready…" while their Home gets ready behind it
+  (their Continue watching, library and rows), then fades into the finished page. Never more
+  than about five seconds; anything slower carries on filling in afterwards.
+- Kids profiles: much fuller rows. Films now count by their US rating too (many only have one),
+  each row takes more titles, and series from kids' channels count as well. New rows: Because they
+  watched…, Disney+ for kids, Netflix for kids, Little ones' series, Princesses and fairy tales,
+  Animals, Dinosaurs and dragons, Superheroes (up to 12 only), Sing-alongs and Classic cartoons.
+- Every kids row ends with See all: the whole lot in a grid that keeps loading as you go down.
+
+**Fixed**
+- Discover and Library: back from a title, you're on the card you opened (it used to jump to the
+  top).
+- Settings, Home on a kids profile explains that a kids Home is fixed (it looked editable but did
+  nothing).
+- Settings, Accounts, Debrid: "From phone" opens the phone page straight on Debrid.
+- Christmas picks are worked out for each profile (a second profile got the first one's list).
+- Messages pointing to Settings use the current names (Accounts, System, Playlists, Home).
+
 ## 0.59.2
 
 **Fixed**

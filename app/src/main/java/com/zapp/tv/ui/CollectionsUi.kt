@@ -902,7 +902,7 @@ private fun CollectionMenu(mvm: MediaViewModel, c: MediaViewModel.CollectionSumm
                 mvm.addShelfToHome(shelfId)
                 onClose()
             }
-            MenuItem("✕", "Hide this shelf", null, trailing = "Settings, Home screen to bring it back") {
+            MenuItem("✕", "Hide this shelf", null, trailing = "Settings, Home brings it back") {
                 mvm.setCollectionShelfShown(shelfId, false)
                 onClose()
             }

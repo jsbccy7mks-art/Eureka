@@ -54,7 +54,7 @@ object Motion {
     }
 }
 
-/** A small counter in the corner (Settings, Updates and about): frames per second and slow frames. */
+/** A small counter in the corner (Settings, System): frames per second and slow frames. */
 @Composable
 fun FrameCounter(modifier: Modifier = Modifier) {
     var fps by remember { mutableIntStateOf(0) }

@@ -82,10 +82,20 @@ const val SEASON_ROW = "season"
 val KIDS_ROWS = listOf(
     "kids:popular" to "Popular with kids right now",
     "kids:new" to "New for kids on your services",
+    "kids:because" to "Because they watched…",
     "kids:studios" to "From Disney, Pixar, DreamWorks and Illumination",
+    "kids:disney" to "Disney+ for kids",
+    "kids:netflix" to "Netflix for kids",
     "kids:animated" to "Animated favourites",
     "kids:series" to "Kids' series",
+    "kids:preschool" to "Little ones' series",
+    "kids:princess" to "Princesses and fairy tales",
+    "kids:animals" to "Animals",
+    "kids:dinos" to "Dinosaurs and dragons",
+    "kids:heroes" to "Superheroes",
     "kids:family" to "Family film night",
+    "kids:sing" to "Sing-alongs",
+    "kids:classic" to "Classic cartoons",
     "kids:little" to "For little ones",
 )
 
@@ -1725,7 +1735,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private var seasonCache: Pair<Long, List<MetaPreview>>? = null
+    private var seasonCache: Triple<Long, Long, List<MetaPreview>>? = null
 
     /**
      * The season's row: a fresh set every day from a large pool (classics and newer ones), a few of
@@ -1737,7 +1747,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         if (!tmdb.enabled) return emptyList()
         val day = System.currentTimeMillis() / 86_400_000L
         if (isKids) return kidsSeasonal(season, day)
-        seasonCache?.takeIf { it.first == day }?.let { return it.second }
+        // Kept per profile: each one's list leaves out what they've already watched.
+        seasonCache?.takeIf { it.first == day && it.second == settings.profileId }?.let { return it.third }
         val kw = season.keyword?.let { tmdb.keywordId(it) }
         if (season.keyword != null && kw == null) return emptyList()
         val p = season.params + (kw?.let { mapOf("with_keywords" to it.toString()) } ?: emptyMap())
@@ -1754,7 +1765,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val rest = pool.map { it.first }.filter { it !in mine }.shuffled(rnd)
         val list = previewsOf(mine + rest, 18)
         // Kept for the day only when it came out whole (a bad moment on TMDB is tried again).
-        if (list.size >= 8) seasonCache = day to list
+        if (list.size >= 8) seasonCache = Triple(day, settings.profileId, list)
         return list
     }
 
@@ -1767,7 +1778,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         if (season.keyword != null && kw == null) return emptyList()
         val p = HashMap(season.params + (kw?.let { mapOf("with_keywords" to it.toString()) } ?: emptyMap()) + mapOf("vote_count.gte" to "300", "sort_by" to "vote_count.desc"))
         kidsParams(false, p)
-        val items = runCatching { tmdb.titles("discover/movie", p, "movie") + tmdb.titles("discover/movie", p, "movie", 2) }.getOrDefault(emptyList())
+        val items = runCatching { discoverTitles("discover/movie", p, "movie") + discoverTitles("discover/movie", p, "movie", 2) }.getOrDefault(emptyList())
         val list = previewsOf(items.filter { kidsOk(it) }.shuffled(java.util.Random(day)), 18)
         if (list.size >= 8) kidsSeasonCache = Triple(day, kidsCert, list)
         return list
@@ -1785,47 +1796,155 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         add(HomeRowSetting(LIBRARY_ROW, "Your library", true))
     }
 
-    /** One of the kids rows' titles (TMDB), up to this profile's age limit. */
-    suspend fun kidsRow(id: String): List<MetaPreview> {
+    /** A kids row's titles, and its name when that depends on what's in it ("Because they watched …"). */
+    data class KidsRow(val title: String?, val items: List<MetaPreview>)
+
+    /** One place a kids row takes titles from. [relaxed]: kids' channels, where every series is for children. */
+    private class KidsSource(val kind: String, val path: String, val params: Map<String, String>, val relaxed: Boolean = false)
+
+    /** The same film query for the US ratings too (many films only have a US rating on TMDB). */
+    private fun withUsRating(p: Map<String, String>): Map<String, String>? {
+        if (p["certification_country"] != "GB") return null
+        val us = when (p["certification.lte"]) {
+            "U" -> "G"
+            "PG" -> "PG"
+            "12" -> "PG-13"
+            else -> return null
+        }
+        return p + mapOf("certification_country" to "US", "certification.lte" to us)
+    }
+
+    /**
+     * Titles for Discover and the kids rows. On a kids profile a film query is asked twice, by UK
+     * and by US rating, and the two put together.
+     */
+    suspend fun discoverTitles(path: String, params: Map<String, String>, kind: String, page: Int = 1): List<com.zapp.tv.data.TmdbItem> {
+        val us = if (kind == "movie") withUsRating(params) else null
+        if (us == null) return tmdb.titles(path, params, kind, page)
+        return kotlinx.coroutines.coroutineScope {
+            val a = async { runCatching { tmdb.titles(path, params, kind, page) }.getOrDefault(emptyList()) }
+            val b = async { runCatching { tmdb.titles(path, us, kind, page) }.getOrDefault(emptyList()) }
+            (a.await() + b.await()).distinctBy { it.id }
+        }
+    }
+
+    /** What a kids row is made of (null: not one of this profile's rows, or nothing to base it on). */
+    private suspend fun kidsSources(id: String): List<KidsSource>? {
         val today = java.time.LocalDate.now()
-        val page = (today.toEpochDay() % 3).toInt() + 1
         val services = mapOf("with_watch_providers" to "8|9|337|350|531|39|38|41|103", "watch_region" to "GB", "with_watch_monetization_types" to "flatrate|free|ads")
-        fun films(p: Map<String, String>, pg: Int = 1): suspend () -> List<com.zapp.tv.data.TmdbItem> = { tmdb.titles("discover/movie", HashMap(p).also { kidsParams(false, it) }, "movie", pg) }
-        fun series(p: Map<String, String>, pg: Int = 1): suspend () -> List<com.zapp.tv.data.TmdbItem> = { tmdb.titles("discover/tv", HashMap(p).also { kidsParams(true, it) }, "tv", pg) }
-        val parts: List<suspend () -> List<com.zapp.tv.data.TmdbItem>> = when (id) {
+        fun provider(p: Int) = mapOf("with_watch_providers" to p.toString(), "watch_region" to "GB", "with_watch_monetization_types" to "flatrate|free|ads")
+        fun film(p: Map<String, String>) = KidsSource("movie", "discover/movie", HashMap(p).also { kidsParams(false, it) })
+        fun show(p: Map<String, String>, relaxed: Boolean = false) = KidsSource("tv", "discover/tv", HashMap(p).also { if (!relaxed) kidsParams(true, it) }, relaxed)
+        suspend fun keywords(vararg words: String): String? =
+            words.mapNotNull { runCatching { tmdb.keywordId(it) }.getOrNull() }.takeIf { it.isNotEmpty() }?.joinToString("|")
+        // Kids' channels on TMDB: Nickelodeon and Cartoon Network.
+        val channels = mapOf("with_networks" to "13|56", "without_genres" to "80|10768|10764|10767")
+        return when (id) {
             "kids:popular" -> listOf(
-                films(mapOf("with_genres" to "10751|16", "sort_by" to "popularity.desc", "vote_count.gte" to "100")),
-                series(mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "30")),
+                film(mapOf("with_genres" to "10751|16", "sort_by" to "popularity.desc", "vote_count.gte" to "40")),
+                show(mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "5")),
             )
             "kids:new" -> listOf(
-                films(services + mapOf("with_genres" to "10751|16", "sort_by" to "primary_release_date.desc", "primary_release_date.lte" to today.toString(), "vote_count.gte" to "10")),
-                series(services + mapOf("sort_by" to "first_air_date.desc", "first_air_date.lte" to today.toString(), "vote_count.gte" to "5")),
+                film(services + mapOf("with_genres" to "10751|16", "sort_by" to "primary_release_date.desc", "primary_release_date.lte" to today.toString(), "vote_count.gte" to "5")),
+                show(services + mapOf("sort_by" to "first_air_date.desc", "first_air_date.lte" to today.toString())),
             )
-            "kids:studios" -> listOf(films(mapOf("with_companies" to "2|3|521|6704|6125|10342", "sort_by" to "popularity.desc", "vote_count.gte" to "300")))
+            "kids:studios" -> listOf(film(mapOf("with_companies" to "2|3|521|6704|6125|10342", "sort_by" to "popularity.desc", "vote_count.gte" to "50")))
+            "kids:disney" -> listOf(
+                film(provider(337) + mapOf("with_genres" to "10751|16", "sort_by" to "popularity.desc")),
+                show(provider(337) + mapOf("sort_by" to "popularity.desc")),
+            )
+            "kids:netflix" -> listOf(
+                film(provider(8) + mapOf("with_genres" to "10751|16", "sort_by" to "popularity.desc")),
+                show(provider(8) + mapOf("sort_by" to "popularity.desc")),
+            )
             "kids:animated" -> listOf(
-                films(mapOf("with_genres" to "16", "sort_by" to "vote_average.desc", "vote_count.gte" to "1500"), page),
-                series(mapOf("with_genres" to "16", "sort_by" to "vote_average.desc", "vote_count.gte" to "150")),
+                film(mapOf("with_genres" to "16", "sort_by" to "vote_average.desc", "vote_count.gte" to "800")),
+                show(mapOf("with_genres" to "16", "sort_by" to "vote_average.desc", "vote_count.gte" to "40")),
             )
-            "kids:series" -> listOf(series(mapOf("with_genres" to "10762", "sort_by" to "popularity.desc", "vote_count.gte" to "20"), page))
-            "kids:family" -> listOf(films(mapOf("with_genres" to "10751", "sort_by" to "vote_average.desc", "vote_count.gte" to "2000"), page))
-            "kids:little" -> listOf<suspend () -> List<com.zapp.tv.data.TmdbItem>>(
-                {
-                    tmdb.titles(
-                        "discover/movie",
-                        mapOf("with_genres" to "16|10751", "with_runtime.lte" to "89", "certification_country" to "GB", "certification.lte" to "U", "without_genres" to "27|53|80|10752", "sort_by" to "popularity.desc", "vote_count.gte" to "100"),
-                        "movie",
-                        page,
-                    )
-                },
+            "kids:series" -> listOf(
+                show(mapOf("with_genres" to "10762", "sort_by" to "popularity.desc")),
+                show(mapOf("with_genres" to "16,10751", "sort_by" to "popularity.desc", "vote_count.gte" to "5")),
+                show(channels + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "10"), relaxed = true),
             )
-            else -> emptyList()
+            "kids:preschool" -> listOfNotNull(
+                show(mapOf("with_genres" to "10762", "sort_by" to "popularity.desc")),
+                keywords("preschool", "toddler")?.let { show(mapOf("with_keywords" to it, "sort_by" to "popularity.desc")) },
+            )
+            "kids:family" -> listOf(film(mapOf("with_genres" to "10751", "sort_by" to "vote_average.desc", "vote_count.gte" to "1000")))
+            "kids:princess" -> keywords("princess", "fairy tale")?.let { k ->
+                listOf(
+                    film(mapOf("with_keywords" to k, "with_genres" to "10751|16|14", "sort_by" to "popularity.desc", "vote_count.gte" to "50")),
+                    show(mapOf("with_keywords" to k, "sort_by" to "popularity.desc")),
+                )
+            }
+            "kids:animals" -> keywords("talking animal", "animal")?.let { k ->
+                listOf(
+                    film(mapOf("with_keywords" to k, "with_genres" to "10751|16", "sort_by" to "popularity.desc", "vote_count.gte" to "50")),
+                    show(mapOf("with_keywords" to k, "sort_by" to "popularity.desc")),
+                )
+            }
+            "kids:dinos" -> keywords("dinosaur", "dragon")?.let { k ->
+                listOf(
+                    film(mapOf("with_keywords" to k, "with_genres" to "10751|16|12", "sort_by" to "popularity.desc", "vote_count.gte" to "50")),
+                    show(mapOf("with_keywords" to k, "sort_by" to "popularity.desc")),
+                )
+            }
+            "kids:sing" -> listOf(film(mapOf("with_genres" to "10402", "sort_by" to "popularity.desc", "vote_count.gte" to "50")))
+                .plus(listOfNotNull(keywords("musical")?.let { film(mapOf("with_keywords" to it, "with_genres" to "10751|16", "sort_by" to "popularity.desc", "vote_count.gte" to "50")) }))
+            "kids:classic" -> listOf(
+                film(mapOf("with_genres" to "16", "primary_release_date.lte" to "1999-12-31", "sort_by" to "vote_count.desc", "vote_count.gte" to "100")),
+                show(mapOf("with_genres" to "16", "first_air_date.lte" to "1999-12-31", "sort_by" to "popularity.desc")),
+            )
+            "kids:heroes" -> if (kidsCert != "12") null else keywords("superhero")?.let { k ->
+                listOf(
+                    film(mapOf("with_keywords" to k, "sort_by" to "popularity.desc", "vote_count.gte" to "500")),
+                    show(mapOf("with_keywords" to k, "sort_by" to "popularity.desc")),
+                )
+            }
+            "kids:little" -> listOf(
+                KidsSource(
+                    "movie", "discover/movie",
+                    mapOf("with_genres" to "16|10751", "with_runtime.lte" to "89", "certification_country" to "GB", "certification.lte" to "U", "without_genres" to "27|53|80|10752", "sort_by" to "popularity.desc", "vote_count.gte" to "30"),
+                ),
+            )
+            else -> null
         }
-        val lists = kotlinx.coroutines.coroutineScope { parts.map { async { runCatching { it() }.getOrDefault(emptyList()) } }.awaitAll() }
-        // Films and series taking turns.
+    }
+
+    /** "Because they watched …": what TMDB suggests after the last thing this profile watched. */
+    private suspend fun kidsBecause(): KidsRow? {
+        val last = withContext(Dispatchers.IO) { zapp.mediaDao.allProgress(settings.profileId) }
+            .filter { it.metaId.startsWith("tt") }.maxByOrNull { it.updatedAt } ?: return null
+        val d = runCatching { tmdb.details(last.metaId, last.type) }.getOrNull() ?: return null
+        val items = d.recommendations.filter { kidsOk(it) }
+        val list = kotlinx.coroutines.coroutineScope { items.take(20).map { async { runCatching { tmdbToPreview(it) }.getOrNull() } }.awaitAll().filterNotNull() }
+        val name = last.name.takeIf { it.isNotBlank() && !it.startsWith("tt") } ?: runCatching { repo.meta(last.type, last.metaId)?.preview?.name }.getOrNull() ?: return null
+        return KidsRow("Because they watched $name", list)
+    }
+
+    /**
+     * One of the kids rows (TMDB), up to this profile's age limit. [page] 0: the row on Home (a
+     * couple of pages, some of them fresh each day); 1 and on: page by page, for See all.
+     */
+    suspend fun kidsRow(id: String, page: Int = 0): KidsRow {
+        if (id == "kids:because") return if (page <= 1) kidsBecause() ?: KidsRow(null, emptyList()) else KidsRow(null, emptyList())
+        val sources = kidsSources(id) ?: return KidsRow(null, emptyList())
+        val daily = (java.time.LocalDate.now().toEpochDay() % 2).toInt() + 1
+        val pages = if (page > 0) listOf(page) else listOf(daily, daily + 1)
+        val lists = kotlinx.coroutines.coroutineScope {
+            sources.map { src ->
+                async {
+                    pages.flatMap { pg -> runCatching { discoverTitles(src.path, src.params, src.kind, pg) }.getOrDefault(emptyList()) }
+                        .filter { if (src.relaxed) it.genreIds.none { g -> g == 80 || g == 10768 || g == 27 } else kidsOk(it) }
+                }
+            }.awaitAll()
+        }
+        // Each source taking turns, so films and series mix.
         val mixed = ArrayList<com.zapp.tv.data.TmdbItem>()
         for (i in 0 until (lists.maxOfOrNull { it.size } ?: 0)) lists.forEach { l -> l.getOrNull(i)?.let { mixed += it } }
-        val items = mixed.filter { kidsOk(it) }.distinctBy { it.type + it.id }.take(20)
-        return kotlinx.coroutines.coroutineScope { items.map { async { runCatching { tmdbToPreview(it) }.getOrNull() } }.awaitAll().filterNotNull() }
+        val items = mixed.distinctBy { it.type + it.id }.take(if (page > 0) 40 else 30)
+        val previews = kotlinx.coroutines.coroutineScope { items.map { async { runCatching { tmdbToPreview(it) }.getOrNull() } }.awaitAll().filterNotNull() }
+        return KidsRow(null, previews.distinctBy { it.id })
     }
 
     /** "Hidden gems for you": well-rated, less famous titles in your favourite genres. */

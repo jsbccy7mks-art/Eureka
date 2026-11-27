@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -145,11 +146,25 @@ private fun dayPage(pages: Int): Int = (java.time.LocalDate.now().toEpochDay() %
 fun DiscoverScreen(mvm: MediaViewModel, focusTick: Int, onOpen: (MetaPreview) -> Unit, onSetUpTmdb: () -> Unit) {
     val first = remember { FocusRequester() }
     var handled by remember { mutableIntStateOf(focusTick) }
+    // Back from a title: to the card you opened (row, title), else the top.
+    var last by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pending by remember { mutableStateOf<Pair<String, String>?>(null) }
     LaunchedEffect(focusTick) {
         if (focusTick == handled) return@LaunchedEffect
         handled = focusTick
         delay(120)
-        first.tryRequest()
+        val back = last
+        if (back == null) {
+            first.tryRequest()
+            return@LaunchedEffect
+        }
+        pending = back
+        // Gone meanwhile (the row changed): the top instead.
+        delay(700)
+        if (pending != null) {
+            pending = null
+            first.tryRequest()
+        }
     }
     if (!mvm.tmdb.enabled) {
         Column(Modifier.padding(start = RowInset, top = 40.dp, end = 40.dp)) {
@@ -201,11 +216,23 @@ fun DiscoverScreen(mvm: MediaViewModel, focusTick: Int, onOpen: (MetaPreview) ->
             )
         }
         if (filters.any) {
-            discoverGrid(mvm, kind, filters, kids, onFocus = { hero = it }, onOpen = onOpen)
+            discoverGrid(
+                mvm, kind, filters, kids,
+                pendingId = pending?.takeIf { it.first == "grid" }?.second,
+                onPendingDone = { pending = null },
+                onFocus = { hero = it; last = "grid" to it.meta.id },
+                onOpen = onOpen,
+            )
         } else {
             discoverRows(mvm, kind, kids).forEach { row ->
                 item(key = "row:${row.key}:${kind.name}") {
-                    DiscoverRowView(mvm, row, kind, kids, onFocus = { hero = it }, onOpen = onOpen)
+                    DiscoverRowView(
+                        mvm, row, kind, kids,
+                        pendingId = pending?.takeIf { it.first == row.key }?.second,
+                        onPendingDone = { pending = null },
+                        onFocus = { hero = it; last = row.key to it.meta.id },
+                        onOpen = onOpen,
+                    )
                 }
             }
         }
@@ -223,12 +250,12 @@ private fun discoverRows(mvm: MediaViewModel, kind: DKind, kids: Boolean): List<
         DRow(key, title) { k, isKids ->
             val base = (if (k == "tv") tv else movie) ?: return@DRow null
             val p = HashMap(base).also { if (isKids) kidsParams(k == "tv", it) }
-            mvm.tmdb.titles("discover/$k", p, k, page())
+            mvm.discoverTitles("discover/$k", p, k, page())
         }
     fun list(key: String, title: String, moviePath: String?, tvPath: String?, params: Map<String, String> = emptyMap()) =
         DRow(key, title) { k, _ ->
             val path = (if (k == "tv") tvPath else moviePath) ?: return@DRow null
-            mvm.tmdb.titles(path, params, k)
+            mvm.discoverTitles(path, params, k)
         }
     val services = mapOf("with_watch_providers" to ALL_SERVICES, "watch_region" to "GB", "with_watch_monetization_types" to "flatrate|free|ads")
     val rows = ArrayList<DRow>()
@@ -279,10 +306,10 @@ private fun discoverRows(mvm: MediaViewModel, kind: DKind, kids: Boolean): List<
     )
     rows += DRow("true", "True stories") { k, isKids ->
         if (k == "tv") {
-            mvm.tmdb.titles("discover/tv", HashMap(mapOf("with_genres" to "99", "vote_average.gte" to "7.5", "vote_count.gte" to "100", "sort_by" to "popularity.desc")).also { if (isKids) kidsParams(true, it) }, "tv")
+            mvm.discoverTitles("discover/tv", HashMap(mapOf("with_genres" to "99", "vote_average.gte" to "7.5", "vote_count.gte" to "100", "sort_by" to "popularity.desc")).also { if (isKids) kidsParams(true, it) }, "tv")
         } else {
             val kw = mvm.tmdb.keywordId("based on true story") ?: return@DRow null
-            mvm.tmdb.titles("discover/movie", HashMap(mapOf("with_keywords" to kw.toString(), "vote_count.gte" to "1000", "sort_by" to "popularity.desc")).also { if (isKids) kidsParams(false, it) }, "movie", dayPage(2))
+            mvm.discoverTitles("discover/movie", HashMap(mapOf("with_keywords" to kw.toString(), "vote_count.gte" to "1000", "sort_by" to "popularity.desc")).also { if (isKids) kidsParams(false, it) }, "movie", dayPage(2))
         }
     }
     if (kind != DKind.Series && !kids) {
@@ -308,7 +335,16 @@ private fun <T> interleave(a: List<T>, b: List<T>): List<T> {
 }
 
 @Composable
-private fun DiscoverRowView(mvm: MediaViewModel, row: DRow, kind: DKind, kids: Boolean, onFocus: (HeroItem) -> Unit, onOpen: (MetaPreview) -> Unit) {
+private fun DiscoverRowView(
+    mvm: MediaViewModel,
+    row: DRow,
+    kind: DKind,
+    kids: Boolean,
+    pendingId: String?,
+    onPendingDone: () -> Unit,
+    onFocus: (HeroItem) -> Unit,
+    onOpen: (MetaPreview) -> Unit,
+) {
     val items by produceState<List<MetaPreview>?>(null, row.key, kind) {
         for (wait in listOf(0L, 15_000L, 60_000L)) {
             delay(wait)
@@ -333,8 +369,8 @@ private fun DiscoverRowView(mvm: MediaViewModel, row: DRow, kind: DKind, kids: B
         badges = emptyMap(),
         size = 1,
         landscape = false,
-        pendingId = null,
-        onPendingDone = {},
+        pendingId = pendingId,
+        onPendingDone = onPendingDone,
         onFocusItem = { m -> onFocus(HeroItem(m, row.title)) },
         onOpen = onOpen,
         onLongPress = {},
@@ -347,16 +383,28 @@ private fun androidx.compose.foundation.lazy.LazyListScope.discoverGrid(
     kind: DKind,
     filters: DFilters,
     kids: Boolean,
+    pendingId: String?,
+    onPendingDone: () -> Unit,
     onFocus: (HeroItem) -> Unit,
     onOpen: (MetaPreview) -> Unit,
 ) {
     item(key = "grid:$kind:$filters") {
-        DiscoverGrid(mvm, kind, filters, kids, onFocus, onOpen)
+        DiscoverGrid(mvm, kind, filters, kids, pendingId, onPendingDone, onFocus, onOpen)
     }
 }
 
 @Composable
-private fun DiscoverGrid(mvm: MediaViewModel, kind: DKind, filters: DFilters, kids: Boolean, onFocus: (HeroItem) -> Unit, onOpen: (MetaPreview) -> Unit) {
+private fun DiscoverGrid(
+    mvm: MediaViewModel,
+    kind: DKind,
+    filters: DFilters,
+    kids: Boolean,
+    pendingId: String?,
+    onPendingDone: () -> Unit,
+    onFocus: (HeroItem) -> Unit,
+    onOpen: (MetaPreview) -> Unit,
+) {
+    val cardFocus = remember(kind, filters) { HashMap<String, FocusRequester>() }
     val results = remember(kind, filters) { mutableStateListOf<MetaPreview>() }
     var page by remember(kind, filters) { mutableIntStateOf(1) }
     var loading by remember(kind, filters) { mutableStateOf(true) }
@@ -365,8 +413,8 @@ private fun DiscoverGrid(mvm: MediaViewModel, kind: DKind, filters: DFilters, ki
         loading = true
         val got = runCatching {
             coroutineScope {
-                val films = if (kind != DKind.Series) filters.params("movie", kids)?.let { p -> async { mvm.tmdb.titles("discover/movie", p, "movie", page) } } else null
-                val series = if (kind != DKind.Films) filters.params("tv", kids)?.let { p -> async { mvm.tmdb.titles("discover/tv", p, "tv", page) } } else null
+                val films = if (kind != DKind.Series) filters.params("movie", kids)?.let { p -> async { mvm.discoverTitles("discover/movie", p, "movie", page) } } else null
+                val series = if (kind != DKind.Films) filters.params("tv", kids)?.let { p -> async { mvm.discoverTitles("discover/tv", p, "tv", page) } } else null
                 interleave(films?.await().orEmpty(), series?.await().orEmpty())
             }
         }.getOrDefault(emptyList())
@@ -383,8 +431,16 @@ private fun DiscoverGrid(mvm: MediaViewModel, kind: DKind, filters: DFilters, ki
             results.chunked(perRow).forEachIndexed { r, chunk ->
                 Row(Modifier.padding(start = RowInset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     chunk.forEach { m ->
+                        val req = cardFocus.getOrPut(m.id) { FocusRequester() }
+                        if (pendingId == m.id) {
+                            LaunchedEffect(Unit) {
+                                req.tryRequest()
+                                onPendingDone()
+                            }
+                        }
                         PosterCard(
                             meta = m,
+                            modifier = Modifier.focusRequester(req),
                             onFocus = {
                                 onFocus(HeroItem(m, title))
                                 // Nearly at the end: the next page.

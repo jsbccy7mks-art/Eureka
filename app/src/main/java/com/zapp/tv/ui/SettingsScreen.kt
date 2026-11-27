@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -925,7 +926,7 @@ private fun AccountsPane(vm: AppViewModel, mvm: MediaViewModel, onPhone: (String
         }
         SettingsCaption("Streaming")
         SettingsGroup("Debrid", mvm.debridNames().takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "Not connected", collapsible = true, help = "Real-Debrid, AllDebrid, Premiumize or TorBox, so torrent sources can play.") {
-            DebridSection(vm, mvm)
+            DebridSection(vm, mvm) { onPhone("debrid") }
         }
     }
 }
@@ -1103,7 +1104,7 @@ private fun NuvioSection(mvm: MediaViewModel) {
 }
 
 @Composable
-private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
+private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel, onPhone: () -> Unit) {
     val version = mvm.settings.debridVersion
     Text(
         "Lets torrent sources from your add-ons play: Axon asks your own debrid account for a normal link. " +
@@ -1152,7 +1153,8 @@ private fun DebridSection(vm: AppViewModel, mvm: MediaViewModel) {
                 when {
                     on -> mvm.disconnectDebrid(service.id)
                     connect != null -> connect()
-                    else -> vm.showToast("Open the phone page from Settings, Playlists and choose the Debrid tab")
+                    // Premiumize and TorBox take a key: straight to the phone page, on Debrid.
+                    else -> onPhone()
                 }
             },
         )
@@ -1394,6 +1396,20 @@ private fun AppearancePane(vm: AppViewModel) {
 
 @Composable
 private fun HomeLayoutPane(mvm: MediaViewModel) {
+    if (mvm.isKids) {
+        Column(Modifier.padding(top = 4.dp).widthIn(max = 560.dp)) {
+            SettingsCaption("Home")
+            Text(
+                "A kids profile has its own Home: family films and series up to its age limit, its own Continue watching and library. " +
+                    "It can't be rearranged, and it never changes anyone else's Home. Switch to a grown-up profile to change theirs.",
+                color = ZappColors.Dim,
+                fontSize = TextSize.Body,
+                lineHeight = 19.sp,
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
+        return
+    }
     val addons by mvm.addons.collectAsState()
     val catalogs by androidx.compose.runtime.produceState(emptyList<com.zapp.tv.addons.CatalogRef>(), addons) { value = mvm.catalogs(null) }
     val rows = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
@@ -1422,7 +1438,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
             SettingRow(
                 title = "Collections in the sidebar",
                 body = if (mvm.tmdb.enabled) "Franchises, studios, decades and themes, on a page of their own."
-                else "Needs your TMDB key (Accounts and sync, TMDB). Then franchises, studios, decades and themes get a page of their own.",
+                else "Needs your TMDB key (Settings, Accounts, TMDB). Then franchises, studios, decades and themes get a page of their own.",
                 value = SettingValue.Toggle(mvm.settings.libraryCollections && mvm.tmdb.enabled),
                 onClick = { if (mvm.tmdb.enabled) mvm.settings.libraryCollections = !mvm.settings.libraryCollections },
             )

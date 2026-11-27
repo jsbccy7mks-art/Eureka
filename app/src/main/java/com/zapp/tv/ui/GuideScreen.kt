@@ -163,7 +163,7 @@ fun GuideScreen(
             val info = guideInfo
             val message = when {
                 info == null -> null
-                !info.hasSource -> "This playlist has no TV guide link. Add one in Settings, Sources, Guide link."
+                !info.hasSource -> "This playlist has no TV guide link. Add one in Settings, Playlists, Guide link."
                 info.programmes == 0 && vm.guideStatus != null -> "Downloading the TV guide…"
                 info.programmes == 0 && info.updated == 0L -> "The TV guide hasn't downloaded yet. Press Update guide."
                 info.programmes == 0 -> "The TV guide is empty: none of its channels match this playlist."

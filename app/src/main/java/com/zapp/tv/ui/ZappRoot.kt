@@ -113,6 +113,8 @@ fun ZappRoot(vm: AppViewModel) {
     var launching by rememberSaveable { mutableStateOf(true) }
     // Home waits for the opening logo to finish moving, so the animation stays smooth.
     var introHold by remember { mutableStateOf(true) }
+    // The profile being switched to, while its Home gets ready.
+    var switchingTo by remember { mutableStateOf<com.zapp.tv.data.Profile?>(null) }
     // Just closed a title, the sources or the player: the sidebar can't take focus for a moment, so
     // focus goes back to the card you were on instead of falling onto the sidebar.
     var railLockUntil by remember { mutableStateOf(0L) }
@@ -177,10 +179,18 @@ fun ZappRoot(vm: AppViewModel) {
     LaunchedEffect(kids) { if (kids && dest == Dest.Live) dest = Dest.Home }
 
     fun useProfile(p: com.zapp.tv.data.Profile) {
+        val changing = p.id != mvm.settings.profileId
+        // A switching screen covers Home while it gets ready for this profile.
+        if (changing) {
+            HomeReady.ready = false
+            switchingTo = p
+        }
         mvm.switchProfile(p.id)
         choosingProfile = false
         pinFor = null
         playback.stop()
+        detail = null
+        collectionOpen = null
         dest = Dest.Home
         StartFocus.fresh = true
         requestContentFocus(250)
@@ -382,6 +392,8 @@ fun ZappRoot(vm: AppViewModel) {
             .fillMaxSize()
             .onFocusChanged { rootHasFocus = it.hasFocus }
             .onPreviewKeyEvent { e ->
+                // Switching profile: the remote waits until the new Home is ready.
+                if (switchingTo != null) return@onPreviewKeyEvent true
                 if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == androidx.compose.ui.input.key.Key.DirectionLeft) {
                     railIntentAt = System.currentTimeMillis()
                 }
@@ -429,6 +441,8 @@ fun ZappRoot(vm: AppViewModel) {
                         .fillMaxSize()
                         .padding(start = RailWidth),
                 ) {
+                    // Each profile gets its pages built fresh (nothing carried over from the last one).
+                    androidx.compose.runtime.key(mvm.settings.profileId) {
                     androidx.compose.animation.AnimatedContent(
                         targetState = dest,
                         transitionSpec = {
@@ -493,6 +507,7 @@ fun ZappRoot(vm: AppViewModel) {
                                 open(Dest.Live)
                             },
                         )
+                    }
                     }
                     }
                 }
@@ -573,6 +588,15 @@ fun ZappRoot(vm: AppViewModel) {
                 requestContentFocus()
             }
         }
+        // Switching profile: their avatar while their Home gets ready behind it.
+        switchingTo?.let { p ->
+            SwitchingScreen(p, ready = { HomeReady.ready }) {
+                switchingTo = null
+                StartFocus.fresh = true
+                requestContentFocus(0)
+            }
+        }
+
         // Opening animation (once per launch) while Home loads behind it.
         if (launching) {
             LaunchScreen(

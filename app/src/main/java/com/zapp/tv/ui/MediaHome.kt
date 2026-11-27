@@ -489,7 +489,7 @@ fun RowOptionsDialog(
                             }, style = ButtonStyle.Quiet)
                         }
                         if (canHide) {
-                            Text("Hidden rows can be switched back on in Settings, Home layout.", color = ZappColors.Faint, fontSize = TextSize.Small)
+                            Text("Hidden rows can be switched back on in Settings, Home.", color = ZappColors.Faint, fontSize = TextSize.Small)
                         }
                     }
                 }

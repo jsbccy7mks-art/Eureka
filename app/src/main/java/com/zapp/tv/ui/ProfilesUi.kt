@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zapp.tv.data.Profile
 import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.graphicsLayer
 
 /** Avatar colours: each a pair for a soft diagonal gradient. */
 val AvatarColors = listOf(
@@ -460,6 +461,43 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
                 },
                 onCancel = { settingPin = false },
             )
+        }
+    }
+}
+
+/**
+ * Switching profile: their avatar and name over the page while their Home gets ready behind it
+ * (their Continue watching, library and rows), then a gentle fade into the finished page. Never
+ * longer than about five seconds; anything slower carries on filling in afterwards.
+ */
+@Composable
+fun SwitchingScreen(profile: Profile, ready: () -> Boolean, onDone: () -> Unit) {
+    // Covers the page from the very first frame, so the old page never shows being rebuilt.
+    val fade = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(profile.id) {
+        val start = System.currentTimeMillis()
+        // At least a moment (so it never flickers), at most five seconds.
+        delay(800)
+        while (!ready() && System.currentTimeMillis() - start < 5_000) delay(100)
+        fade.animateTo(0f, androidx.compose.animation.core.tween(380))
+        onDone()
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = fade.value }
+            .background(ZappColors.Bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        AmbientGlow(0.7f)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Avatar(profile, 96.dp)
+            Spacer(Modifier.height(18.dp))
+            Text(profile.name, fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(16.dp))
+            ZappLoader(30.dp)
+            Spacer(Modifier.height(10.dp))
+            Text(if (profile.kids) "Getting everything ready for you…" else "Getting ready…", color = ZappColors.Dim, fontSize = TextSize.Body)
         }
     }
 }
