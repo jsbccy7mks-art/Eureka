@@ -345,6 +345,7 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
     var name by remember { mutableStateOf(profile?.name ?: "") }
     var color by remember { mutableStateOf(profile?.color ?: (mvm.profiles.value.size % AvatarColors.size)) }
     var kids by remember { mutableStateOf(profile?.kids ?: false) }
+    var limit by remember { mutableStateOf(profile?.let { mvm.settings.kidsLimit(it.id) } ?: 1) }
     var settingPin by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     val field = remember { FocusRequester() }
@@ -389,6 +390,14 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
                 value = SettingValue.Toggle(kids),
                 onClick = { if (profile?.id != 1L) kids = !kids },
             )
+            if (kids) {
+                SettingRow(
+                    title = "Age limit",
+                    body = "Films up to this UK rating. Series are ones made for children (and families, from PG).",
+                    value = SettingValue.Choice(listOf("Up to U", "Up to PG", "Up to 12")[limit]),
+                    onClick = { limit = (limit + 1) % 3 },
+                )
+            }
             if (profile != null) {
                 SettingRow(
                     title = if (profile.pin == null) "Add a PIN" else "Change PIN",
@@ -408,9 +417,10 @@ private fun ProfileDialog(mvm: MediaViewModel, profile: Profile?, onClose: () ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZButton("Save", {
                     if (profile == null) {
-                        mvm.addProfile(name, color, kids)
+                        mvm.addProfile(name, color, kids, limit)
                     } else {
                         mvm.updateProfile(profile.copy(name = name.trim().ifBlank { profile.name }, color = color, kids = kids && profile.id != 1L))
+                        if (kids) mvm.settings.setKidsLimit(profile.id, limit)
                     }
                     onClose()
                 }, style = ButtonStyle.Primary)

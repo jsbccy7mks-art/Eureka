@@ -358,6 +358,19 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    private val kidsLimitTick = mutableIntStateOf(0)
+
+    /** A kids profile's age limit: 0 up to U, 1 up to PG, 2 up to 12. */
+    fun kidsLimit(profileId: Long): Int {
+        kidsLimitTick.intValue
+        return prefs.getInt("kidsLimit:$profileId", 1)
+    }
+
+    fun setKidsLimit(profileId: Long, value: Int) {
+        prefs.edit().putInt("kidsLimit:$profileId", value.coerceIn(0, 2)).apply()
+        kidsLimitTick.intValue++
+    }
+
     /** Discover: films (0), series (1) or both (2). */
     var discoverKind: Int
         get() = prefs.getInt("discoverKind", 0)

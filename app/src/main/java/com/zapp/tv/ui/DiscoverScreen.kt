@@ -122,14 +122,11 @@ private fun DFilters.params(kind: String, kids: Boolean): Map<String, String>? {
     return p
 }
 
-/** Children's profiles: family titles only. */
+/** Children's profiles: titles up to the profile's age limit (set by the app from the profile). */
+private var kidsLimits: ((Boolean, MutableMap<String, String>) -> Unit)? = null
+
 private fun kidsParams(tv: Boolean, p: MutableMap<String, String>) {
-    if (tv) {
-        if (p["with_genres"] == null) p["with_genres"] = "10762|10751|16"
-    } else {
-        p["certification_country"] = "GB"
-        p["certification.lte"] = "PG"
-    }
+    kidsLimits?.invoke(tv, p)
 }
 
 /** One row on Discover: [load] gives its titles for films ("movie") or series ("tv"), null when it has none of that kind. */
@@ -170,6 +167,7 @@ fun DiscoverScreen(mvm: MediaViewModel, focusTick: Int, onOpen: (MetaPreview) ->
         return
     }
 
+    kidsLimits = { tv, p -> mvm.kidsParams(tv, p) }
     var kind by remember { mutableStateOf(DKind.entries.getOrElse(mvm.settings.discoverKind) { DKind.Films }) }
     var filters by remember { mutableStateOf(DFilters()) }
     var picking by remember { mutableStateOf<String?>(null) }
@@ -295,8 +293,7 @@ private fun discoverRows(mvm: MediaViewModel, kind: DKind, kids: Boolean): List<
 
 /** Films and series titles into cards (with IMDb ids, so they open and show your marks). */
 private suspend fun previews(mvm: MediaViewModel, items: List<TmdbItem>, kids: Boolean): List<MetaPreview> = coroutineScope {
-    items.take(20).map { async { runCatching { mvm.tmdbToPreview(it) }.getOrNull() } }.awaitAll().filterNotNull()
-        .let { list -> if (kids) list.filter { com.zapp.tv.data.ProfileStore.kidsSafe(it.genres) } else list }
+    items.filter { !kids || mvm.kidsOk(it) }.take(20).map { async { runCatching { mvm.tmdbToPreview(it) }.getOrNull() } }.awaitAll().filterNotNull()
         .distinctBy { it.id }
 }
 

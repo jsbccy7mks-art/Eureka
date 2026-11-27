@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.59.0
+
+**New**
+- Kids profiles get a Home of their own: no add-on catalogues, just family films and series from
+  TMDB. Their own Continue watching, Popular with kids right now, New for kids on your services,
+  From Disney, Pixar, DreamWorks and Illumination, the season's picks, Animated favourites, Kids'
+  series, Family film night, For little ones, Because you loved and their library. What they
+  choose still plays through your add-ons, as before.
+- An age limit for each kids profile (Settings, Profiles, edit the profile): films up to U, PG
+  (the default) or 12; series made for children (and families, from PG). Home, Discover and the
+  season's picks all keep to it.
+- Collections on kids profiles show only the kid-friendly ones: family and animation franchises,
+  Pixar, Studio Ghibli, DreamWorks Animation, Animated Classics and Family Christmas.
+
+**Changed**
+- New episodes on Home look like Continue watching: the show's wide picture with its logo, and
+  "New · S2 E5" in the corner.
+
 ## 0.58.2
 
 **New**

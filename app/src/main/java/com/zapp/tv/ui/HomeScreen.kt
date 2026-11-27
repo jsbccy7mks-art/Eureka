@@ -113,9 +113,30 @@ fun HomeScreen(
 ) {
     val addons by mvm.addons.collectAsState()
     val continueItems by mvm.continueWatching.collectAsState()
-    val catalogs by produceState(emptyList<CatalogRef>(), addons) { value = mvm.catalogs(null) }
+    // Kids profiles: no add-on catalogues on Home, just family titles from TMDB (their sources still
+    // come from the same add-ons as everyone's).
+    val kids = mvm.isKids
+    val catalogs by produceState(emptyList<CatalogRef>(), addons, kids) { value = if (kids) emptyList() else mvm.catalogs(null) }
 
-    val layout = remember(catalogs, mvm.settings.homeRowsJson) { mvm.homeLayout(catalogs) }
+    val layout = remember(catalogs, mvm.settings.homeRowsJson, kids) { if (kids) mvm.kidsLayout() else mvm.homeLayout(catalogs) }
+    val kidsCert = if (kids) mvm.kidsCert else ""
+    // The kids rows, each filled in as it arrives.
+    val kidsRows by produceState(emptyMap<String, List<MetaPreview>>(), kids, kidsCert) {
+        value = emptyMap()
+        if (!kids || !mvm.tmdb.enabled) return@produceState
+        kotlinx.coroutines.coroutineScope {
+            KIDS_ROWS.forEach { (id, _) ->
+                launch {
+                    for (wait in listOf(0L, 20_000L, 60_000L)) {
+                        delay(wait)
+                        val got = runCatching { mvm.kidsRow(id) }.getOrDefault(emptyList())
+                        if (got.isNotEmpty()) value = value + (id to got)
+                        if (got.size >= 3) break
+                    }
+                }
+            }
+        }
+    }
     // Rows further down are got ready now, so they're already there when you scroll to them.
     LaunchedEffect(layout) { mvm.warmRows(catalogs.filter { c -> layout.any { it.id == c.key && it.on } }) }
     // Smart rows: what to suggest from what you've watched and saved.
@@ -146,14 +167,18 @@ fun HomeScreen(
             CONTINUE_ROW -> continueItems.isNotEmpty()
             BECAUSE_ROW -> because != null
             FOR_YOU_ROW -> (forYou.isNotEmpty() && !noRatings) || (noRatings && mvm.tmdb.enabled)
-            LOVED_ROW -> loved != null
+            LOVED_ROW -> loved != null && (!kids || loved?.second.orEmpty().count { mvm.kidsOk(it) } >= 3)
             GEMS_ROW -> gems.size >= 3
             SEASON_ROW -> season != null && seasonPicks.size >= 3
             NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
             SPORTS_ROW -> !mvm.isKids && sportsSoon.isNotEmpty()
-            else -> if (r.id.startsWith("collections:")) mvm.collectionShelf(r.id.removePrefix("collections:")) != null else catalogs.any { it.key == r.id }
+            else -> when {
+                r.id.startsWith("kids:") -> kidsRows[r.id].orEmpty().size >= 3
+                r.id.startsWith("collections:") -> mvm.collectionShelf(r.id.removePrefix("collections:")) != null
+                else -> catalogs.any { it.key == r.id }
+            }
         }
     }
 
@@ -206,7 +231,11 @@ fun HomeScreen(
     ImmersiveLayout(
         mvm = mvm,
         focused = focused,
-        header = if (rows.isEmpty()) ({ EmptyHero(emptyFocus, onOpenAddons) }) else null,
+        header = when {
+            rows.isNotEmpty() -> null
+            kids -> ({ KidsEmptyHero(mvm.tmdb.enabled) })
+            else -> ({ EmptyHero(emptyFocus, onOpenAddons) })
+        },
         scrollToTop = if (moves <= 1) firstRowId else null,
         topTick = topTick,
         topRight = { ClockAndAvatar(mvm) },
@@ -345,7 +374,7 @@ fun HomeScreen(
                 }
                 val items = when (row.id) {
                     FOR_YOU_ROW -> forYou
-                    LOVED_ROW -> loved?.second.orEmpty()
+                    LOVED_ROW -> loved?.second.orEmpty().let { l -> if (kids) l.filter { mvm.kidsOk(it) } else l }
                     else -> gems
                 }
                 MetaRow(
@@ -378,7 +407,8 @@ fun HomeScreen(
                 MetaRow(
                     title = title,
                     items = items,
-                    badges = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "New · ${it.second}" } else emptyMap(),
+                    badges = emptyMap(),
+                    newLabels = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "New · ${it.second}" } else null,
                     size = row.size,
                     // New episodes is always wide, like Continue watching.
                     landscape = row.landscape || row.id == NEW_EPISODES_ROW,
@@ -386,6 +416,23 @@ fun HomeScreen(
                     onPendingDone = { pending = null },
                     onFocusItem = { meta ->
                         focused = HeroItem(meta, title)
+                        lastFocus = HomeFocus(row.id, meta.id)
+                        moves++
+                    },
+                    onOpen = onOpenTitle,
+                    onLongPress = { m -> options = RowOptions(row.id, meta = m) },
+                )
+            } else if (row.id.startsWith("kids:")) {
+                MetaRow(
+                    title = row.label,
+                    items = kidsRows[row.id].orEmpty(),
+                    badges = emptyMap(),
+                    size = 1,
+                    landscape = false,
+                    pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
+                    onPendingDone = { pending = null },
+                    onFocusItem = { meta ->
+                        focused = HeroItem(meta, row.label)
                         lastFocus = HomeFocus(row.id, meta.id)
                         moves++
                     },
@@ -425,7 +472,8 @@ fun HomeScreen(
             RowOptionsDialog(
                 mvm = mvm,
                 meta = o.meta,
-                row = row,
+                // Kids profiles' rows are fixed: just the title's own options.
+                row = row.takeIf { !kids },
                 progress = o.progress,
                 canMoveUp = row.id != CONTINUE_ROW && layout.indexOf(row) > 1,
                 canMoveDown = row.id != CONTINUE_ROW && layout.indexOf(row) < layout.size - 1,
@@ -437,6 +485,25 @@ fun HomeScreen(
                     options = null
                 },
                 onClose = { options = null },
+            )
+        }
+    }
+}
+
+/** A kids profile's Home before its rows arrive (or without a TMDB key to find them). */
+@Composable
+private fun KidsEmptyHero(tmdb: Boolean) {
+    Column(Modifier.padding(start = RowInset, top = 44.dp).widthIn(max = 460.dp)) {
+        ZappLogo(26.dp)
+        Spacer(Modifier.height(24.dp))
+        Text(if (tmdb) "Finding films and series for you…" else "Nothing here yet", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp)
+        if (!tmdb) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "A kids Home is filled with family films and series from TMDB. Ask a grown-up to add a TMDB key (Settings, Accounts, on the main profile).",
+                color = ZappColors.Dim,
+                fontSize = TextSize.Body,
+                lineHeight = 19.sp,
             )
         }
     }
@@ -588,6 +655,8 @@ internal fun MetaRow(
     onFocusItem: (MetaPreview) -> Unit,
     onOpen: (MetaPreview) -> Unit,
     onLongPress: (MetaPreview) -> Unit,
+    /** New episodes: cards like Continue watching, each with its "New · S2 E5". */
+    newLabels: Map<String, String>? = null,
 ) {
     val memory = rememberFocusMemory()
     val width = cardWidth(size, landscape)
@@ -615,7 +684,19 @@ internal fun MetaRow(
                             onPendingDone()
                         }
                     }
-                    Box {
+                    if (newLabels != null) {
+                        NewEpisodeCard(
+                            meta = meta,
+                            label = newLabels[meta.id].orEmpty(),
+                            modifier = Modifier
+                                .rememberFocus(memory, meta.id)
+                                .focusRequesterSafe(requester),
+                            onFocus = { rowStart.index = index; onFocusItem(meta) },
+                            onClick = { onOpen(meta) },
+                            onLongClick = { onLongPress(meta) },
+                            width = width,
+                        )
+                    } else Box {
                         PosterCard(
                             meta = meta,
                             modifier = Modifier
