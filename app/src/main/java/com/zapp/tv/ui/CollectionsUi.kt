@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
@@ -91,16 +92,90 @@ fun CollectionCard(
         ring = true,
         ringCorner = 12.dp,
     ) {
-        Artwork(c.backdrop ?: c.poster, c.name)
+        if (c.kind == "network") {
+            ServiceTile(c)
+            return@FocusSurface
+        }
+        CollectionArtwork(c)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
         Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
             Text(
-                when (c.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; else -> "COLLECTION" },
+                when (c.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; "seasonal" -> "IN SEASON"; else -> "COLLECTION" },
                 color = ZappColors.Brand2, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp,
             )
             Spacer(Modifier.height(2.dp))
             MovieTitle(c.name, 17.sp, maxLines = 1)
             c.note?.let { Text(it, color = ZappColors.Dim, fontSize = TextSize.Label, maxLines = 1) }
+        }
+    }
+}
+
+/** Fetches pictures for collections that have none of their own (set by the app). */
+object CollectionArtSource {
+    var load: (suspend (Long) -> Pair<List<String>, List<String>>)? = null
+}
+
+/**
+ * A collection's picture: its own artwork; if it has none, or it won't load, its films' backdrops
+ * in turn; and if none of those, a mosaic of its first four posters. Never a blank card.
+ */
+@Composable
+private fun CollectionArtwork(c: MediaViewModel.CollectionSummary) {
+    val own = c.backdrop ?: c.poster
+    var candidates by remember(c.id) { mutableStateOf(listOfNotNull(own)) }
+    var posters by remember(c.id) { mutableStateOf<List<String>>(emptyList()) }
+    var at by remember(c.id) { mutableIntStateOf(0) }
+    var looked by remember(c.id) { mutableStateOf(false) }
+    val needMore = at >= candidates.size
+    LaunchedEffect(c.id, needMore) {
+        if (!needMore || looked) return@LaunchedEffect
+        looked = true
+        val (backdrops, p) = CollectionArtSource.load?.invoke(c.id) ?: return@LaunchedEffect
+        val fresh = backdrops.filter { it !in candidates }
+        candidates = candidates + fresh
+        posters = p
+    }
+    val url = candidates.getOrNull(at)
+    when {
+        url != null -> {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            AsyncImage(
+                model = remember(url) { coil.request.ImageRequest.Builder(ctx).data(url).crossfade(false).build() },
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                onError = { at++ },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        posters.isNotEmpty() -> Row(Modifier.fillMaxSize()) {
+            posters.forEach { p ->
+                AsyncImage(model = p, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+        else -> Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(ZappColors.Brand1.copy(alpha = 0.35f), ZappColors.Brand2.copy(alpha = 0.25f)))))
+    }
+}
+
+/** A streaming service: its logo on a dark tile, with its name. */
+@Composable
+private fun ServiceTile(c: MediaViewModel.CollectionSummary) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(listOf(Color(0xFF1B1C2B), Color(0xFF0C0C14)))),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (c.poster != null) {
+                AsyncImage(
+                    model = c.poster,
+                    contentDescription = c.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)),
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+            Text(c.name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = ZappColors.Text, maxLines = 1)
         }
     }
 }
@@ -120,7 +195,13 @@ fun CollectionScreen(
     onClose: () -> Unit,
 ) {
     BackHandler(onBack = onClose)
-    val collection by produceState<com.zapp.tv.data.TmdbCollection?>(null, collectionId) { value = mvm.collection(collectionId) }
+    // Streaming services and seasons have films and series: a small text button switches.
+    val hasSeries = remember(collectionId) { mvm.collectionHasSeries(collectionId) }
+    var series by remember(collectionId) { mutableStateOf(mvm.collectionSeriesFirst(collectionId)) }
+    val collection by produceState<com.zapp.tv.data.TmdbCollection?>(null, collectionId, series) {
+        value = null
+        value = mvm.collection(collectionId, series)
+    }
     val imdb by produceState(emptyMap<Long, String>(), collection) { collection?.let { value = mvm.collectionImdbIds(it) } }
     val c = collection
     // The theme tune: the one you chose, else the best 30-second preview from Apple Music or Deezer,
@@ -211,7 +292,7 @@ fun CollectionScreen(
             // ---- the franchise
             Column(Modifier.fillMaxWidth().padding(start = 64.dp, end = 64.dp, top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    listOfNotNull(mvm.collectionLabel(collectionId), "${c.parts.size} FILMS", years, if (imdb.isNotEmpty()) "$seen WATCHED" else null).joinToString("   ·   "),
+                    listOfNotNull(mvm.collectionLabel(collectionId), "${c.parts.size} " + if (series) "SERIES" else "FILMS", years, if (imdb.isNotEmpty()) "$seen WATCHED" else null).joinToString("   ·   "),
                     color = ZappColors.Brand2.copy(alpha = 0.95f),
                     fontSize = TextSize.Label,
                     fontWeight = FontWeight.SemiBold,
@@ -222,6 +303,10 @@ fun CollectionScreen(
                 c.overview?.let {
                     Spacer(Modifier.height(8.dp))
                     Text(it, color = ZappColors.Dim, fontSize = TextSize.Body, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
+                }
+                if (hasSeries) {
+                    Spacer(Modifier.height(10.dp))
+                    ZButton(if (series) "Show films" else "Show series", { series = !series }, style = ButtonStyle.Quiet)
                 }
             }
 
@@ -267,7 +352,7 @@ fun CollectionScreen(
                                 FocusSurface(
                                     onClick = {
                                         val imdbId = id ?: return@FocusSurface
-                                        onOpen(MetaPreview(imdbId, "movie", p.item.name, p.item.poster, "poster", p.item.backdrop, null, p.overview, p.item.year, null, emptyList()))
+                                        onOpen(MetaPreview(imdbId, p.item.type, p.item.name, p.item.poster, "poster", p.item.backdrop, null, p.overview, p.item.year, null, emptyList()))
                                     },
                                     modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f),
                                     focusRequester = if (i == (if (nextIndex >= 0) nextIndex else 0)) first else null,

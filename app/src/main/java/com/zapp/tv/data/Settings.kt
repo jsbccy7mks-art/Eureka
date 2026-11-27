@@ -562,6 +562,16 @@ class Settings(context: Context) {
     var gloss: Boolean
         get() = glossState.value
         set(value) { glossState.value = value; prefs.edit().putBoolean("gloss", value).apply(); com.zapp.tv.ui.FocusStyle.gloss = value }
+    private val seasonalTouchesState = mutableStateOf(prefs.getBoolean("seasonalTouches", true))
+    /** Snow, a warm glow and gold edges on the seasonal row (Christmas and other times of year). */
+    var seasonalTouches: Boolean
+        get() = seasonalTouchesState.value
+        set(value) { seasonalTouchesState.value = value; prefs.edit().putBoolean("seasonalTouches", value).apply() }
+    private val spoilerShieldState = mutableStateOf(prefs.getBoolean("spoilerShield", false))
+    /** Blurs the pictures and hides the stories of episodes you haven't watched yet. */
+    var spoilerShield: Boolean
+        get() = spoilerShieldState.value
+        set(value) { spoilerShieldState.value = value; prefs.edit().putBoolean("spoilerShield", value).apply() }
     private val glowLevelState = mutableIntStateOf(prefs.getInt("glowLevel", 1))
     var glowLevel: Int
         get() = glowLevelState.intValue

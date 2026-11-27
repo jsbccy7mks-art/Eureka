@@ -126,6 +126,9 @@ fun HomeScreen(
     val forYou by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.forYou() }.getOrDefault(emptyList()) }
     val loved by produceState<Pair<String, List<MetaPreview>>?>(null, mvm.tasteVersion) { value = runCatching { mvm.becauseYouLoved() }.getOrNull() }
     val gems by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.hiddenGems() }.getOrDefault(emptyList()) }
+    // The time of year's row (Christmas from mid-November), a fresh set each day.
+    val season = remember { mvm.currentSeason() }
+    val seasonPicks by produceState(emptyList<MetaPreview>(), mvm.tasteVersion, season?.key) { value = runCatching { mvm.seasonalPicks() }.getOrDefault(emptyList()) }
     // "For you" starts once there are a few ratings to go on; until then, the nudge to rate.
     val ratedCount = mvm.ratings.all().size
     val noRatings = ratedCount < 5
@@ -144,6 +147,7 @@ fun HomeScreen(
             FOR_YOU_ROW -> (forYou.isNotEmpty() && !noRatings) || (noRatings && mvm.tmdb.enabled)
             LOVED_ROW -> loved != null
             GEMS_ROW -> gems.size >= 3
+            SEASON_ROW -> season != null && seasonPicks.size >= 3
             NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
@@ -309,6 +313,27 @@ fun HomeScreen(
                             }
                         }
                     }
+                }
+            } else if (row.id == SEASON_ROW && season != null) {
+                val look = seasonLook(season.key)
+                val title = (if (mvm.settings.seasonalTouches) look.mark + "  " else "") + (row.name ?: season.title)
+                SeasonalRow(season.key, mvm.settings.seasonalTouches) {
+                    MetaRow(
+                        title = title,
+                        items = seasonPicks,
+                        badges = emptyMap(),
+                        size = row.size,
+                        landscape = row.landscape,
+                        pendingId = pending?.takeIf { it.rowKey == row.id }?.itemKey,
+                        onPendingDone = { pending = null },
+                        onFocusItem = { meta ->
+                            focused = HeroItem(meta, season.title)
+                            lastFocus = HomeFocus(row.id, meta.id)
+                            moves++
+                        },
+                        onOpen = onOpenTitle,
+                        onLongPress = { m -> options = RowOptions(row.id, meta = m) },
+                    )
                 }
             } else if (row.id == FOR_YOU_ROW || row.id == LOVED_ROW || row.id == GEMS_ROW) {
                 val title = row.name ?: when (row.id) {

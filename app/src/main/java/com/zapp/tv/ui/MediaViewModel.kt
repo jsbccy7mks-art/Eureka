@@ -56,7 +56,9 @@ const val COLLECTIONS_ROW = "collections"
 /** The collection shelves, in order. Each can also be a Home row ("collections:<id>"). */
 val COLLECTION_SHELVES = listOf(
     "yours" to "Your collections",
+    "seasonal" to "In season",
     "finish" to "Finish what you started",
+    "networks" to "Streaming services",
     "superheroes" to "Superheroes",
     "action" to "Action and adventure",
     "scifi" to "Sci-fi",
@@ -74,6 +76,7 @@ const val SPORTS_ROW = "sports"
 const val FOR_YOU_ROW = "forYou"
 const val LOVED_ROW = "loved"
 const val GEMS_ROW = "gems"
+const val SEASON_ROW = "season"
 
 data class HomeRowSetting(
     val id: String,
@@ -1057,7 +1060,110 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     data class CollectionShelf(val id: String, val title: String, val items: List<CollectionSummary>)
 
     /** A collection made from a TMDB search rather than a franchise. Ids are negative so they never meet TMDB's. */
-    private data class Curated(val id: Long, val kind: String, val name: String, val blurb: String, val params: Map<String, String>)
+    private data class Curated(
+        val id: Long,
+        val kind: String,
+        val name: String,
+        val blurb: String,
+        val params: Map<String, String>,
+        /** The same for series, where the collection has both (a text button switches). */
+        val tvParams: Map<String, String>? = null,
+        /** A TMDB keyword to add (looked up by name), e.g. "christmas". */
+        val keyword: String? = null,
+        /** Opens on series rather than films. */
+        val seriesFirst: Boolean = false,
+        /** In the order TMDB gives (most popular first) rather than by date. */
+        val popularOrder: Boolean = false,
+        /** A streaming service's TMDB provider id (for its logo). */
+        val provider: Int = 0,
+    )
+
+    /** Streaming services available in the UK, each a collection of what's on it. */
+    private val networks: List<Curated> = listOf(
+        8 to "Netflix", 9 to "Prime Video", 337 to "Disney+", 350 to "Apple TV+", 531 to "Paramount+",
+        39 to "NOW", 38 to "BBC iPlayer", 41 to "ITVX", 103 to "Channel 4",
+    ).map { (p, name) ->
+        val base = mapOf("with_watch_providers" to p.toString(), "watch_region" to "GB", "with_watch_monetization_types" to "flatrate|free|ads", "sort_by" to "popularity.desc")
+        Curated(
+            -(200_000L + p), "network", name, "Popular on $name in the UK right now.",
+            base + ("vote_count.gte" to "80"), base + ("vote_count.gte" to "40"),
+            seriesFirst = true, popularOrder = true, provider = p,
+        )
+    }
+
+    /** The collections for the time of year (none between seasons). Christmas runs from mid-November. */
+    private fun seasonal(today: java.time.LocalDate = java.time.LocalDate.now()): List<Curated> {
+        val m = today.monthValue
+        val d = today.dayOfMonth
+        fun before(y: Int) = mapOf("primary_release_date.lte" to "$y-12-31")
+        fun from(y: Int) = mapOf("primary_release_date.gte" to "$y-01-01")
+        val votes = mapOf("sort_by" to "vote_count.desc")
+        fun c(id: Long, name: String, blurb: String, params: Map<String, String>, keyword: String? = null, tv: Map<String, String>? = null) =
+            Curated(id, "seasonal", name, blurb, votes + params, tv?.let { mapOf("sort_by" to "popularity.desc") + it }, keyword)
+        return when {
+            (m == 11 && d >= 15) || m == 12 || (m == 1 && d <= 6) -> listOf(
+                c(-301, "Christmas Classics", "The ones that make it Christmas.", before(1999), "christmas", emptyMap()),
+                c(-302, "Christmas Favourites", "Newer festive favourites.", from(2000), "christmas", emptyMap()),
+                c(-303, "Family Christmas", "For everyone on the sofa.", mapOf("with_genres" to "10751"), "christmas", mapOf("with_genres" to "10751")),
+                c(-304, "Christmas Comedies", "Festive films to laugh at.", mapOf("with_genres" to "35"), "christmas", mapOf("with_genres" to "35")),
+            )
+            m == 10 -> listOf(
+                c(-311, "Halloween Night", "Trick or treat.", emptyMap(), "halloween", emptyMap()),
+                c(-312, "Horror Classics", "Before scares were digital.", before(1999) + ("with_genres" to "27")),
+                c(-313, "Family Halloween", "Spooky, not scary.", mapOf("with_genres" to "10751"), "halloween"),
+            )
+            m == 2 && d <= 14 -> listOf(
+                c(-321, "Romance Classics", "Love stories that last.", before(1999) + ("with_genres" to "10749")),
+                c(-322, "Modern Romance", "Love stories since 2000.", from(2000) + ("with_genres" to "10749")),
+                c(-323, "Romantic Comedies", "Love, with laughs.", mapOf("with_genres" to "10749,35")),
+            )
+            (m == 3 && d >= 20) || (m == 4 && d <= 25) -> listOf(
+                c(-331, "Easter Holidays", "Films for the whole family.", mapOf("with_genres" to "10751")),
+                c(-332, "Animated Adventures", "Big adventures, drawn and animated.", mapOf("with_genres" to "16,12")),
+            )
+            (m == 6 && d >= 15) || m == 7 || m == 8 -> listOf(
+                c(-341, "Summer Blockbusters", "Big, loud and best on a big screen.", mapOf("with_genres" to "28,12", "vote_count.gte" to "3000")),
+                c(-342, "Sunny Comedies", "Light, warm and funny.", mapOf("with_genres" to "35", "vote_average.gte" to "6.8", "vote_count.gte" to "1500")),
+            )
+            else -> emptyList()
+        }
+    }
+
+    private fun curatedById(id: Long): Curated? = curated.firstOrNull { it.id == id } ?: networks.firstOrNull { it.id == id } ?: seasonal().firstOrNull { it.id == id }
+
+    /** Whether a collection has a series version to switch to, and which it opens on. */
+    fun collectionHasSeries(id: Long) = curatedById(id)?.tvParams != null
+    fun collectionSeriesFirst(id: Long) = curatedById(id)?.seriesFirst == true
+
+    /** In-season collections and streaming services, made live (not part of the weekly catalogue). */
+    private var special by mutableStateOf<List<CollectionSummary>>(emptyList())
+    private var specialJob: kotlinx.coroutines.Job? = null
+
+    private fun loadSpecial() {
+        if (specialJob?.isActive == true || (special.isNotEmpty())) return
+        specialJob = viewModelScope.launch {
+            val season = seasonal().map { d ->
+                async {
+                    collection(d.id)?.let { c ->
+                        CollectionSummary(d.id, d.name, c.poster, c.backdrop?.replace("/original/", "/w780/") ?: c.parts.firstNotNullOfOrNull { it.item.backdrop }, kind = "seasonal", shelf = "seasonal")
+                    }
+                }
+            }.awaitAll().filterNotNull()
+            val logos = runCatching { tmdb.providerLogos() }.getOrDefault(emptyMap())
+            val services = networks.map { d -> CollectionSummary(d.id, d.name, logos[d.provider], null, kind = "network", shelf = "networks") }
+            special = season + services
+        }
+    }
+
+    /**
+     * Pictures for a collection's card when it has none of its own (or they won't load): backdrops
+     * of its films, best first, and up to four posters for a mosaic as the last resort.
+     */
+    suspend fun collectionArt(id: Long): Pair<List<String>, List<String>> {
+        val c = collection(id) ?: return emptyList<String>() to emptyList()
+        val backdrops = listOfNotNull(c.backdrop?.replace("/original/", "/w780/")) + c.parts.mapNotNull { it.item.backdrop?.replace("/w1280/", "/w780/") }
+        return backdrops.distinct().take(6) to c.parts.mapNotNull { it.item.poster }.take(4)
+    }
 
     private val curated: List<Curated> = run {
         fun studio(company: Int, name: String, blurb: String) =
@@ -1120,7 +1226,14 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         }
         val titles = COLLECTION_SHELVES.toMap()
         val out = saved.filter { it.first in titles }.map { Triple(it.first, titles[it.first]!!, it.second) }.toMutableList()
-        COLLECTION_SHELVES.forEach { (id, t) -> if (out.none { it.first == id }) out.add(Triple(id, t, true)) }
+        // New shelves join where they belong by default (after the one before them), shown.
+        COLLECTION_SHELVES.forEachIndexed { i, (id, t) ->
+            if (out.none { it.first == id }) {
+                val prev = COLLECTION_SHELVES.getOrNull(i - 1)?.first
+                val at = out.indexOfFirst { it.first == prev }.let { if (it < 0) minOf(i, out.size) else it + 1 }
+                out.add(at, Triple(id, t, true))
+            }
+        }
         return out
     }
 
@@ -1199,7 +1312,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             val built = HashMap<String, CollectionShelf>()
             built["yours"] = CollectionShelf("yours", "Your collections", yours)
             built["finish"] = CollectionShelf("finish", "Finish what you started", unfinished)
-            COLLECTION_SHELVES.drop(2).forEach { (id, title) -> built[id] = CollectionShelf(id, title, catalogue.filter { it.shelf == id }) }
+            COLLECTION_SHELVES.filter { it.first !in setOf("yours", "finish") }.forEach { (id, title) ->
+                built[id] = CollectionShelf(id, title, (catalogue + special).filter { it.shelf == id })
+            }
             return collectionShelfLayout().filter { it.third }.mapNotNull { built[it.first] }.filter { it.items.isNotEmpty() }
         }
 
@@ -1209,6 +1324,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshCollections() {
         if (!tmdb.enabled) return
         loadCatalogue()
+        loadSpecial()
         collectionsJob?.cancel()
         collectionsJob = viewModelScope.launch {
             delay(1_500)
@@ -1311,13 +1427,25 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         withContext(Dispatchers.Main) { catalogue = all }
     }
 
-    suspend fun collection(id: Long): com.zapp.tv.data.TmdbCollection? = runCatching {
-        if (id < 0) curated.firstOrNull { it.id == id }?.let { d -> tmdb.discoverCollection(d.id, d.name, d.blurb, d.params) }
-        else tmdb.collection(id)
+    suspend fun collection(id: Long, series: Boolean = false): com.zapp.tv.data.TmdbCollection? = runCatching {
+        if (id < 0) {
+            curatedById(id)?.let { d ->
+                val kw = d.keyword?.let { tmdb.keywordId(it) }
+                if (d.keyword != null && kw == null) return@let null
+                fun withKw(p: Map<String, String>) = if (kw != null) p + ("with_keywords" to kw.toString()) else p
+                val tv = d.tvParams
+                if (series && tv != null) tmdb.discoverCollection(d.id - 10_000_000L, d.name, d.blurb, withKw(tv), tv = true, byDate = !d.popularOrder)
+                else tmdb.discoverCollection(d.id, d.name, d.blurb, withKw(d.params), byDate = !d.popularOrder && d.kind != "seasonal")
+            }
+        } else {
+            tmdb.collection(id)
+        }
     }.getOrNull()
 
     /** "COLLECTION", "STUDIO", "DECADE" or "THEME", for the showcase and cards. */
-    fun collectionLabel(id: Long): String = when (curated.firstOrNull { it.id == id }?.kind) {
+    fun collectionLabel(id: Long): String = when (curatedById(id)?.kind) {
+        "network" -> "STREAMING"
+        "seasonal" -> "IN SEASON"
         "studio" -> "STUDIO"
         "decade" -> "DECADE"
         "theme" -> "THEME"
@@ -1490,6 +1618,52 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val recs = runCatching { tmdb.details(loved.metaId, loved.type)?.recommendations }.getOrNull().orEmpty()
         val list = previewsOf(recs, 15)
         return if (list.size < 3) null else loved.name to list
+    }
+
+    /** A time of year with its own Home row: [key] picks its decorations. */
+    data class Season(val key: String, val title: String, val params: Map<String, String>, val keyword: String? = null, val tv: Boolean = false)
+
+    /** Christmas runs from mid-November into early January; Halloween all October; and so on. */
+    fun currentSeason(today: java.time.LocalDate = java.time.LocalDate.now()): Season? {
+        val m = today.monthValue
+        val d = today.dayOfMonth
+        return when {
+            (m == 11 && d >= 15) || m == 12 || (m == 1 && d <= 6) -> Season("christmas", "Christmas picks", emptyMap(), "christmas", tv = true)
+            m == 10 -> Season("halloween", "Halloween picks", emptyMap(), "halloween")
+            m == 2 && d <= 14 -> Season("valentine", "Love stories", mapOf("with_genres" to "10749"))
+            (m == 3 && d >= 20) || (m == 4 && d <= 25) -> Season("easter", "Easter holiday picks", mapOf("with_genres" to "10751"))
+            (m == 6 && d >= 15) || m == 7 || m == 8 -> Season("summer", "Summer blockbusters", mapOf("with_genres" to "28|12", "vote_count.gte" to "2000"))
+            else -> null
+        }
+    }
+
+    private var seasonCache: Pair<Long, List<MetaPreview>>? = null
+
+    /**
+     * The season's row: a fresh set every day from a large pool (classics and newer ones), a few of
+     * the first places going to ones in genres you like, nothing you've watched, and none of
+     * yesterday's first picks first again.
+     */
+    suspend fun seasonalPicks(): List<MetaPreview> {
+        val season = currentSeason() ?: return emptyList()
+        if (!tmdb.enabled) return emptyList()
+        val day = System.currentTimeMillis() / 86_400_000L
+        seasonCache?.takeIf { it.first == day }?.let { return it.second }
+        val kw = season.keyword?.let { tmdb.keywordId(it) }
+        if (season.keyword != null && kw == null) return emptyList()
+        val p = season.params + (kw?.let { mapOf("with_keywords" to it.toString()) } ?: emptyMap())
+        val pool = runCatching {
+            tmdb.discoverItems(p + ("sort_by" to "vote_count.desc"), 5) +
+                tmdb.discoverItems(p + mapOf("sort_by" to "popularity.desc", "vote_count.gte" to "50"), 2) +
+                (if (season.tv) tmdb.discoverItems(mapOf("sort_by" to "popularity.desc") + (kw?.let { mapOf("with_keywords" to it.toString()) } ?: emptyMap()), 1, tv = true) else emptyList())
+        }.getOrDefault(emptyList()).distinctBy { it.first.type + it.first.id }
+        val liked = taste.filterKeys { it.startsWith("g:") }.filterValues { it > 0 }.keys.mapNotNull { it.removePrefix("g:").toIntOrNull() }.toSet()
+        val rnd = java.util.Random(day * 7919L + season.key.hashCode())
+        val mine = pool.filter { (_, g) -> g.any { it in liked } }.shuffled(rnd).take(4).map { it.first }
+        val rest = pool.map { it.first }.filter { it !in mine }.shuffled(rnd)
+        val list = previewsOf(mine + rest, 18)
+        if (list.isNotEmpty()) seasonCache = day to list
+        return list
     }
 
     /** "Hidden gems for you": well-rated, less famous titles in your favourite genres. */
@@ -1774,6 +1948,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         available[FOR_YOU_ROW] = "For you"
         available[LOVED_ROW] = "Because you loved…"
         available[GEMS_ROW] = "Hidden gems for you"
+        available[SEASON_ROW] = currentSeason()?.title ?: "In season (Christmas and other times of year)"
         catalogs.forEach { available[it.key] = it.title }
         available[LIBRARY_ROW] = "Your library"
         available[COLLECTIONS_ROW] = "Your collections"
@@ -1781,7 +1956,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         available[SPORTS_ROW] = "Your teams"
 
         val sources = HashMap<String, String>()
-        listOf(CONTINUE_ROW, BECAUSE_ROW, NEW_EPISODES_ROW, FOR_YOU_ROW, LOVED_ROW, GEMS_ROW).forEach { sources[it] = "Smart rows" }
+        listOf(CONTINUE_ROW, BECAUSE_ROW, NEW_EPISODES_ROW, FOR_YOU_ROW, LOVED_ROW, GEMS_ROW, SEASON_ROW).forEach { sources[it] = "Smart rows" }
         catalogs.forEach { sources[it.key] = it.addon.manifest.name }
         sources[LIBRARY_ROW] = "Library"
         available.keys.filter { it == COLLECTIONS_ROW || it.startsWith("collections:") }.forEach { sources[it] = "Collections" }
@@ -1800,7 +1975,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
                 val shelfRow = id == COLLECTIONS_ROW || id.startsWith("collections:")
                 val row = HomeRowSetting(id, title, !shelfRow, landscape = id == CONTINUE_ROW || shelfRow, source = sources[id].orEmpty())
                 // New smart rows go just below Continue watching; everything else at the end.
-                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW || id == FOR_YOU_ROW || id == LOVED_ROW || id == GEMS_ROW) {
+                if (id == BECAUSE_ROW || id == NEW_EPISODES_ROW || id == SPORTS_ROW || id == FOR_YOU_ROW || id == LOVED_ROW || id == GEMS_ROW || id == SEASON_ROW) {
                     result.add(result.indexOfFirst { it.id == CONTINUE_ROW } + 1, row)
                 } else {
                     result.add(row)

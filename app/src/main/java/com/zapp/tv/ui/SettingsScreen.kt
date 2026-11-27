@@ -335,6 +335,12 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
                 onClick = { s.skipRecap = (s.skipRecap + 1) % 3 },
             )
             SettingRow(
+                title = "Spoiler shield",
+                body = "Blurs the pictures of episodes you haven't watched yet and hides their stories until you press OK on them.",
+                value = SettingValue.Toggle(s.spoilerShield),
+                onClick = { s.spoilerShield = !s.spoilerShield },
+            )
+            SettingRow(
                 title = "Autoplay next episode",
                 body = "Up next appears at the credits. On: it counts down from 10, then plays. Off: it waits for you.",
                 value = SettingValue.Toggle(s.autoNextEpisode),
@@ -1216,6 +1222,12 @@ private fun AppearancePane(vm: AppViewModel) {
             body = "How strongly the theme's colour glows across the page.",
             value = SettingValue.Choice(listOf("Subtle", "Normal", "Vivid")[s.glowLevel.coerceIn(0, 2)]),
             onClick = { s.glowLevel = (s.glowLevel + 1) % 3 },
+        )
+        SettingRow(
+            title = "Seasonal touches",
+            body = "Snow, a warm glow and gold edges on Home's seasonal row (Christmas from mid-November, Halloween, and other times of year).",
+            value = SettingValue.Toggle(s.seasonalTouches),
+            onClick = { s.seasonalTouches = !s.seasonalTouches },
         )
         }
         SettingsGroup("Card style", "Corners, gloss and names on posters and cards") {

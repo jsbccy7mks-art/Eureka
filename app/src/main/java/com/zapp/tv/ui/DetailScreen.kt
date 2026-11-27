@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -181,6 +182,13 @@ fun DetailScreen(
     var focusedEpisode by remember(request.id) { mutableStateOf<Video?>(null) }
     var section by remember(request.id) { mutableIntStateOf(0) } // 0 title, 1 episodes or story, 2 cast, 3 more
     var episodeMenu by remember(request.id) { mutableStateOf<Video?>(null) }
+    // Spoiler shield: episodes whose story you've chosen to see anyway.
+    var revealed by remember(request.id) { mutableStateOf(setOf<String>()) }
+    fun shielded(v: Video): Boolean {
+        if (!mvm.settings.spoilerShield || v.id in revealed) return false
+        val p = progress.firstOrNull { it.videoId == v.id }
+        return p == null || (!p.watched && p.position < 60_000)
+    }
 
     // Get ready for Play while you read: fetch the sources for what Play would start (the film, or
     // the next episode), then, after a few seconds here, get its debrid link ready too.
@@ -523,7 +531,11 @@ fun DetailScreen(
                                     }
                                     shown.overview?.let {
                                         Spacer(Modifier.height(8.dp))
-                                        Text(it, color = Color(0xFFC9CCD6), fontSize = TextSize.Small, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                        if (shielded(shown)) {
+                                            Text("Story hidden by the spoiler shield  ·  hold OK on the episode to show it", color = ZappColors.Faint, fontSize = TextSize.Small)
+                                        } else {
+                                            Text(it, color = Color(0xFFC9CCD6), fontSize = TextSize.Small, lineHeight = 18.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                                        }
                                     }
                                 }
                             }
@@ -601,6 +613,7 @@ fun DetailScreen(
                                                 upNext = v.id == nextUp.first?.id,
                                                 onFocus = { focusedEpisode = v },
                                                 rating = v.episode?.let { epRatings[it] },
+                                                shield = shielded(v),
                                                 onLongClick = { episodeMenu = v },
                                             ) { playEpisode(v) }
                                         }
@@ -690,6 +703,7 @@ fun DetailScreen(
                 onPlayFromStart = {
                     onPlay(PlayRequest(meta, v, videos, 0, mvm.settings.autoPlayFirst))
                 },
+                onReveal = if (shielded(v)) ({ revealed = revealed + v.id }) else null,
                 onClose = { episodeMenu = null },
             )
         }
@@ -713,6 +727,7 @@ private fun EpisodeMenu(
     videos: List<Video>,
     progress: List<WatchProgress>,
     onPlayFromStart: () -> Unit,
+    onReveal: (() -> Unit)? = null,
     onClose: () -> Unit,
 ) {
     val first = remember { FocusRequester() }
@@ -747,6 +762,12 @@ private fun EpisodeMenu(
             MenuItem(if (watched) "○" else "◉", if (watched) "Mark as unwatched" else "Mark as watched", first) {
                 mvm.setEpisodesWatched(meta, listOf(episode), !watched)
                 onClose()
+            }
+            onReveal?.let { reveal ->
+                MenuItem("◐", "Show its picture and story", null) {
+                    reveal()
+                    onClose()
+                }
             }
             if (before.isNotEmpty()) {
                 MenuItem(
@@ -1217,7 +1238,7 @@ private fun seasonsOf(videos: List<Video>): List<Int> =
 private fun seasonName(s: Int) = if (s == 0) "Specials" else "Season $s"
 
 @Composable
-private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, rating: Double? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, rating: Double? = null, shield: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     // The card you're on grows; the others stay compact.
     val w by androidx.compose.animation.core.animateDpAsState(if (focused) 290.dp else 190.dp, androidx.compose.animation.core.tween(220), label = "epw")
@@ -1248,7 +1269,13 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
                     panning = true
                 }
             }
-            Box(Modifier.fillMaxSize().then(if (panning) Modifier.drift() else Modifier)) { Artwork(v.thumbnail, shortLabel(v)) }
+            if (shield) {
+                // Spoiler shield: a blur (on newer TVs) under a soft veil, so nothing gives the episode away.
+                Box(Modifier.fillMaxSize().then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(22.dp) else Modifier)) { Artwork(v.thumbnail, shortLabel(v)) }
+                Box(Modifier.fillMaxSize().background(if (android.os.Build.VERSION.SDK_INT >= 31) Color(0x55000000) else Color(0xD9101018)))
+            } else {
+                Box(Modifier.fillMaxSize().then(if (panning) Modifier.drift() else Modifier)) { Artwork(v.thumbnail, shortLabel(v)) }
+            }
             if (f) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
                 Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {

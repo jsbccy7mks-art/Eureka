@@ -307,18 +307,21 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
      * A collection made from a search of TMDB (a studio, a decade, a theme) rather than a franchise:
      * its best-known films, shown in release order.
      */
-    suspend fun discoverCollection(id: Long, name: String, overview: String?, params: Map<String, String>): TmdbCollection? = withContext(Dispatchers.IO) {
+    suspend fun discoverCollection(id: Long, name: String, overview: String?, params: Map<String, String>, tv: Boolean = false, byDate: Boolean = true): TmdbCollection? = withContext(Dispatchers.IO) {
         collections[id]?.let { return@withContext it }
-        val found = (1..2).flatMap { p -> get("discover/movie", params + ("page" to p.toString()))?.optJSONArray("results").objects() }
-            .filter { it.optString("poster_path").isNotBlank() && it.optString("release_date").isNotBlank() }
+        val dateField = if (tv) "first_air_date" else "release_date"
+        val found = (1..2).flatMap { p -> get(if (tv) "discover/tv" else "discover/movie", params + ("page" to p.toString()))?.optJSONArray("results").objects() }
+            .filter { it.optString("poster_path").isNotBlank() && it.optString(dateField).isNotBlank() }
             .distinctBy { it.optLong("id") }
             .take(30)
         if (found.isEmpty()) return@withContext null
-        val parts = found.sortedBy { it.optString("release_date") }.map { p ->
+        // Franchise-like collections run in date order; services and seasons keep TMDB's order (most popular first).
+        val ordered = if (byDate) found.sortedBy { it.optString(dateField) } else found
+        val parts = ordered.map { p ->
             TmdbCollectionPart(
-                item(p, "movie").copy(poster = img(p.optString("poster_path"), "w500"), backdrop = img(p.optString("backdrop_path"), "w1280")),
+                item(p, if (tv) "tv" else "movie").copy(poster = img(p.optString("poster_path"), "w500"), backdrop = img(p.optString("backdrop_path"), "w1280")),
                 p.optString("overview").takeIf { it.isNotBlank() },
-                p.optString("release_date").takeIf { it.isNotBlank() },
+                p.optString(dateField).takeIf { it.isNotBlank() },
             )
         }
         val top = found.first()
@@ -350,6 +353,44 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
         val le = last.optInt("episode_number")
         val total = seasons.filterKeys { it in 1 until ls }.values.sum() + if (ls > 0) le else 0
         AiredEpisodes(total, seasons)
+    }
+
+    /** Titles from a TMDB search, with their genre ids. */
+    suspend fun discoverItems(params: Map<String, String>, pages: Int, tv: Boolean = false): List<Pair<TmdbItem, List<Int>>> = withContext(Dispatchers.IO) {
+        (1..pages).flatMap { p ->
+            get(if (tv) "discover/tv" else "discover/movie", params + ("page" to p.toString()))?.optJSONArray("results").objects()
+                .filter { it.optString("poster_path").isNotBlank() }
+                .map { o ->
+                    val g = o.optJSONArray("genre_ids")
+                    item(o, if (tv) "tv" else "movie") to (if (g == null) emptyList() else (0 until g.length()).map { g.optInt(it) })
+                }
+        }.distinctBy { it.first.id }
+    }
+
+    private val keywordIds = ConcurrentHashMap<String, Long>()
+
+    /** TMDB's id for a keyword ("christmas"), so seasonal collections can ask for it. */
+    suspend fun keywordId(word: String): Long? = withContext(Dispatchers.IO) {
+        keywordIds[word]?.let { return@withContext it.takeIf { id -> id > 0 } }
+        val r = get("search/keyword", mapOf("query" to word))?.optJSONArray("results").objects()
+        val id = (r.firstOrNull { it.optString("name").equals(word, true) } ?: r.firstOrNull())?.optLong("id") ?: 0L
+        keywordIds[word] = id
+        id.takeIf { it > 0 }
+    }
+
+    private var providerLogos: Map<Int, String>? = null
+
+    /** Streaming services' logos (by TMDB provider id), as offered in the UK. */
+    suspend fun providerLogos(): Map<Int, String> = withContext(Dispatchers.IO) {
+        providerLogos?.let { return@withContext it }
+        val out = HashMap<Int, String>()
+        listOf("movie", "tv").forEach { kind ->
+            get("watch/providers/$kind", mapOf("watch_region" to "GB"))?.optJSONArray("results").objects().forEach { p ->
+                img(p.optString("logo_path"), "w300")?.let { out.putIfAbsent(p.optInt("provider_id"), it) }
+            }
+        }
+        if (out.isNotEmpty()) providerLogos = out
+        out
     }
 
     /** The IMDb id for a TMDB title, so it can open in Zapp. */

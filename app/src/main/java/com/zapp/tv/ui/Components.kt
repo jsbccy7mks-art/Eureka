@@ -225,6 +225,7 @@ fun FocusSurface(
         label = "scale",
     )
     val ringAlpha by animateFloatAsState(if (ring && focused) 1f else 0f, tween(180), label = "ring")
+    val ringTint = LocalRingTint.current
     // A soft shadow beneath the focused card (no movement, so scrolling stays calm).
     val lift by animateFloatAsState(if (ring && focused) 1f else 0f, tween(160), label = "lift")
     // Card style (Appearance): square corners, or a thin border at rest.
@@ -293,7 +294,7 @@ fun FocusSurface(
                 if (ring && ringAlpha > 0.01f) drawFocusGlow(corner.toPx(), pulse.value, ringAlpha)
                 drawContent()
                 if (isCard && FocusStyle.gloss) drawGloss(corner.toPx(), 1f + 0.4f * ringAlpha)
-                if (ring && ringAlpha > 0.01f) drawFocusRing(corner.toPx(), pulse.value, ringAlpha)
+                if (ring && ringAlpha > 0.01f) drawFocusRing(corner.toPx(), pulse.value, ringAlpha, ringTint)
                 if (isCard && FocusStyle.cardStyle == 2 && ringAlpha < 0.99f) {
                     drawRoundRect(
                         Color.White.copy(alpha = 0.16f * (1f - ringAlpha)),
@@ -439,10 +440,13 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusGlow(corner: Float
     }
 }
 
-fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float, alpha: Float = 1f) {
+/** A different colour for the focus ring inside one part of a page (the seasonal row's gold). */
+val LocalRingTint = androidx.compose.runtime.compositionLocalOf<Color?> { null }
+
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusRing(corner: Float, pulse: Float, alpha: Float = 1f, tint: Color? = null) {
     val stroke = FocusStyle.ringWidth.dp.toPx()
     drawRoundRect(
-        brush = Brush.linearGradient(listOf(ZappColors.Focus, ZappColors.Brand2.copy(alpha = 0.9f).compositeOverWhite())),
+        brush = Brush.linearGradient(if (tint != null) listOf(tint.compositeOverWhite(), tint) else listOf(ZappColors.Focus, ZappColors.Brand2.copy(alpha = 0.9f).compositeOverWhite())),
         topLeft = Offset(stroke / 2, stroke / 2),
         size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
         cornerRadius = androidx.compose.ui.geometry.CornerRadius((corner - stroke / 2).coerceAtLeast(0f)),

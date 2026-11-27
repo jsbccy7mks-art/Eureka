@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.53.0
+
+**New**
+- Collections: an "In season" shelf that follows the time of year: Christmas from mid-November
+  (Christmas Classics, Christmas Favourites, Family Christmas, Christmas Comedies), Halloween in
+  October, Valentine's, Easter and summer.
+- Collections: a "Streaming services" shelf: Netflix, Prime Video, Disney+, Apple TV+, Paramount+,
+  NOW, BBC iPlayer, ITVX and Channel 4, each showing what's popular on it in the UK. A small "Show
+  films" / "Show series" button inside switches between them (in-season collections have it too).
+- Home: a seasonal row (Christmas picks from mid-November) with a fresh set every day, a few of
+  the first places going to genres you like. It has its own touches: gentle snow over its
+  heading, a warm glow and gold edges on its cards (Settings, Appearance, Seasonal touches).
+  Switch it on, off or move it in Settings, Home.
+- Spoiler shield (Settings, Playback): pictures of episodes you haven't watched are blurred and
+  their stories hidden. Hold OK on an episode and choose "Show its picture and story" to see one.
+
+**Fixed**
+- Collection cards without pictures: they now use their films' backdrops, or a mosaic of their
+  posters, and if a picture won't load the next one is tried. No more blank cards.
+
 ## 0.52.0
 
 **New**
