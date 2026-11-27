@@ -281,7 +281,7 @@ class YouTube(private val http: OkHttpClient) {
         val candidates = LinkedHashSet<String>().apply { add(url) }
         servers.forEachIndexed { i, server ->
             val alt = host.replaceFirst(Regex("^rr\\d+---"), "rr${i + 1}---").replaceFirst(Regex("sn-[a-z0-9]+-[a-z0-9]+"), server)
-            if (alt != host) add(url.replaceFirst(host, alt))
+            if (alt != host) candidates.add(url.replaceFirst(host, alt))
         }
         val probe = client.newBuilder().connectTimeout(2, TimeUnit.SECONDS).readTimeout(2, TimeUnit.SECONDS).build()
         val found = java.util.concurrent.atomic.AtomicReference<String?>(null)

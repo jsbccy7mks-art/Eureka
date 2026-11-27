@@ -106,13 +106,13 @@ fun NativeVideo(
         // Tunes start almost at once. Pictures wait for enough to play without stopping again:
         // a little for 1080p, more for 1440p and 4K, whose pieces are much bigger. A memory cap keeps
         // high-bitrate trailers from crowding out the rest of the app.
-        val startMs = when {
+        val startBufferMs = when {
             audioOnly || source.video == null -> 500
             source.height > 1080 -> 3_500
             else -> 1_500
         }
         val quick = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(maxOf(4_000, startMs + 2_000), 30_000, startMs, startMs + 2_000)
+            .setBufferDurationsMs(maxOf(4_000, startBufferMs + 2_000), 30_000, startBufferMs, startBufferMs + 2_000)
             .setTargetBufferBytes(64 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
