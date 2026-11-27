@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 
 /** Line icons drawn in code, so they stay crisp at any size and match each other. */
-enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock, Sports, Collections }
+enum class Glyph { Home, Live, Guide, Movies, Series, Library, Search, Settings, Clock, Sports, Collections, Discover }
 
 @Composable
 fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifier) {
@@ -50,6 +50,18 @@ fun GlyphIcon(glyph: Glyph, color: Color, size: Dp, modifier: Modifier = Modifie
                 line(color, w, 0.1f, 0.39f, 0.9f, 0.39f, stroke)
                 line(color, w, 0.1f, 0.61f, 0.9f, 0.61f, stroke)
                 line(color, w, 0.36f, 0.16f, 0.36f, 0.84f, stroke)
+            }
+            Glyph.Discover -> {
+                // A compass: a ring and its needle.
+                drawCircle(color, radius = w * 0.36f, center = Offset(w * 0.5f, w * 0.5f), style = stroke)
+                val needle = Path().apply {
+                    moveTo(w * 0.62f, w * 0.38f)
+                    lineTo(w * 0.55f, w * 0.55f)
+                    lineTo(w * 0.38f, w * 0.62f)
+                    lineTo(w * 0.45f, w * 0.45f)
+                    close()
+                }
+                drawPath(needle, color)
             }
             Glyph.Movies -> {
                 drawRoundRect(color, Offset(w * 0.14f, w * 0.2f), Size(w * 0.72f, w * 0.6f), CornerRadius(w * 0.08f), style = stroke)

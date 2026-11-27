@@ -575,9 +575,9 @@ fun ChannelCard(
     }
 }
 
-/** A row of titles Zapp put together itself (suggestions, new episodes, your library). */
+/** A row of titles Zapp put together itself (suggestions, new episodes, your library, Discover). */
 @Composable
-private fun MetaRow(
+internal fun MetaRow(
     title: String,
     items: List<MetaPreview>,
     badges: Map<String, String>,

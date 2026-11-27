@@ -13,7 +13,26 @@ import java.util.concurrent.ConcurrentHashMap
 data class TmdbPerson(val id: Long, val name: String, val role: String?, val photo: String?)
 
 /** A film or series from TMDB (for "More with …" and "People also watched"). */
-data class TmdbItem(val id: Long, val type: String, val name: String, val poster: String?, val backdrop: String?, val year: String?)
+data class TmdbItem(
+    val id: Long,
+    val type: String,
+    val name: String,
+    val poster: String?,
+    val backdrop: String?,
+    val year: String?,
+    val overview: String? = null,
+    val rating: Double? = null,
+    val genreIds: List<Int> = emptyList(),
+)
+
+/** TMDB's genre names, films and series together (their ids don't clash). */
+val TMDB_GENRES: Map<Int, String> = mapOf(
+    28 to "Action", 12 to "Adventure", 16 to "Animation", 35 to "Comedy", 80 to "Crime", 99 to "Documentary",
+    18 to "Drama", 10751 to "Family", 14 to "Fantasy", 36 to "History", 27 to "Horror", 10402 to "Music",
+    9648 to "Mystery", 10749 to "Romance", 878 to "Science Fiction", 10770 to "TV Movie", 53 to "Thriller",
+    10752 to "War", 37 to "Western", 10759 to "Action & Adventure", 10762 to "Kids", 10763 to "News",
+    10764 to "Reality", 10765 to "Sci-Fi & Fantasy", 10766 to "Soap", 10767 to "Talk", 10768 to "War & Politics",
+)
 
 data class TmdbReview(val author: String, val rating: Double?, val text: String)
 
@@ -197,6 +216,7 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
     private fun item(it: JSONObject, fallbackKind: String): TmdbItem {
         val kind = it.optString("media_type").ifBlank { fallbackKind }
         val date = it.optString("release_date").ifBlank { it.optString("first_air_date") }
+        val g = it.optJSONArray("genre_ids")
         return TmdbItem(
             id = it.optLong("id"),
             type = if (kind == "tv") "series" else "movie",
@@ -204,12 +224,25 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
             poster = img(it.optString("poster_path"), "w342"),
             backdrop = img(it.optString("backdrop_path"), "w780"),
             year = date.take(4).takeIf { y -> y.length == 4 },
+            overview = it.optString("overview").takeIf { o -> o.isNotBlank() },
+            rating = it.optDouble("vote_average").takeIf { r -> !r.isNaN() && r > 0 },
+            genreIds = if (g == null) emptyList() else (0 until g.length()).map { i -> g.optInt(i) },
         )
     }
 
     /** Popular films right now (for "Rate a few"). */
     suspend fun popular(): List<TmdbItem> = withContext(Dispatchers.IO) {
         get("trending/movie/week")?.optJSONArray("results").objects().filter { it.optString("poster_path").isNotBlank() }.map { item(it, "movie") }
+    }
+
+    /**
+     * Titles from any TMDB list (trending, now playing, discover…): [kind] "movie" or "tv" (lists
+     * that mix them say which each one is).
+     */
+    suspend fun titles(path: String, params: Map<String, String>, kind: String, page: Int = 1): List<TmdbItem> = withContext(Dispatchers.IO) {
+        get(path, params + ("page" to page.toString()))?.optJSONArray("results").objects()
+            .filter { it.optString("poster_path").isNotBlank() }
+            .map { item(it, kind) }
     }
 
     /** Well rated but less famous titles in these genres ("Hidden gems for you"). */

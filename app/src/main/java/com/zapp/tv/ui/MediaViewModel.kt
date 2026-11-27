@@ -1746,7 +1746,11 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     /** Opens a TMDB title in Zapp (finding its IMDb id first). */
     suspend fun tmdbToPreview(item: com.zapp.tv.data.TmdbItem): MetaPreview? {
         val imdb = tmdb.imdbId(item) ?: return null
-        return MetaPreview(imdb, item.type, item.name, item.poster, "poster", item.backdrop, null, null, item.year, null, emptyList())
+        return MetaPreview(
+            imdb, item.type, item.name, item.poster, "poster", item.backdrop, null, item.overview, item.year,
+            item.rating?.let { String.format(java.util.Locale.UK, "%.1f", it) },
+            item.genreIds.mapNotNull { com.zapp.tv.data.TMDB_GENRES[it] },
+        )
     }
 
     fun hideFromContinue(metaId: String) = viewModelScope.launch {

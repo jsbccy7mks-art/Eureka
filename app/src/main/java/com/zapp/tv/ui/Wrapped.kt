@@ -1,5 +1,7 @@
 package com.zapp.tv.ui
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
@@ -138,12 +140,35 @@ object WrappedMaker {
         val episodes = rows.filter { episodeId.containsMatchIn(it.videoId) && (it.watched || it.position > 5 * 60_000) }
         val films = rows.filter { it.type == "movie" && it.videoId == it.metaId && (it.watched || it.position > 10 * 60_000) }
 
-        val topSeries = episodes.groupBy { it.metaId }.map { (id, l) ->
-            val r = l.maxBy { it.updatedAt }
-            WrappedTitle(id, "series", r.name, r.poster, l.size)
-        }.sortedByDescending { it.count }.take(5)
-        val topFilms = films.sortedWith(compareByDescending<com.zapp.tv.data.WatchProgress> { it.watched }.thenByDescending { it.updatedAt })
-            .map { WrappedTitle(it.metaId, "movie", it.name, it.poster, 1) }.take(5)
+        // History synced from elsewhere (Nuvio, Stremio) can carry just the IMDb id ("tt…") and no
+        // poster: the real name and poster come from your library, then your add-ons.
+        val library = runCatching { app.mediaDao.allLibrary(pid) }.getOrDefault(emptyList()).associateBy { it.metaId }
+        fun bare(name: String?) = name.isNullOrBlank() || name.startsWith("tt") || name.startsWith("tmdb:")
+        suspend fun named(t: WrappedTitle): WrappedTitle {
+            if (!bare(t.name) && t.poster != null) return t
+            val l = library[t.id]
+            var name = t.name.takeUnless { bare(it) } ?: l?.name?.takeUnless { bare(it) }
+            var poster = t.poster ?: l?.poster
+            if (name == null || poster == null) {
+                val m = runCatching { app.media.meta(t.type, t.id) }.getOrNull()
+                name = name ?: m?.preview?.name?.takeUnless { bare(it) }
+                poster = poster ?: m?.preview?.poster
+            }
+            return t.copy(name = name ?: t.name, poster = poster ?: fallbackPoster(t.id))
+        }
+        suspend fun named(list: List<WrappedTitle>) = kotlinx.coroutines.coroutineScope { list.map { async { named(it) } }.awaitAll() }
+
+        val topSeries = named(
+            episodes.groupBy { it.metaId }.map { (id, l) ->
+                val r = l.maxBy { it.updatedAt }
+                WrappedTitle(id, "series", r.name, r.poster, l.size)
+            }.sortedByDescending { it.count }.take(5),
+        )
+        val topFilms = named(
+            films.sortedWith(compareByDescending<com.zapp.tv.data.WatchProgress> { it.watched }.thenByDescending { it.updatedAt })
+                .distinctBy { it.metaId }
+                .map { WrappedTitle(it.metaId, "movie", it.name, it.poster, 1) }.take(5),
+        )
 
         // Genres and the most-seen actor, from TMDB (with your key), weighted by how much you watched.
         val genres = HashMap<String, Int>()
@@ -162,7 +187,7 @@ object WrappedMaker {
         val zone = ZoneId.systemDefault()
         val binge = episodes.groupBy { it.metaId to java.time.Instant.ofEpochMilli(it.updatedAt - 6 * 3_600_000L).atZone(zone).toLocalDate() }
             .maxByOrNull { it.value.size }?.takeIf { it.value.size >= 3 }
-            ?.let { (k, l) -> WrappedTitle(k.first, "series", l.first().name, l.first().poster, l.size) }
+            ?.let { (k, l) -> topSeries.firstOrNull { it.id == k.first }?.copy(count = l.size) ?: named(WrappedTitle(k.first, "series", l.first().name, l.first().poster, l.size)) }
 
         // The latest you watched until (after midnight counts as later than the evening before).
         val late = rows.map { java.time.Instant.ofEpochMilli(it.updatedAt).atZone(zone).toLocalTime() }

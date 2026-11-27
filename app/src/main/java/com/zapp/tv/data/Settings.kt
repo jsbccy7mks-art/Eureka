@@ -358,6 +358,11 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    /** Discover: films (0), series (1) or both (2). */
+    var discoverKind: Int
+        get() = prefs.getInt("discoverKind", 0)
+        set(value) = prefs.edit().putInt("discoverKind", value).apply()
+
     private val seekrOnState = mutableStateOf(prefs.getBoolean("seekrOn", true))
 
     /** Seek-bar pictures from Seekr (when there's a key). */

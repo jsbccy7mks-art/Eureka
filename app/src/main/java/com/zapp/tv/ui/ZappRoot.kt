@@ -68,8 +68,8 @@ import kotlinx.coroutines.launch
 enum class Dest(val label: String, val glyph: Glyph) {
     Home("Home", Glyph.Home),
     Search("Search", Glyph.Search),
-    Movies("Movies", Glyph.Movies),
-    Series("Series", Glyph.Series),
+    // Films and series to find, from TMDB (in place of Movies and Series).
+    Discover("Discover", Glyph.Discover),
     Library("Library", Glyph.Library),
     Collections("Collections", Glyph.Collections),
     // Channels, TV guide and Sports, as tabs.
@@ -458,12 +458,8 @@ fun ZappRoot(vm: AppViewModel) {
                             onPlayChannel = { c -> watchChannel(c) },
                             onRateAFew = { rateAFew = true },
                         )
-                        Dest.Movies -> BrowseScreen(mvm, "movie", focusTick, { openTitle(it) }) {
-                            settingsSection = "Addons"
-                            open(Dest.Settings)
-                        }
-                        Dest.Series -> BrowseScreen(mvm, "series", focusTick, { openTitle(it) }) {
-                            settingsSection = "Addons"
+                        Dest.Discover -> DiscoverScreen(mvm, focusTick, { openTitle(it) }) {
+                            settingsSection = "Accounts"
                             open(Dest.Settings)
                         }
                         Dest.Library -> LibraryScreen(mvm, focusTick, onOpenCollection = { collectionOpen = it }, onRateAFew = { rateAFew = true }) { openTitle(it) }

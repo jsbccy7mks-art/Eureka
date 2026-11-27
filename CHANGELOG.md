@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.58.0
+
+**New**
+- Discover, in place of Movies and Series: films and series to find, from TMDB (your add-ons
+  stay out of it). Films, Series or Both at the top, then rows: Trending this week, New on your
+  services (Netflix, Prime Video, Disney+, Apple TV+, NOW, iPlayer and the rest, as offered in the
+  UK), In cinemas now (On this week for series), Top rated, Feel-good, Hidden gems, Edge of your
+  seat, Mind-bending, Cosy nights in, Epic adventures, True stories and Coming soon to cinemas.
+  Several rows bring a fresh set each day.
+- Filters on Discover: genre, decade, service, rating, length and order. Choose any and the page
+  becomes a grid of everything that matches, loading more as you go down. Clear brings the rows
+  back. Discover needs your TMDB key; children's profiles only see family titles.
+
+**Fixed**
+- Your month and Your year: titles synced from Nuvio or Stremio showed as "tt" and a number with
+  no poster. They now show their real names and posters.
+
 ## 0.57.1
 
 **Changed**
