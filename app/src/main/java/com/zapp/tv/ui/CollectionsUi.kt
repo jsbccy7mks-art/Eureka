@@ -96,15 +96,33 @@ fun CollectionCard(
             ServiceTile(c)
             return@FocusSurface
         }
-        CollectionArtwork(c)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xE6000000))))
-        Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+        val christmas = c.id in -304L..-301L
+        // Christmas Classics: a warm, old-film look.
+        CollectionArtwork(c, sepia = c.id == -301L)
+        if (christmas) ChristmasTouch(c.id)
+        val titleTop = c.id == -303L // above the snow drifts
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(if (titleTop) 0f to Color(0xCC000000) else 0.35f to Color.Transparent, if (titleTop) 0.6f to Color.Transparent else 1f to Color(0xE6000000))))
+        Column(Modifier.align(if (titleTop) Alignment.TopStart else Alignment.BottomStart).padding(12.dp)) {
             Text(
-                when (c.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; "seasonal" -> "IN SEASON"; else -> "COLLECTION" },
-                color = ZappColors.Brand2, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp,
+                when {
+                    christmas -> "CHRISTMAS"
+                    else -> when (c.kind) { "studio" -> "STUDIO"; "decade" -> "DECADE"; "theme" -> "THEME"; "seasonal" -> "IN SEASON"; else -> "COLLECTION" }
+                },
+                color = when (c.id) {
+                    -301L -> Color(0xFFE8C46A)
+                    -302L -> Color(0xFFFF8A8A)
+                    -303L -> Color(0xFFB9E3FF)
+                    -304L -> Color(0xFFFFC0C8)
+                    else -> ZappColors.Brand2
+                },
+                fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp,
             )
             Spacer(Modifier.height(2.dp))
-            MovieTitle(c.name, 17.sp, maxLines = 1)
+            if (c.id == -301L) {
+                Text(c.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontFamily = androidx.compose.ui.text.font.FontFamily.Serif, color = Color(0xFFF3E2B8), maxLines = 1)
+            } else {
+                MovieTitle(c.name, 17.sp, maxLines = 1)
+            }
             c.note?.let { Text(it, color = ZappColors.Dim, fontSize = TextSize.Label, maxLines = 1) }
         }
     }
@@ -120,7 +138,19 @@ object CollectionArtSource {
  * in turn; and if none of those, a mosaic of its first four posters. Never a blank card.
  */
 @Composable
-private fun CollectionArtwork(c: MediaViewModel.CollectionSummary) {
+private fun CollectionArtwork(c: MediaViewModel.CollectionSummary, sepia: Boolean = false) {
+    val filter = remember(sepia) {
+        if (!sepia) null else androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+            androidx.compose.ui.graphics.ColorMatrix(
+                floatArrayOf(
+                    0.50f, 0.62f, 0.15f, 0f, 8f,
+                    0.42f, 0.56f, 0.13f, 0f, 2f,
+                    0.30f, 0.42f, 0.10f, 0f, -6f,
+                    0f, 0f, 0f, 1f, 0f,
+                ),
+            ),
+        )
+    }
     val own = c.backdrop ?: c.poster
     var candidates by remember(c.id) { mutableStateOf(listOfNotNull(own)) }
     var posters by remember(c.id) { mutableStateOf<List<String>>(emptyList()) }
@@ -143,6 +173,7 @@ private fun CollectionArtwork(c: MediaViewModel.CollectionSummary) {
                 model = remember(url) { coil.request.ImageRequest.Builder(ctx).data(url).crossfade(false).build() },
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                colorFilter = filter,
                 onError = { at++ },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -156,26 +187,100 @@ private fun CollectionArtwork(c: MediaViewModel.CollectionSummary) {
     }
 }
 
-/** A streaming service: its logo on a dark tile, with its name. */
+/**
+ * A streaming service: a dimmed wall of what's popular on it, its logo glowing in the service's own
+ * colour, and its name where every collection card has its name.
+ */
 @Composable
 private fun ServiceTile(c: MediaViewModel.CollectionSummary) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Brush.linearGradient(listOf(Color(0xFF1B1C2B), Color(0xFF0C0C14)))),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (c.poster != null) {
+    val tint = Color(c.tint.takeIf { it != 0L } ?: 0xFF6E8BFF)
+    Box(Modifier.fillMaxSize().background(Color(0xFF0C0C14))) {
+        if (c.posters.isNotEmpty()) {
+            Row(Modifier.fillMaxSize()) {
+                c.posters.forEach { p ->
+                    AsyncImage(model = p, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.weight(1f).fillMaxHeight())
+                }
+            }
+        }
+        // Dim the wall and let the service's colour glow from behind the logo.
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.radialGradient(
+                    0f to tint.copy(alpha = 0.42f),
+                    0.55f to Color(0xC007070C),
+                    1f to Color(0xE007070C),
+                ),
+            ),
+        )
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xE6000000))))
+        if (c.poster != null) {
+            Box(Modifier.align(Alignment.Center).padding(bottom = 18.dp)) {
+                // A soft halo in the service's colour.
+                Box(Modifier.size(84.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(tint.copy(alpha = 0.55f), Color.Transparent))))
                 AsyncImage(
                     model = c.poster,
                     contentDescription = c.name,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)),
+                    modifier = Modifier.size(50.dp).align(Alignment.Center).clip(RoundedCornerShape(11.dp)),
                 )
-                Spacer(Modifier.height(10.dp))
             }
-            Text(c.name, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = ZappColors.Text, maxLines = 1)
+        }
+        Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+            Text("STREAMING", color = ZappColors.Brand2, fontSize = TextSize.Tag, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp)
+            Spacer(Modifier.height(2.dp))
+            MovieTitle(c.name, 17.sp, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * Each Christmas collection's own touch: Classics a faint film grain, Favourites a red ribbon
+ * across the corner, Family Christmas snow drifts along the bottom, Comedies a candy-cane edge.
+ */
+@Composable
+private fun ChristmasTouch(id: Long) {
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        when (id) {
+            -301L -> {
+                var y = 0f
+                while (y < h) {
+                    drawRect(Color.White.copy(alpha = 0.035f), topLeft = Offset(0f, y), size = androidx.compose.ui.geometry.Size(w, 1.dp.toPx()))
+                    y += 3.dp.toPx()
+                }
+                drawRect(Brush.radialGradient(listOf(Color.Transparent, Color(0x66000000)), radius = w * 0.75f))
+            }
+            -302L -> {
+                val band = h * 0.15f
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.62f, 0f)
+                    lineTo(w * 0.62f + band * 1.4f, 0f)
+                    lineTo(w, h * 0.62f - band)
+                    lineTo(w, h * 0.62f + band * 0.4f)
+                    close()
+                }
+                drawPath(path, Color(0x55000000), alpha = 1f)
+                drawPath(path, Brush.linearGradient(listOf(Color(0xFFD63A44), Color(0xFFA0222C))))
+            }
+            -303L -> {
+                val snow = Color(0xF2F4F8FF)
+                drawOval(snow, topLeft = Offset(-w * 0.15f, h * 0.8f), size = androidx.compose.ui.geometry.Size(w * 0.6f, h * 0.45f))
+                drawOval(snow.copy(alpha = 0.95f), topLeft = Offset(w * 0.3f, h * 0.86f), size = androidx.compose.ui.geometry.Size(w * 0.55f, h * 0.4f))
+                drawOval(snow, topLeft = Offset(w * 0.7f, h * 0.78f), size = androidx.compose.ui.geometry.Size(w * 0.5f, h * 0.5f))
+            }
+            -304L -> {
+                val stroke = 5.dp.toPx()
+                val stripe = 8.dp.toPx()
+                drawRect(
+                    Brush.linearGradient(
+                        0f to Color.White, 0.5f to Color.White, 0.5f to Color(0xFFC8323C), 1f to Color(0xFFC8323C),
+                        start = Offset.Zero, end = Offset(stripe, stripe),
+                        tileMode = androidx.compose.ui.graphics.TileMode.Repeated,
+                    ),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(stroke * 2),
+                )
+            }
         }
     }
 }
@@ -304,14 +409,36 @@ fun CollectionScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(it, color = ZappColors.Dim, fontSize = TextSize.Body, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.widthIn(max = 640.dp))
                 }
-                if (hasSeries) {
-                    Spacer(Modifier.height(10.dp))
-                    ZButton(if (series) "Show films" else "Show series", { series = !series }, style = ButtonStyle.Quiet)
-                }
             }
 
             // ---- the showcase
             BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(top = 18.dp, bottom = 6.dp).clipToBounds()) {
+                // Series or films: small words under the posters (over their reflections), so the
+                // posters stay the same size as in every other collection.
+                if (hasSeries) {
+                    Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        listOf(true to "Series", false to "Films").forEachIndexed { k, (isSeries, label) ->
+                            if (k > 0) Text("·", color = ZappColors.Faint, fontSize = TextSize.Body, modifier = Modifier.padding(horizontal = 6.dp))
+                            FocusSurface(
+                                onClick = { series = isSeries },
+                                shape = RoundedCornerShape(50),
+                                focusScale = 1.05f,
+                            ) { f ->
+                                Text(
+                                    label,
+                                    fontSize = TextSize.Body,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = when {
+                                        f -> ZappColors.OnFocus
+                                        series == isSeries -> ZappColors.Text
+                                        else -> ZappColors.Faint
+                                    },
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                )
+                            }
+                        }
+                    }
+                }
                 // Posters sized to the space (with room for the lifted one and its reflection),
                 // so they never run into the text above or below.
                 // Room above for the lifted, focused poster (it grows and rises a little), and below for its reflection.

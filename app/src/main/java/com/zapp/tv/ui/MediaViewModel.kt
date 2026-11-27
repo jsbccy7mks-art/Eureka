@@ -1054,6 +1054,10 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val kind: String = "franchise",
         val shelf: String = "",
         val note: String? = null,
+        /** Streaming services: a few of what's popular on it, for the card's poster wall. */
+        val posters: List<String> = emptyList(),
+        /** Streaming services: the service's own colour (ARGB). */
+        val tint: Long = 0,
     )
 
     /** A row of collections in Library (and, if you add it, on Home). */
@@ -1076,6 +1080,12 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val popularOrder: Boolean = false,
         /** A streaming service's TMDB provider id (for its logo). */
         val provider: Int = 0,
+    )
+
+    /** Each service's own colour, for the glow behind its logo. */
+    private val SERVICE_COLOURS = mapOf(
+        8 to 0xFFE50914, 9 to 0xFF00A8E1, 337 to 0xFF1A44D4, 350 to 0xFFB8BCC4, 531 to 0xFF0064FF,
+        39 to 0xFF1BD4A6, 38 to 0xFFFF4C98, 41 to 0xFFD8F55A, 103 to 0xFF7BD34B,
     )
 
     /** Streaming services available in the UK, each a collection of what's on it. */
@@ -1142,15 +1152,23 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     private fun loadSpecial() {
         if (specialJob?.isActive == true || (special.isNotEmpty())) return
         specialJob = viewModelScope.launch {
-            val season = seasonal().map { d ->
-                async {
-                    collection(d.id)?.let { c ->
-                        CollectionSummary(d.id, d.name, c.poster, c.backdrop?.replace("/original/", "/w780/") ?: c.parts.firstNotNullOfOrNull { it.item.backdrop }, kind = "seasonal", shelf = "seasonal")
-                    }
-                }
-            }.awaitAll().filterNotNull()
+            // Each seasonal card gets a different film's picture (the best-known ones turn up in several).
+            val found = seasonal().map { d -> async { d to collection(d.id) } }.awaitAll()
+            val used = HashSet<String>()
+            val season = found.mapNotNull { (d, c) ->
+                c ?: return@mapNotNull null
+                val pics = listOfNotNull(c.backdrop?.replace("/original/", "/w780/")) + c.parts.mapNotNull { it.item.backdrop?.replace("/w1280/", "/w780/") }
+                val pick = pics.firstOrNull { it !in used } ?: pics.firstOrNull()
+                pick?.let { used.add(it) }
+                CollectionSummary(d.id, d.name, c.poster, pick, kind = "seasonal", shelf = "seasonal")
+            }
             val logos = runCatching { tmdb.providerLogos() }.getOrDefault(emptyMap())
-            val services = networks.map { d -> CollectionSummary(d.id, d.name, logos[d.provider], null, kind = "network", shelf = "networks") }
+            val services = networks.map { d ->
+                async {
+                    val wall = runCatching { collection(d.id, series = true) }.getOrNull()?.parts?.mapNotNull { it.item.poster }?.take(4).orEmpty()
+                    CollectionSummary(d.id, d.name, logos[d.provider], null, kind = "network", shelf = "networks", posters = wall, tint = SERVICE_COLOURS[d.provider] ?: 0xFF6E8BFF)
+                }
+            }.awaitAll()
             special = season + services
         }
     }

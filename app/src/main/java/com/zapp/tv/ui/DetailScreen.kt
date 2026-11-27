@@ -165,7 +165,8 @@ fun DetailScreen(
     }
     val textAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 0f else 1f, androidx.compose.animation.core.tween(if (breathe) 700 else 250), label = "detailText")
     val logoAlpha by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, androidx.compose.animation.core.tween(if (breathe) 700 else 200), label = "detailLogo")
-    val grow by androidx.compose.animation.core.animateFloatAsState(if (breathe) 1f else 0f, androidx.compose.animation.core.tween(if (breathe) 1600 else 450, easing = TrailerGlide), label = "detailGrow")
+    // The trailer stays where it is on details pages (only Home's header moves it to the middle).
+    val grow = 0f
     // Have the trailer's streams ready before Trailer is pressed (or Play rested on).
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     LaunchedEffect(detail?.trailerYoutube) {

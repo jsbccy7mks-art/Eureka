@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.55.0
+
+**Improved**
+- Details pages: the trailer stays where it always played again (top right); only Home's header
+  moves it to the middle. The page still steps aside for it, leaving the title's logo.
+- Streaming service cards: a dimmed wall of what's popular on each service, its logo glowing in
+  the service's own colour, so they sit alongside the other collection cards.
+- Christmas collections each have their own look and their own film's picture: Classics in warm
+  vintage tones with film grain, Favourites with a red ribbon, Family Christmas with snow drifts,
+  Comedies with a candy-cane edge.
+- Inside a streaming service: "Series · Films" sits under the posters (the one you're on bright,
+  the other greyed), so the posters are the same size as in every collection.
+
 ## 0.54.0
 
 **New**
