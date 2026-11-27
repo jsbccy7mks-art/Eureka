@@ -28,7 +28,7 @@ class NuvioException(message: String) : Exception(message)
  *   that survives being offline.
  * - Only films and episodes with IMDb ids are synced as progress. Live channels and TV replays never are.
  */
-class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val settings: Settings) {
+class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val settings: Settings, private val tmdb: Tmdb? = null) {
     companion object {
         const val DEFAULT_SERVER = "https://api.nuvio.tv"
         private const val PAGE = 1000
@@ -270,12 +270,32 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
         return Ids(metaId, "series", "$metaId:$s:$e", s, e)
     }
 
-    /** Nuvio's ids to Zapp's; null when Zapp can't match the title. */
-    private fun idsFrom(contentId: String, type: String, season: Int?, episode: Int?): Ids? {
-        if (!contentId.startsWith("tt")) return null
-        if (season != null && episode != null) return Ids(contentId, "series", "$contentId:$season:$episode", season, episode)
-        if (type == "series") return null // a show without an episode isn't progress Zapp can resume
-        return Ids(contentId, "movie", contentId, null, null)
+    /**
+     * Nuvio's ids to Zapp's; null when Zapp can't match the title. Titles Nuvio keeps under a TMDB
+     * number (from TMDB-based add-ons) are matched to their IMDb id through TMDB. [whole] accepts a
+     * series marked watched as a whole (no episode).
+     */
+    private suspend fun idsFrom(contentId: String, rawType: String, season: Int?, episode: Int?, whole: Boolean = false): Ids? {
+        val type = if (rawType == "show" || rawType == "tv") "series" else rawType
+        val id = canonical(contentId, type) ?: return null
+        if (season != null && episode != null) return Ids(id, "series", "$id:$season:$episode", season, episode)
+        if (type == "series") return if (whole) Ids(id, "series", id, null, null) else null // a show without an episode isn't progress Zapp can resume
+        return Ids(id, "movie", id, null, null)
+    }
+
+    private val tmdbMatches = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** An IMDb id for Nuvio's [contentId] ("tt…" as it is; "tmdb:123" or "123" looked up), or null. */
+    private suspend fun canonical(contentId: String, type: String): String? {
+        val raw = contentId.trim()
+        if (raw.startsWith("tt")) return raw.substringBefore(':')
+        val n = Regex("^(?:tmdb:)?(\\d+)$").find(raw)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+        val t = tmdb?.takeIf { it.enabled } ?: return null
+        val key = "$type|$n"
+        tmdbMatches[key]?.let { return it.ifBlank { null } }
+        val imdb = runCatching { t.imdbId(TmdbItem(n, if (type == "series") "series" else "movie", "", null, null, null)) }.getOrNull()
+        tmdbMatches[key] = imdb.orEmpty()
+        return imdb
     }
 
     private fun JSONObject.intOrNull(name: String): Int? = if (isNull(name) || !has(name)) null else optInt(name)
@@ -402,6 +422,15 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
     // ------------------------------------------------------------------ sync
 
     /** Sends queued changes, then brings Nuvio's changes in (a full merge the first time). */
+    /** Starts over: everything comes down from Nuvio again (and what Zapp has goes up, newest wins). */
+    suspend fun pullAgain(pid: Long): Summary {
+        // Only the "where we got to" markers; changes still waiting to go up are kept.
+        lock.withLock {
+            listOf("nuvioCurProgress", "nuvioCurWatched", "nuvioCurLibrary", "nuvioSeeded").forEach { settings.setAcctLongFor(pid, it, 0) }
+        }
+        return sync(pid)
+    }
+
     suspend fun sync(pid: Long): Summary = withContext(Dispatchers.IO) {
         lock.withLock {
             if (!signedIn(pid)) throw NuvioException("Connect Nuvio first.")
@@ -602,7 +631,7 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
     }
 
     private suspend fun applyWatched(pid: Long, o: JSONObject): Boolean {
-        val ids = idsFrom(o.optString("content_id"), o.optString("content_type"), o.intOrNull("season"), o.intOrNull("episode")) ?: return false
+        val ids = idsFrom(o.optString("content_id"), o.optString("content_type"), o.intOrNull("season"), o.intOrNull("episode"), whole = true) ?: return false
         val at = o.optLong("watched_at").takeIf { it > 0 } ?: System.currentTimeMillis()
         val local = dao.progress(pid, ids.videoId)
         if (local != null) {
@@ -634,7 +663,7 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
 
     /** Unmarked as watched in Nuvio. */
     private suspend fun removeWatched(pid: Long, o: JSONObject): Boolean {
-        val ids = idsFrom(o.optString("content_id"), o.optString("content_type"), o.intOrNull("season"), o.intOrNull("episode")) ?: return false
+        val ids = idsFrom(o.optString("content_id"), o.optString("content_type"), o.intOrNull("season"), o.intOrNull("episode"), whole = true) ?: return false
         val local = dao.progress(pid, ids.videoId) ?: return false
         if (!local.watched || local.updatedAt > o.optLong("watched_at") + 1_000) return false
         dao.deleteProgressRow(local.id)
@@ -642,9 +671,10 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
     }
 
     private suspend fun applyLibrary(pid: Long, o: JSONObject): Boolean {
-        val id = o.optString("content_id")
-        val type = o.optString("content_type")
-        if (id.isBlank() || (type != "movie" && type != "series")) return false
+        val rawType = o.optString("content_type")
+        val type = if (rawType == "show" || rawType == "tv") "series" else rawType
+        if (type != "movie" && type != "series") return false
+        val id = canonical(o.optString("content_id"), type) ?: return false
         if (dao.libraryIds(pid).contains(id)) return false
         dao.addToLibraryList(
             listOf(
@@ -662,8 +692,9 @@ class NuvioSync(db: AppDatabase, private val http: OkHttpClient, private val set
     }
 
     private suspend fun removeLibrary(pid: Long, o: JSONObject): Boolean {
-        val id = o.optString("content_id")
-        if (id.isBlank() || !dao.libraryIds(pid).contains(id)) return false
+        val rawType = o.optString("content_type")
+        val id = canonical(o.optString("content_id"), if (rawType == "show" || rawType == "tv") "series" else rawType) ?: return false
+        if (!dao.libraryIds(pid).contains(id)) return false
         dao.removeFromLibrary(pid, id)
         return true
     }

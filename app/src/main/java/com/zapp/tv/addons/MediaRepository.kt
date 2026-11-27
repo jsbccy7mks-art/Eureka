@@ -318,6 +318,8 @@ class MediaRepository(private val db: AppDatabase, http: OkHttpClient, private v
 
     suspend fun updateLibraryItem(item: LibraryItem) = dao.addToLibrary(item)
 
+    val allProgress: Flow<List<WatchProgress>> = perProfile { dao.observeAllProgress(it) }
+
     val watchedTitles: Flow<Set<String>> = perProfile { dao.observeWatchedTitles(it) }.map { it.toSet() }
 
     val library: Flow<List<LibraryItem>> = perProfile { dao.observeLibrary(it) }

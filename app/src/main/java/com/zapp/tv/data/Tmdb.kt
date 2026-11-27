@@ -41,6 +41,9 @@ data class TmdbDetails(
     val directors: List<String> = emptyList(),
 )
 
+/** Episodes aired so far ([total]) and each season's episode count. */
+data class AiredEpisodes(val total: Int, val seasons: Map<Int, Int>)
+
 data class TmdbCollectionRef(val id: Long, val name: String, val poster: String?, val backdrop: String?)
 
 /** One film in a collection. */
@@ -329,6 +332,24 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
         )
         collections[id] = c
         c
+    }
+
+    /**
+     * How many episodes of a series have aired (specials left out), and how many each season has,
+     * so a series can count as finished once you've seen them all. Null if TMDB doesn't know it.
+     */
+    suspend fun airedEpisodes(imdbId: String): AiredEpisodes? = withContext(Dispatchers.IO) {
+        val found = get("find/${imdbId.substringBefore(':')}", mapOf("external_source" to "imdb_id")) ?: return@withContext null
+        val id = found.optJSONArray("tv_results")?.optJSONObject(0)?.optLong("id") ?: return@withContext null
+        val o = get("tv/$id") ?: return@withContext null
+        val seasons = o.optJSONArray("seasons").objects()
+            .filter { it.optInt("season_number") > 0 }
+            .associate { it.optInt("season_number") to it.optInt("episode_count") }
+        val last = o.optJSONObject("last_episode_to_air") ?: return@withContext AiredEpisodes(0, seasons)
+        val ls = last.optInt("season_number")
+        val le = last.optInt("episode_number")
+        val total = seasons.filterKeys { it in 1 until ls }.values.sum() + if (ls > 0) le else 0
+        AiredEpisodes(total, seasons)
     }
 
     /** The IMDb id for a TMDB title, so it can open in Zapp. */

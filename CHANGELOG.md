@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.52.0
+
+**New**
+- A ring on posters for anything you're part-way through, filling up as you go (in the same
+  corner as the tick). Series also show the episode that's next, like "S2 E4".
+- Series get their tick once you've seen every episode that has aired (with your TMDB key), not
+  only when marked watched as a whole.
+- Settings, Accounts, Nuvio: "Pull everything again" brings your whole Nuvio history, watched marks
+  and library across again.
+
+**Fixed**
+- Watched marks from Nuvio that were being missed now come across: series marked watched as a
+  whole, and titles Nuvio keeps under a TMDB number (matched to their IMDb id through TMDB). The
+  same goes for library items.
+
 ## 0.51.0
 
 **Improved**

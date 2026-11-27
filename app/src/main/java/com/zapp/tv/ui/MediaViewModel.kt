@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -387,14 +388,14 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         return nuvio.signedIn(pid) && nuvio.linkedProfile(pid) != 0
     }
 
-    fun syncNuvio(quiet: Boolean = false) {
+    fun syncNuvio(quiet: Boolean = false, everything: Boolean = false) {
         val pid = settings.profileId
         if (nuvioSyncing || !nuvio.signedIn(pid) || nuvio.linkedProfile(pid) == 0) return
         nuvioSyncing = true
-        if (!quiet) nuvioSyncStatus = "Syncing with Nuvio…"
+        if (!quiet) nuvioSyncStatus = if (everything) "Pulling everything from Nuvio…" else "Syncing with Nuvio…"
         viewModelScope.launch {
             try {
-                val s = nuvio.sync(pid)
+                val s = if (everything) nuvio.pullAgain(pid) else nuvio.sync(pid)
                 nuvioSyncStatus = if (s.progress + s.watched + s.library + s.removed + s.sent == 0) {
                     "Up to date"
                 } else {
@@ -1555,6 +1556,90 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
     /** Films and series you've marked (or finished) as watched, for the little tick on cards. */
     val watchedTitles: StateFlow<Set<String>> =
         repo.watchedTitles.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    // ---- marks on posters: series you've seen every aired episode of (a tick), and what you're
+    // part-way through (a ring, with the next episode for series).
+
+    private val airedPrefs = zapp.getSharedPreferences("aired_episodes", android.content.Context.MODE_PRIVATE)
+    private val aired = java.util.concurrent.ConcurrentHashMap<String, com.zapp.tv.data.AiredEpisodes>().apply {
+        val fresh = System.currentTimeMillis() - 3L * 24 * 3600_000
+        airedPrefs.all.forEach { (id, v) ->
+            val parts = (v as? String)?.split('|') ?: return@forEach
+            if (parts.size < 3 || (parts[2].toLongOrNull() ?: 0) < fresh) return@forEach
+            val seasons = parts[1].split(',').filter { ':' in it }.associate { it.substringBefore(':').toInt() to it.substringAfter(':').toInt() }
+            put(id, com.zapp.tv.data.AiredEpisodes(parts[0].toIntOrNull() ?: 0, seasons))
+        }
+    }
+    private val airedAsked = java.util.Collections.synchronizedSet(HashSet<String>())
+    private val airedTick = MutableStateFlow(0)
+
+    /** (Series finished, what's part-watched.) */
+    val posterMarks: StateFlow<Pair<Set<String>, Map<String, ProgressMark>>> =
+        kotlinx.coroutines.flow.combine(repo.allProgress, airedTick) { rows, _ -> computeMarks(rows) }
+            .flowOn(kotlinx.coroutines.Dispatchers.Default)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet<String>() to emptyMap())
+
+    private fun computeMarks(rows: List<com.zapp.tv.data.WatchProgress>): Pair<Set<String>, Map<String, ProgressMark>> {
+        val done = HashSet<String>()
+        val marks = HashMap<String, ProgressMark>()
+        val need = ArrayList<String>()
+        fun frac(r: com.zapp.tv.data.WatchProgress): Float? =
+            r.percent?.let { (it / 100.0).toFloat() } ?: if (r.duration > 0) r.position.toFloat() / r.duration else null
+        fun episode(videoId: String): Pair<Int, Int>? {
+            val p = videoId.split(':')
+            if (p.size < 3) return null
+            val s = p[p.size - 2].toIntOrNull() ?: return null
+            val e = p.last().toIntOrNull() ?: return null
+            return s to e
+        }
+        rows.filter { !it.videoId.startsWith("catchup:") }.groupBy { it.metaId }.forEach { (id, list) ->
+            // Marked watched as a whole: the tick comes from watchedTitles.
+            if (list.any { it.videoId == id && it.watched }) return@forEach
+            val eps = list.mapNotNull { r -> episode(r.videoId)?.let { it to r } }
+            if (eps.isEmpty()) {
+                val r = list.firstOrNull { it.videoId == id } ?: return@forEach
+                if (r.hidden || r.watched) return@forEach
+                val f = frac(r) ?: return@forEach
+                if (f in 0.02f..0.95f) marks[id] = ProgressMark(f)
+                return@forEach
+            }
+            val seen = eps.filter { it.second.watched && it.first.first > 0 }.map { it.first }.toSet()
+            val info = aired[id]
+            if (info == null && id.startsWith("tt")) need += id
+            if (info != null && info.total > 0 && seen.size >= info.total) {
+                done += id
+                return@forEach
+            }
+            val latest = eps.maxByOrNull { it.second.updatedAt } ?: return@forEach
+            val (s, e) = latest.first
+            val next = when {
+                !latest.second.watched -> s to e
+                info?.seasons?.get(s)?.let { e >= it } == true -> (s + 1) to 1
+                else -> s to (e + 1)
+            }
+            val fraction = if (info != null && info.total > 0) seen.size.toFloat() / info.total else 0.3f
+            marks[id] = ProgressMark(fraction.coerceIn(0.06f, 0.97f), "S${next.first} E${next.second}")
+        }
+        if (need.isNotEmpty()) fetchAired(need)
+        return done to marks
+    }
+
+    /** Asks TMDB how many episodes have aired, a few series at a time, then updates the marks. */
+    private fun fetchAired(ids: List<String>) {
+        if (!tmdb.enabled) return
+        val todo = ids.filter { airedAsked.add(it) }
+        if (todo.isEmpty()) return
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            var changed = false
+            todo.forEach { id ->
+                val a = runCatching { tmdb.airedEpisodes(id) }.getOrNull() ?: return@forEach
+                aired[id] = a
+                airedPrefs.edit().putString(id, "${a.total}|${a.seasons.entries.joinToString(",") { "${it.key}:${it.value}" }}|${System.currentTimeMillis()}").apply()
+                changed = true
+            }
+            if (changed) airedTick.value++
+        }
+    }
 
     // (After watchedTitles, which it needs.) Collections follow your library and what you've watched.
     init {

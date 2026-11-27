@@ -44,7 +44,7 @@ class ZappApp : Application(), coil.ImageLoaderFactory {
 
     val media: MediaRepository by lazy { MediaRepository(database, httpClient, settings, cacheDir) }
     val stremio: com.zapp.tv.data.StremioSync by lazy { com.zapp.tv.data.StremioSync(database, httpClient, settings) }
-    val nuvio: com.zapp.tv.data.NuvioSync by lazy { com.zapp.tv.data.NuvioSync(database, httpClient, settings) }
+    val nuvio: com.zapp.tv.data.NuvioSync by lazy { com.zapp.tv.data.NuvioSync(database, httpClient, settings, tmdb) }
     val mdblist: com.zapp.tv.data.MdbList by lazy { com.zapp.tv.data.MdbList(httpClient, settings, tmdb) }
     val ratings: com.zapp.tv.data.Ratings by lazy { com.zapp.tv.data.Ratings(settings) }
     val sports: com.zapp.tv.data.Sports by lazy { com.zapp.tv.data.Sports(httpClient, settings) }

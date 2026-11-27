@@ -58,6 +58,68 @@ object WatchedMarks {
     var ids by androidx.compose.runtime.mutableStateOf<Set<String>>(emptySet())
 }
 
+/** Started but not finished: how far (0–1), and for series the episode that's next. */
+data class ProgressMark(val fraction: Float, val next: String? = null)
+
+/** Titles you're part-way through (for the ring on cards), kept up to date by the app. */
+object ProgressMarks {
+    var marks by androidx.compose.runtime.mutableStateOf<Map<String, ProgressMark>>(emptyMap())
+}
+
+/** The corner mark on a card: a tick when watched, otherwise a ring when started (and the next episode). */
+@Composable
+fun CardMark(id: String?, modifier: Modifier = Modifier) {
+    if (id == null) return
+    if (id in WatchedMarks.ids) {
+        WatchedTick(modifier)
+        return
+    }
+    val m = ProgressMarks.marks[id] ?: return
+    Column(modifier, horizontalAlignment = Alignment.End) {
+        ProgressRing(m.fraction)
+        m.next?.let {
+            Spacer(Modifier.height(3.dp))
+            Text(
+                it,
+                fontSize = 8.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0x99000000))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            )
+        }
+    }
+}
+
+/** Like the tick, but a ring filling up in the theme's colours to show how far you got. */
+@Composable
+fun ProgressRing(fraction: Float, modifier: Modifier = Modifier, size: Dp = 15.dp) {
+    val b1 = ZappColors.Brand1
+    val b2 = ZappColors.Brand2
+    androidx.compose.foundation.Canvas(modifier.size(size)) {
+        val d = this.size.width
+        drawCircle(Color(0x40000000), radius = d / 2f, center = center.copy(y = center.y + d * 0.04f))
+        drawCircle(Color.White, radius = d / 2f)
+        val stroke = d * 0.14f
+        val inset = d * 0.2f
+        val arcSize = androidx.compose.ui.geometry.Size(d - inset * 2, d - inset * 2)
+        val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+        drawArc(Color(0x22000000), 0f, 360f, false, topLeft, arcSize, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+        drawArc(
+            Brush.linearGradient(listOf(b1, b2), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(d, d)),
+            -90f,
+            360f * fraction.coerceIn(0.06f, 1f),
+            false,
+            topLeft,
+            arcSize,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+        )
+    }
+}
+
 /** A tiny white circle with a thin tick in the theme's colours. */
 @Composable
 fun WatchedTick(modifier: Modifier = Modifier, size: Dp = 15.dp) {
@@ -150,9 +212,7 @@ fun PosterCard(
             } else {
                 Artwork(meta.poster, meta.name, fallback = fallbackPoster(meta.id))
             }
-            if (meta.id in WatchedMarks.ids) {
-                WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
-            }
+            CardMark(meta.id, Modifier.align(Alignment.TopEnd).padding(7.dp))
             if (meta.id in LovedMarks.ids) {
                 RatingGlyph(
                     com.zapp.tv.data.Rating.Love,

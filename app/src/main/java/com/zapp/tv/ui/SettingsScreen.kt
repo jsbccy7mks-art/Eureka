@@ -960,6 +960,13 @@ private fun NuvioSyncSection(mvm: MediaViewModel, onPhone: () -> Unit) {
             value = SettingValue.Choice(if (mvm.nuvioSyncing) "Syncing…" else "Sync now"),
             onClick = { mvm.syncNuvio() },
         )
+        SettingRow(
+            title = "Pull everything again",
+            body = "Brings your whole Nuvio history, watched marks and library across again, including anything an earlier sync missed. " +
+                (mvm.nuvioSyncStatus ?: ""),
+            value = if (mvm.nuvioSyncing) SettingValue.Choice("Working…") else SettingValue.Action,
+            onClick = { mvm.syncNuvio(everything = true) },
+        )
     } else {
         Text(
             "Connected as ${nuvio.user(pid).ifBlank { "your Nuvio account" }}. Choose which Nuvio profile this Axon profile syncs with.",

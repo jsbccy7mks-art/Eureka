@@ -144,7 +144,9 @@ fun ZappRoot(vm: AppViewModel) {
     TrailerGate.playing = playRequest != null || vodOpen || playerOpen
     TrailerGate.detailOpen = detail != null || collectionOpen != null
     OverlayFocus.open = rateAFew || WhatsNewState.notes != null
-    WatchedMarks.ids = mvm.watchedTitles.collectAsState().value
+    val marks = mvm.posterMarks.collectAsState().value
+    WatchedMarks.ids = mvm.watchedTitles.collectAsState().value + marks.first
+    ProgressMarks.marks = marks.second
     LovedMarks.ids = mvm.ratings.loved()
 
     // ---- profiles

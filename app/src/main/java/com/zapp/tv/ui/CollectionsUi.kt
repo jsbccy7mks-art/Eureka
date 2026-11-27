@@ -281,6 +281,7 @@ fun CollectionScreen(
                                 ) {
                                     Artwork(p.item.poster, p.item.name)
                                     if (id != null && id in watched) WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
+                                    else CardMark(id, Modifier.align(Alignment.TopEnd).padding(7.dp))
                                 }
                                 // A soft reflection underneath.
                                 Box(
