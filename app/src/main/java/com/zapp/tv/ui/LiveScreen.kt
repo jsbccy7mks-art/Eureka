@@ -212,13 +212,13 @@ fun LiveScreen(
         value = focusedRow?.let { vm.nowNext(it.channel) } ?: emptyList()
     }
     val currentArt = programmes.firstOrNull { it.start <= now && it.stop > now }?.icon
+    val canMove = !scope.favorites && !scope.recent
     // A Box, so the backdrop sits behind the page instead of taking up room above it.
     Box(Modifier.fillMaxSize()) {
     SoftBackdrop(currentArt, strength = 0.45f)
 
     val title = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
     val currentPlaylist = playlists.firstOrNull { it.playlist.id == scope.playlistId }
-    val canMove = !scope.favorites && !scope.recent
 
     Row(
         Modifier
