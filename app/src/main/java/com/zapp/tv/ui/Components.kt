@@ -332,6 +332,7 @@ object FocusStyle {
     var trailerSound by mutableStateOf(false)
     /** Trailers in up to 4K. */
     var trailerBest by mutableStateOf(true)
+    var trailerQuality by mutableStateOf(2)
     /** Pure black pages (OLED TVs). */
     var trueBlack by mutableStateOf(false)
     /** Title lettering: 0 cinematic (Cinzel), 1 clean modern, 2 bold condensed. */

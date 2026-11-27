@@ -1282,10 +1282,10 @@ private fun AppearancePane(vm: AppViewModel) {
             )
             SettingRow(
                 title = "Trailer quality",
-                body = if (TrailerDevice.small) "Best goes up to 1440p on this box (4K needs more memory than it has); Auto stays at 1080p."
-                else "Best goes up to 4K where this TV can play it smoothly; Auto stays at 1080p.",
-                value = SettingValue.Choice(if (!s.trailerBest) "Auto" else if (TrailerDevice.small) "Best (1440p)" else "Best"),
-                onClick = { s.trailerBest = !s.trailerBest },
+                body = "The sharpest picture trailers may use, where this TV can play it smoothly." +
+                    if (TrailerDevice.small) " This box has 2 GB of memory or less: if 4K trailers stall, choose 1440p." else "",
+                value = SettingValue.Choice(listOf("1080p", "1440p", "4K")[s.trailerQuality.coerceIn(0, 2)]),
+                onClick = { s.trailerQuality = (s.trailerQuality + 1) % 3 },
             )
             SettingRow(
                 title = "Collection theme music",

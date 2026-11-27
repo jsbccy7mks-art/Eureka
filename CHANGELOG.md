@@ -7,8 +7,8 @@
   - only streams this TV can really play are chosen (its decoder is asked about the exact codec,
     profile, size and frame rate), and HDR versions are skipped (they can't show behind the page);
   - YouTube's other servers for the same file are tried at once and the quickest one is used;
-  - 1440p and 4K trailers gather a few seconds before starting, so they don't stop straight away;
-  - on boxes with 2 GB of memory or less, Best goes up to 1440p instead of 4K.
+  - 1440p and 4K trailers gather a few seconds before starting, so they don't stop straight away.
+- Trailer quality is now a choice of 1080p, 1440p or 4K (Settings, Appearance). "Best" becomes 4K.
 
 ## 0.50.0
 

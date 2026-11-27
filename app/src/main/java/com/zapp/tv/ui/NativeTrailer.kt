@@ -65,16 +65,13 @@ object TrailerDevice {
     /** Bytes of memory the box has (0 if unknown). */
     @Volatile var totalMemory = 0L
 
-    /**
-     * Boxes with 2 GB or less: a 4K trailer drawn behind the page takes a few hundred MB of decoder
-     * and graphics memory, which makes them stall or fail, so "Best" stops at 1440p there.
-     */
+    /** 2 GB or less: 4K trailers behind the page use a lot of its memory (said in Settings). */
     val small: Boolean get() = totalMemory in 1 until 2_400L * 1024 * 1024
 }
 
-fun trailerHeightCap(): Int = when {
-    !FocusStyle.trailerBest -> 1080
-    TrailerDevice.small -> 1440
+fun trailerHeightCap(): Int = when (FocusStyle.trailerQuality) {
+    0 -> 1080
+    1 -> 1440
     else -> 2160
 }
 

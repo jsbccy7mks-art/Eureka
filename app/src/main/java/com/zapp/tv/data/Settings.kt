@@ -358,6 +358,17 @@ class Settings(context: Context) {
             com.zapp.tv.ui.FocusStyle.trailerSound = value
         }
 
+    private val trailerQualityState = mutableIntStateOf(prefs.getInt("trailerQuality", if (prefs.getBoolean("trailerBest", true)) 2 else 0))
+    /** Trailer picture: 0 up to 1080p, 1 up to 1440p, 2 up to 4K (each only where this TV can play it). */
+    var trailerQuality: Int
+        get() = trailerQualityState.intValue
+        set(value) {
+            trailerQualityState.intValue = value
+            prefs.edit().putInt("trailerQuality", value).putBoolean("trailerBest", value > 0).apply()
+            com.zapp.tv.ui.FocusStyle.trailerQuality = value
+            com.zapp.tv.ui.FocusStyle.trailerBest = value > 0
+        }
+
     private val trailerBestState = mutableStateOf(prefs.getBoolean("trailerBest", true))
     /** Trailers in the best quality YouTube has (up to 4K); off lets YouTube choose for the screen. */
     var trailerBest: Boolean
@@ -565,6 +576,7 @@ class Settings(context: Context) {
         com.zapp.tv.ui.FocusStyle.trailerDelay = prefs.getInt("trailerDelay", 4)
         com.zapp.tv.ui.FocusStyle.trailerSound = prefs.getBoolean("trailerSound", false)
         com.zapp.tv.ui.FocusStyle.trailerBest = prefs.getBoolean("trailerBest", true)
+        com.zapp.tv.ui.FocusStyle.trailerQuality = trailerQuality
         com.zapp.tv.ui.FocusStyle.trueBlack = prefs.getBoolean("trueBlack", false)
         com.zapp.tv.ui.FocusStyle.titleFont = prefs.getInt("titleFont", 0)
         com.zapp.tv.ui.FocusStyle.cardStyle = prefs.getInt("cardStyle", 0)
