@@ -1,5 +1,6 @@
 package com.zapp.tv.ui
 
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.draw.drawWithContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -426,7 +427,7 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlassCard(corner: Float
     )
     if (focus > 0.01f && sweep in 0.001f..0.999f) {
         val clip = androidx.compose.ui.graphics.Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, w, h, r)) }
-        androidx.compose.ui.graphics.drawscope.clipPath(clip) {
+        clipPath(clip) {
             val x = -w + sweep * w * 3f
             drawRect(
                 Brush.linearGradient(
