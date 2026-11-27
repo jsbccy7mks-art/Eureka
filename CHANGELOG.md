@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.59.2
+
+**Changed**
+- Settings: Right from a section always goes to the top of its list, not to whatever is level
+  with the section you were on.
+
 ## 0.59.1
 
 **Fixed**

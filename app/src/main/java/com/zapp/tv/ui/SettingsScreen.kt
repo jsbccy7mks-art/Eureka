@@ -35,6 +35,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.launch
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.focusable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -120,6 +124,9 @@ fun SettingsScreen(
         section = s
     }
 
+    val paneTop = remember { FocusRequester() }
+    val paneFocus = androidx.compose.ui.platform.LocalFocusManager.current
+    val paneScope = rememberCoroutineScope()
     Row(
         Modifier
             .fillMaxSize()
@@ -140,6 +147,8 @@ fun SettingsScreen(
                         onClick = { section = s },
                         modifier = Modifier
                             .rememberFocus(sectionMemory, s.name)
+                            // Right always goes to the top of the section's list.
+                            .focusProperties { right = paneTop }
                             .fillMaxWidth(),
                         selected = s == section || (section == SettingsSection.Phone && s == SettingsSection.About),
                         focusRequester = if (s == section) firstFocus else if (s == SettingsSection.entries.first()) firstItem else null,
@@ -188,6 +197,22 @@ fun SettingsScreen(
                 .weight(1f)
                 .fillMaxWidth(),
         ) {
+            // Right from the sections lands here (top left of the list) and moves straight down onto
+            // its first item, so it's always the top of the list rather than whatever is level with
+            // the section you were on.
+            Box(
+                Modifier
+                    .size(1.dp)
+                    .focusRequester(paneTop)
+                    .onFocusChanged {
+                        if (it.isFocused) {
+                            paneScope.launch {
+                                if (!paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)) paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                            }
+                        }
+                    }
+                    .focusable(),
+            )
             when (section) {
                 SettingsSection.Phone -> PhoneSetupPane(vm, phoneTab)
                 SettingsSection.Sources -> SourcesPane(vm, onForm, onWatchPlaylist, onPhone = { openPhone("xtream") })
