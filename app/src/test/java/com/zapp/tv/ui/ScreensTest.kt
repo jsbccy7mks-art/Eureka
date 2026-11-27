@@ -102,6 +102,20 @@ class ScreensTest {
         save("whats-new")
     }
 
+    @Test fun wrapped() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        rule.mainClock.autoAdvance = false
+        rule.setContent { ZappTheme { WrappedScreen(WrappedPeriod(2026, 10)) {} } }
+        rule.mainClock.advanceTimeBy(2500)
+        save("wrapped-1")
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        rule.mainClock.advanceTimeBy(2500)
+        save("wrapped-2")
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        rule.mainClock.advanceTimeBy(2500)
+        save("wrapped-3")
+    }
+
     @Test fun app() {
         assumeTrue(System.getenv("SCREENS") == "1")
         val app = RuntimeEnvironment.getApplication() as ZappApp
