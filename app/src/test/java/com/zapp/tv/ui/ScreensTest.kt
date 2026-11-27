@@ -85,7 +85,13 @@ class ScreensTest {
 
     @Test fun glassAppearance() {
         glass(true)
-        try { settings("Appearance", 0, "glass-") } finally { glass(false) }
+        try {
+            settings("Appearance", 0, "glass-") { vm ->
+                // Settings sets the style from what's saved, so choose Glass there.
+                vm.settings.uiStyle = 1
+                glass(true)
+            }
+        } finally { glass(false) }
     }
 
     @Test fun glassHome() {
@@ -153,11 +159,12 @@ class ScreensTest {
         } finally { glass(false) }
     }
 
-    private fun settings(section: String, downs: Int, prefix: String = "") {
+    private fun settings(section: String, downs: Int, prefix: String = "", before: (AppViewModel) -> Unit = {}) {
         assumeTrue(System.getenv("SCREENS") == "1")
         val app = RuntimeEnvironment.getApplication() as ZappApp
         val vm = AppViewModel(app)
         val mvm = MediaViewModel(app)
+        before(vm)
         val tick = androidx.compose.runtime.mutableIntStateOf(0)
         // Endless animations (glows) would never let the screen settle; time moves only when told.
         rule.mainClock.autoAdvance = false
