@@ -1632,10 +1632,13 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** "Because you loved …": the most recent love and what's like it. */
     suspend fun becauseYouLoved(): Pair<String, List<MetaPreview>>? {
-        val loved = ratings.all().firstOrNull { it.rating == com.zapp.tv.data.Rating.Love } ?: return null
-        val recs = runCatching { tmdb.details(loved.metaId, loved.type)?.recommendations }.getOrNull().orEmpty()
-        val list = previewsOf(recs, 15)
-        return if (list.size < 3) null else loved.name to list
+        // Your latest love first; if it hasn't enough you haven't seen, the one before, and so on.
+        for (loved in ratings.all().filter { it.rating == com.zapp.tv.data.Rating.Love }.take(5)) {
+            val recs = runCatching { tmdb.details(loved.metaId, loved.type)?.recommendations }.getOrNull().orEmpty()
+            val list = previewsOf(recs, 15)
+            if (list.size >= 3) return loved.name to list
+        }
+        return null
     }
 
     /** A time of year with its own Home row: [key] picks its decorations. */
@@ -1680,7 +1683,8 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val mine = pool.filter { (_, g) -> g.any { it in liked } }.shuffled(rnd).take(4).map { it.first }
         val rest = pool.map { it.first }.filter { it !in mine }.shuffled(rnd)
         val list = previewsOf(mine + rest, 18)
-        if (list.isNotEmpty()) seasonCache = day to list
+        // Kept for the day only when it came out whole (a bad moment on TMDB is tried again).
+        if (list.size >= 8) seasonCache = day to list
         return list
     }
 

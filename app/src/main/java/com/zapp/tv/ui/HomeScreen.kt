@@ -121,18 +121,19 @@ fun HomeScreen(
     // Smart rows: what to suggest from what you've watched and saved.
     val libraryItems by mvm.library.collectAsState()
     val seed = continueItems.firstOrNull()?.asPreview() ?: libraryItems.firstOrNull()?.let { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
-    val because by produceState<Pair<String, List<MetaPreview>>?>(null, seed?.id) { value = runCatching { mvm.becauseYouWatched(seed) }.getOrNull() }
+    // Smart rows that come back short (a bad moment online) are tried again a few times.
+    val because by retrying<Pair<String, List<MetaPreview>>?>(null, seed?.id, enough = { it != null }) { mvm.becauseYouWatched(seed) }
     // Rows from your ratings.
-    val forYou by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.forYou() }.getOrDefault(emptyList()) }
-    val loved by produceState<Pair<String, List<MetaPreview>>?>(null, mvm.tasteVersion) { value = runCatching { mvm.becauseYouLoved() }.getOrNull() }
-    val gems by produceState(emptyList<MetaPreview>(), mvm.tasteVersion) { value = runCatching { mvm.hiddenGems() }.getOrDefault(emptyList()) }
+    val forYou by retrying(emptyList<MetaPreview>(), mvm.tasteVersion, enough = { it.isNotEmpty() || mvm.ratings.all().isEmpty() }) { mvm.forYou() }
+    val loved by retrying<Pair<String, List<MetaPreview>>?>(null, mvm.tasteVersion, enough = { it != null || mvm.ratings.all().none { r -> r.rating == com.zapp.tv.data.Rating.Love } }) { mvm.becauseYouLoved() }
+    val gems by retrying(emptyList<MetaPreview>(), mvm.tasteVersion, enough = { it.size >= 3 }) { mvm.hiddenGems() }
     // The time of year's row (Christmas from mid-November), a fresh set each day.
     val season = remember { mvm.currentSeason() }
-    val seasonPicks by produceState(emptyList<MetaPreview>(), mvm.tasteVersion, season?.key) { value = runCatching { mvm.seasonalPicks() }.getOrDefault(emptyList()) }
+    val seasonPicks by retrying(emptyList<MetaPreview>(), mvm.tasteVersion, season?.key, enough = { it.size >= 3 || season == null }) { mvm.seasonalPicks() }
     // "For you" starts once there are a few ratings to go on; until then, the nudge to rate.
     val ratedCount = mvm.ratings.all().size
     val noRatings = ratedCount < 5
-    val newEpisodes by produceState(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }) { value = runCatching { mvm.newEpisodes(libraryItems) }.getOrDefault(emptyList()) }
+    val newEpisodes by retrying(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }, enough = { true }) { mvm.newEpisodes(libraryItems) }
     LaunchedEffect(newEpisodes.size) { SideBadges.newEpisodes = newEpisodes.size }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
@@ -645,3 +646,20 @@ private fun MetaRow(
         }
     }
 }
+
+/**
+ * Loads a smart row, and if it comes back short (or fails), tries again after 15 seconds, then 45,
+ * then 2 minutes, so a moment of trouble online doesn't leave the row missing until a restart.
+ */
+@Composable
+private fun <T> retrying(initial: T, vararg keys: Any?, enough: (T) -> Boolean, load: suspend () -> T): androidx.compose.runtime.State<T> =
+    produceState(initial, *keys) {
+        for (wait in listOf(0L, 15_000L, 45_000L, 120_000L)) {
+            delay(wait)
+            val r = runCatching { load() }
+            if (r.isFailure) continue
+            val v = r.getOrThrow()
+            value = v
+            if (enough(v)) break
+        }
+    }

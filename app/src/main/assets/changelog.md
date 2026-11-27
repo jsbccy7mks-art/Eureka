@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.56.2
+
+**Fixed**
+- Christmas picks, Because you loved, For you and Hidden gems could go missing from Home. When
+  Home opened, Axon asked TMDB about so many titles at once that it was told to slow down, and
+  every title it was turned away for was then left out until the app restarted. It now asks a
+  few at a time, waits and asks again when told to slow down, never remembers a failed request
+  as an answer, and Home tries a missing row again a few times.
+- The same thing could empty a Christmas collection (and other themed ones), stop some films in
+  a collection opening or showing their tick, and thin out "Up next" suggestions after a film,
+  Rate a few and More like this on details pages.
+- Because you loved now tries your last few loved titles when the latest hasn't enough you
+  haven't seen.
+
 ## 0.56.1
 
 **Changed**

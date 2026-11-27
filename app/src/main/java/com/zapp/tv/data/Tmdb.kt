@@ -77,12 +77,28 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
         val bearer = key.length > 40
         if (!bearer) b.addQueryParameter("api_key", key)
         val req = Request.Builder().url(b.build()).apply { if (bearer) header("Authorization", "Bearer $key") }.build()
-        return try {
-            http.newCall(req).execute().use { r -> if (r.isSuccessful) JSONObject(r.body?.string().orEmpty()) else null }
-        } catch (e: Exception) {
-            null
+        // A few requests at a time (Home asks for well over a hundred at once), and a short wait and
+        // another go when TMDB says "too many" or has a hiccup, instead of giving up on the title.
+        for (attempt in 0..2) {
+            var waitMs = 0L
+            gate.acquire()
+            try {
+                http.newCall(req).execute().use { r ->
+                    if (r.isSuccessful) return JSONObject(r.body?.string().orEmpty())
+                    if (r.code != 429 && r.code < 500) return null // a real "no" (not found, bad key)
+                    waitMs = (r.header("Retry-After")?.toLongOrNull()?.coerceIn(1, 5) ?: (attempt + 1L)) * 1000L
+                }
+            } catch (e: Exception) {
+                waitMs = (attempt + 1L) * 700L
+            } finally {
+                gate.release()
+            }
+            if (attempt < 2) Thread.sleep(waitMs)
         }
+        return null
     }
+
+    private val gate = java.util.concurrent.Semaphore(8, true)
 
     private fun img(path: String?, size: String): String? = path?.takeIf { it.isNotBlank() }?.let { "https://image.tmdb.org/t/p/$size$it" }
 
@@ -372,7 +388,9 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
     /** TMDB's id for a keyword ("christmas"), so seasonal collections can ask for it. */
     suspend fun keywordId(word: String): Long? = withContext(Dispatchers.IO) {
         keywordIds[word]?.let { return@withContext it.takeIf { id -> id > 0 } }
-        val r = get("search/keyword", mapOf("query" to word))?.optJSONArray("results").objects()
+        // A failed request isn't remembered, so the next try asks again.
+        val res = get("search/keyword", mapOf("query" to word)) ?: return@withContext null
+        val r = res.optJSONArray("results").objects()
         val id = (r.firstOrNull { it.optString("name").equals(word, true) } ?: r.firstOrNull())?.optLong("id") ?: 0L
         keywordIds[word] = id
         id.takeIf { it > 0 }
@@ -397,8 +415,9 @@ class Tmdb(private val http: OkHttpClient, private val settings: Settings) {
     suspend fun imdbId(item: TmdbItem): String? = withContext(Dispatchers.IO) {
         val key = "${item.type}|${item.id}"
         if (imdbIds.containsKey(key)) return@withContext imdbIds[key]
-        val o = get("${if (item.type == "series") "tv" else "movie"}/${item.id}/external_ids")
-        val id = o?.optString("imdb_id")?.takeIf { it.startsWith("tt") }
+        // Only a real answer is remembered: a failed request is asked again next time.
+        val o = get("${if (item.type == "series") "tv" else "movie"}/${item.id}/external_ids") ?: return@withContext null
+        val id = o.optString("imdb_id").takeIf { it.startsWith("tt") }
         imdbIds[key] = id
         id
     }
