@@ -64,6 +64,7 @@ import com.zapp.tv.data.ChannelRow
 import com.zapp.tv.data.WatchProgress
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.withPermit
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 
 private data class HomeFocus(val rowKey: String, val itemKey: String)
 
@@ -854,7 +855,7 @@ private fun KidsGrid(mvm: MediaViewModel, id: String, title: String, focusTick: 
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                androidx.compose.foundation.lazy.grid.itemsIndexed(items, key = { _, m -> m.id }) { i, m ->
+                gridItemsIndexed(items, key = { _, m -> m.id }) { i, m ->
                     // Near the end: the next page.
                     if (i >= items.size - 8 && !finished && page == loadedPage) {
                         LaunchedEffect(items.size) { if (page == loadedPage) page = loadedPage + 1 }
