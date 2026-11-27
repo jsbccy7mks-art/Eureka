@@ -229,24 +229,38 @@ fun DetailScreen(
             section == 1 && focusedEpisode?.thumbnail != null -> focusedEpisode?.thumbnail
             else -> meta?.background ?: meta?.poster
         }
+        // Glass: the glass panes take their colours from the title's picture.
+        LaunchedEffect(backdrop) { if (glassOn && backdrop != null) GlassScene.url = backdrop }
         Box(
             Modifier
                 .align(Alignment.TopEnd)
-                .fillMaxWidth(0.78f)
-                .fillMaxHeight(if (section == 1) 0.72f else 0.9f)
-                // While the trailer plays it glides to the middle of the screen (moved and scaled
-                // only, never re-laid out, so it stays smooth).
-                .graphicsLayer {
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
-                    val k = 1f + 0.08f * grow
-                    scaleX = k
-                    scaleY = k
-                    translationX = -(size.width / 0.78f - size.width) / 2f * grow
-                }
+                .then(
+                    // Glass: the picture fills the screen and the details float over it on glass.
+                    if (glassOn) {
+                        Modifier.fillMaxSize()
+                    } else {
+                        Modifier
+                            .fillMaxWidth(0.78f)
+                            .fillMaxHeight(if (section == 1) 0.72f else 0.9f)
+                            // While the trailer plays it glides to the middle of the screen (moved and scaled
+                            // only, never re-laid out, so it stays smooth).
+                            .graphicsLayer {
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                                val k = 1f + 0.08f * grow
+                                scaleX = k
+                                scaleY = k
+                                translationX = -(size.width / 0.78f - size.width) / 2f * grow
+                            }
+                    },
+                )
                 .clipToBounds()
                 .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                 .drawWithContent {
                     drawContent()
+                    if (glassOn) {
+                        drawRect(Brush.verticalGradient(*easedMask(start = 1f, end = if (section == 1) 0.35f else 0.55f)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                        return@drawWithContent
+                    }
                     // A long soft fade on the left at rest; just a slight one on each side while playing.
                     drawRect(Brush.horizontalGradient(*easedMask(start = 0f, end = 0.55f - 0.33f * grow)), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
                     if (grow > 0f) {
@@ -360,9 +374,21 @@ fun DetailScreen(
                         Column(
                             Modifier
                                 .align(Alignment.BottomStart)
-                                .fillMaxWidth()
-                                .padding(start = 56.dp, end = 48.dp, bottom = 30.dp)
-                                .graphicsLayer { alpha = textAlpha },
+                                .then(
+                                    if (glassOn) {
+                                        Modifier
+                                            .padding(start = 48.dp, bottom = 28.dp)
+                                            .graphicsLayer { alpha = textAlpha }
+                                            .widthIn(max = 700.dp)
+                                            .glass(Shapes.Panel, elevation = 22.dp)
+                                            .padding(horizontal = 26.dp, vertical = 22.dp)
+                                    } else {
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 56.dp, end = 48.dp, bottom = 30.dp)
+                                            .graphicsLayer { alpha = textAlpha }
+                                    },
+                                ),
                         ) {
                             val credit = when {
                                 tmdb?.createdBy?.isNotEmpty() == true -> "CREATED BY " + tmdb!!.createdBy.take(2).joinToString(", ").uppercase()
@@ -750,7 +776,7 @@ private fun EpisodeMenu(
             Modifier
                 .width(440.dp)
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel)
+                .panelSurface()
                 .padding(horizontal = 14.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {

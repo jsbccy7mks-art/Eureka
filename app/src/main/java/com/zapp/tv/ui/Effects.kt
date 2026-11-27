@@ -186,6 +186,8 @@ object NavShortcuts {
 /** Small Search and Settings buttons beside the clock (Up from the top of a page reaches them). */
 @Composable
 fun HeaderShortcuts() {
+    // Glass: Search, Settings and Your month live in the bar across the top instead.
+    if (glassOn) return
     Row(
         Modifier.onPreviewKeyEvent { e ->
             if (e.key == androidx.compose.ui.input.key.Key.DirectionDown) {

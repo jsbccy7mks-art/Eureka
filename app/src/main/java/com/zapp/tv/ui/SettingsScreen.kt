@@ -124,7 +124,11 @@ fun SettingsScreen(
             .onFocusChanged { hasFocusInside = it.hasFocus }
             .padding(start = 28.dp, end = 36.dp, top = 28.dp, bottom = 20.dp),
     ) {
-        Column(Modifier.width(220.dp)) {
+        Column(
+            Modifier
+                .width(if (glassOn) 240.dp else 220.dp)
+                .then(if (glassOn) Modifier.fillMaxHeight().glass(Shapes.Panel).padding(horizontal = 8.dp, vertical = 20.dp) else Modifier),
+        ) {
             Text("Settings", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, modifier = Modifier.padding(start = 14.dp))
             Spacer(Modifier.height(22.dp))
             LazyColumn(
@@ -175,12 +179,17 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.width(32.dp))
+        Spacer(Modifier.width(if (glassOn) 18.dp else 32.dp))
 
         LaunchedEffect(section) { SettingsHelp.clear() }
         LaunchedEffect(sectionsHaveFocus) { if (sectionsHaveFocus) SettingsHelp.clear() }
         androidx.compose.runtime.CompositionLocalProvider(LocalHelpAtFoot provides true) {
-        Column(Modifier.weight(1f).fillMaxHeight()) {
+        Column(
+            Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .then(if (glassOn) Modifier.glass(Shapes.Panel).padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 10.dp) else Modifier),
+        ) {
         Box(
             Modifier
                 .weight(1f)
@@ -1113,7 +1122,7 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
             Modifier
                 .width(500.dp)
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel)
+                .panelSurface()
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -1139,6 +1148,9 @@ private fun AddAddonDialog(mvm: MediaViewModel, onClose: () -> Unit) {
 private fun AppearancePane(vm: AppViewModel) {
     val s = vm.settings
     Column(Modifier.verticalScroll(rememberScrollState())) {
+        SettingsGroup("Style", if (s.uiStyle == 1) "Glass: frosted panes over full-screen pictures, with a bar across the top" else "Original: the sidebar and solid panels", startOpen = true) {
+            StylePicker(s.uiStyle) { s.uiStyle = it }
+        }
         SettingsGroup("Theme", (Palettes.all.firstOrNull { it.id == s.theme }?.name ?: "Custom") + ": colours for the glow, highlights and progress bars", startOpen = true) {
         Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             (Palettes.all + Palettes.custom(s.customColors.first, s.customColors.second)).forEach { p ->
@@ -1424,7 +1436,7 @@ private fun HomeLayoutPane(mvm: MediaViewModel) {
     menuFor?.let { r -> LayoutMenu(mvm, rows, r, onMove = { moving = r.id }) { menuFor = null } }
     if (confirmReset) {
         androidx.compose.ui.window.Dialog(onDismissRequest = { confirmReset = false }) {
-            Column(Modifier.width(420.dp).clip(Shapes.Panel).background(ZappColors.Panel).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.width(420.dp).clip(Shapes.Panel).panelSurface().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Reset Home?", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
                 Text("Every row goes back to its usual place, size and name.", color = ZappColors.Dim, fontSize = TextSize.Body)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1525,7 +1537,7 @@ private fun LayoutMenu(mvm: MediaViewModel, rows: List<HomeRowSetting>, r: HomeR
     val fixedShape = r.id == CONTINUE_ROW || r.id == NEW_EPISODES_ROW
     androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
         Column(
-            Modifier.width(420.dp).clip(Shapes.Panel).background(ZappColors.Panel).padding(horizontal = 14.dp, vertical = 18.dp),
+            Modifier.width(420.dp).clip(Shapes.Panel).panelSurface().padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(r.label, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 10.dp))
@@ -1851,6 +1863,64 @@ private fun PhoneSetupPane(vm: AppViewModel, tab: String?) {
                         Text(b, color = ZappColors.Dim, fontSize = TextSize.Small)
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Settings, Appearance, Style: Original or Glass, each shown as a little picture of the app. */
+@Composable
+private fun StylePicker(current: Int, onPick: (Int) -> Unit) {
+    val b1 = ZappColors.Brand1
+    val b2 = ZappColors.Brand2
+    val bg = ZappColors.Bg
+    Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        listOf(0 to "Original", 1 to "Glass").forEach { (id, name) ->
+            val chosen = current == id
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                FocusSurface(
+                    onClick = { onPick(id) },
+                    modifier = Modifier
+                        .width(176.dp)
+                        .height(99.dp)
+                        .border(2.dp, if (chosen) Color.White else Color(0x22FFFFFF), RoundedCornerShape(14.dp)),
+                    shape = RoundedCornerShape(14.dp),
+                    focusScale = 1.05f,
+                    focusColor = Color.White,
+                ) { focused ->
+                    androidx.compose.foundation.Canvas(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(if (focused) 3.dp else 0.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                    ) {
+                        val w = size.width
+                        val h = size.height
+                        val r = androidx.compose.ui.geometry.CornerRadius(h * 0.06f)
+                        if (id == 0) {
+                            drawRect(bg)
+                            drawRect(Brush.linearGradient(listOf(b1.copy(alpha = 0.35f), Color.Transparent), start = androidx.compose.ui.geometry.Offset(w, 0f), end = androidx.compose.ui.geometry.Offset(w * 0.4f, h * 0.6f)))
+                            // the sidebar
+                            drawRect(Color.Black.copy(alpha = 0.35f), size = androidx.compose.ui.geometry.Size(w * 0.09f, h))
+                            for (i in 0 until 5) drawCircle(Color.White.copy(alpha = if (i == 1) 0.9f else 0.35f), h * 0.025f, androidx.compose.ui.geometry.Offset(w * 0.045f, h * (0.3f + i * 0.1f)))
+                            // the picture top right and a row of cards
+                            drawRect(Brush.horizontalGradient(listOf(Color.Transparent, b2.copy(alpha = 0.45f))), topLeft = androidx.compose.ui.geometry.Offset(w * 0.4f, 0f), size = androidx.compose.ui.geometry.Size(w * 0.6f, h * 0.5f))
+                            for (i in 0 until 5) drawRoundRect(Color.White.copy(alpha = 0.16f), androidx.compose.ui.geometry.Offset(w * (0.14f + i * 0.17f), h * 0.66f), androidx.compose.ui.geometry.Size(w * 0.14f, h * 0.24f), r)
+                        } else {
+                            // a full picture, the bar on top and the details on a pane of glass
+                            drawRect(Brush.linearGradient(listOf(b1, bg, b2), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset(w, h)))
+                            drawCircle(Color.White.copy(alpha = 0.18f), h * 0.5f, androidx.compose.ui.geometry.Offset(w * 0.75f, h * 0.2f))
+                            val pill = androidx.compose.ui.geometry.CornerRadius(h)
+                            drawRoundRect(Color.White.copy(alpha = 0.22f), androidx.compose.ui.geometry.Offset(w * 0.28f, h * 0.06f), androidx.compose.ui.geometry.Size(w * 0.44f, h * 0.11f), pill)
+                            drawRoundRect(Color.White.copy(alpha = 0.9f), androidx.compose.ui.geometry.Offset(w * 0.3f, h * 0.075f), androidx.compose.ui.geometry.Size(w * 0.1f, h * 0.08f), pill)
+                            drawRoundRect(Color.White.copy(alpha = 0.18f), androidx.compose.ui.geometry.Offset(w * 0.06f, h * 0.3f), androidx.compose.ui.geometry.Size(w * 0.4f, h * 0.28f), androidx.compose.ui.geometry.CornerRadius(h * 0.08f))
+                            drawRoundRect(Color.White.copy(alpha = 0.5f), androidx.compose.ui.geometry.Offset(w * 0.06f, h * 0.3f), androidx.compose.ui.geometry.Size(w * 0.4f, h * 0.28f), androidx.compose.ui.geometry.CornerRadius(h * 0.08f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.2f))
+                            for (i in 0 until 5) drawRoundRect(Color.White.copy(alpha = if (i == 0) 0.55f else 0.22f), androidx.compose.ui.geometry.Offset(w * (0.06f + i * 0.18f), h * 0.68f), androidx.compose.ui.geometry.Size(w * 0.15f, h * 0.24f), androidx.compose.ui.geometry.CornerRadius(h * 0.06f))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(name, fontSize = TextSize.Small, color = if (chosen) ZappColors.Text else ZappColors.Dim, fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
             }
         }
     }

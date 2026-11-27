@@ -9,6 +9,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.input.key.Key
@@ -60,7 +63,97 @@ class ScreensTest {
         File(dir, "$name.png").outputStream().use { bmp!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun settings(section: String, downs: Int) {
+    /** A made-up colourful picture standing in for artwork (nothing loads from the internet here). */
+    private fun fakeArt(w: Int, h: Int): Bitmap {
+        val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(b)
+        val p = android.graphics.Paint()
+        p.shader = android.graphics.LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), intArrayOf(0xFF1B3A6B.toInt(), 0xFFB0413E.toInt(), 0xFFE8A33D.toInt()), null, android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+        p.shader = android.graphics.RadialGradient(w * 0.72f, h * 0.3f, h * 0.5f, 0xCCFFF1C9.toInt(), 0x00FFF1C9, android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), p)
+        p.shader = null
+        p.color = 0xFF0E1A2E.toInt()
+        c.drawCircle(w * 0.3f, h * 1.05f, h * 0.55f, p)
+        return b
+    }
+
+    private fun glass(on: Boolean) {
+        FocusStyle.glass = on
+        GlassScene.image = if (on) fakeArt(64, 36).asImageBitmap() else null
+    }
+
+    @Test fun glassAppearance() {
+        glass(true)
+        try { settings("Appearance", 0, "glass-") } finally { glass(false) }
+    }
+
+    @Test fun glassHome() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        glass(true)
+        try {
+            rule.mainClock.autoAdvance = false
+            val art = fakeArt(960, 540).asImageBitmap()
+            val cardFocus = androidx.compose.ui.focus.FocusRequester()
+            rule.setContent {
+                ZappTheme {
+                    Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
+                        AmbientBackground()
+                        androidx.compose.foundation.Image(art, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0.5f to androidx.compose.ui.graphics.Color.Transparent, 0.85f to ZappColors.Bg.copy(alpha = 0.6f))))
+                        androidx.compose.foundation.layout.Column(Modifier.padding(start = 72.dp, top = 250.dp)) {
+                            androidx.compose.foundation.layout.Column(
+                                Modifier
+                                    .glass(Shapes.Panel, elevation = 20.dp)
+                                    .padding(horizontal = 20.dp, vertical = 18.dp)
+                                    .width(380.dp),
+                            ) {
+                                androidx.compose.material3.Text("FILM  ·  TRENDING", fontSize = TextSize.Tag, color = ZappColors.Faint)
+                                androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+                                MovieTitle("The Long Winter", 30.sp, maxLines = 1)
+                                androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
+                                androidx.compose.material3.Text("2026  ·  ★ 7.9  ·  2h 4m  ·  Drama", fontSize = TextSize.Small, color = ZappColors.Text)
+                                androidx.compose.foundation.layout.Spacer(Modifier.height(9.dp))
+                                androidx.compose.material3.Text("A lighthouse keeper and her estranged son ride out the longest night of the year as a storm cuts the island off.", fontSize = TextSize.Small, color = ZappColors.Dim, maxLines = 3)
+                            }
+                            androidx.compose.foundation.layout.Spacer(Modifier.height(22.dp))
+                            androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) {
+                                repeat(5) { i ->
+                                    FocusSurface(
+                                        onClick = {},
+                                        modifier = Modifier.width(170.dp).height(96.dp),
+                                        focusRequester = if (i == 1) cardFocus else null,
+                                        ring = true,
+                                    ) {
+                                        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(androidx.compose.ui.graphics.Color(0xFF2B4A7A + i * 0x101010L), androidx.compose.ui.graphics.Color(0xFF7A3B2B)))))
+                                    }
+                                }
+                            }
+                        }
+                        GlassTabBar(
+                            locked = false,
+                            dests = Dest.entries,
+                            profile = null,
+                            onProfiles = {},
+                            current = Dest.Home,
+                            updateReady = true,
+                            railFocus = remember { androidx.compose.ui.focus.FocusRequester() },
+                            open = true,
+                            onOpenChange = {},
+                            onDown = {},
+                            onSelect = {},
+                        )
+                    }
+                }
+            }
+            rule.mainClock.advanceTimeBy(1500)
+            rule.runOnUiThread { cardFocus.requestFocus() }
+            rule.mainClock.advanceTimeBy(1200)
+            save("glass-home")
+        } finally { glass(false) }
+    }
+
+    private fun settings(section: String, downs: Int, prefix: String = "") {
         assumeTrue(System.getenv("SCREENS") == "1")
         val app = RuntimeEnvironment.getApplication() as ZappApp
         val vm = AppViewModel(app)
@@ -84,7 +177,7 @@ class ScreensTest {
         key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
         repeat(downs) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
         rule.mainClock.advanceTimeBy(800)
-        save("settings-$section")
+        save("${prefix}settings-$section")
     }
 
     @Test fun profiles() = settings("Profiles", 1)

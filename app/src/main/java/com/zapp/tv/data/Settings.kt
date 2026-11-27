@@ -562,6 +562,11 @@ class Settings(context: Context) {
     var gloss: Boolean
         get() = glossState.value
         set(value) { glossState.value = value; prefs.edit().putBoolean("gloss", value).apply(); com.zapp.tv.ui.FocusStyle.gloss = value }
+    private val uiStyleState = mutableIntStateOf(prefs.getInt("uiStyle", 0))
+    /** 0 Original, 1 Glass. */
+    var uiStyle: Int
+        get() = uiStyleState.intValue
+        set(value) { uiStyleState.intValue = value; prefs.edit().putInt("uiStyle", value).apply(); com.zapp.tv.ui.FocusStyle.glass = value == 1 }
     private val seasonalTouchesState = mutableStateOf(prefs.getBoolean("seasonalTouches", true))
     /** Snow, a warm glow and gold edges on the seasonal row (Christmas and other times of year). */
     var seasonalTouches: Boolean
@@ -578,6 +583,7 @@ class Settings(context: Context) {
         set(value) { glowLevelState.intValue = value; prefs.edit().putInt("glowLevel", value).apply(); com.zapp.tv.ui.FocusStyle.glowLevel = value }
 
     init {
+        com.zapp.tv.ui.FocusStyle.glass = prefs.getInt("uiStyle", 0) == 1
         com.zapp.tv.ui.FocusStyle.ringWidth = ringWidthFor(prefs.getInt("focusRing", 1))
         com.zapp.tv.ui.FocusStyle.glow = prefs.getBoolean("focusGlow", true)
         com.zapp.tv.ui.FocusStyle.artGlow = prefs.getBoolean("artGlow", true)

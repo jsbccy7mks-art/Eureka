@@ -423,6 +423,10 @@ fun PlayerOverlay(
 
 @Composable
 internal fun BottomScrim(content: @Composable () -> Unit) {
+    if (glassOn) {
+        GlassPlayerPane(content)
+        return
+    }
     Box(
         Modifier
             .fillMaxWidth()

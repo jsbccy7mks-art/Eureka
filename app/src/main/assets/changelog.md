@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.56.0
+
+**New**
+- A second style for the whole app: Glass (Settings, Appearance, Style). Panes of frosted glass
+  that take their colours from the picture behind them, with a bright edge where the light
+  catches them, floating over full-screen artwork. Original stays exactly as it is.
+- In Glass there's no sidebar: a glass bar across the top takes you around (Search, Home, Movies,
+  Series, Library, Collections, Live TV, Settings and your profile). It shows when you go to it
+  (Up from the top of a page, or Back) and fades away as you go back down, so it never covers
+  anything while you browse. The highlight slides from tab to tab like a drop of liquid.
+- Glass cards lift towards you when you land on them, lean a touch and catch a sweep of light.
+- Home, Movies and Series: the picture runs edge to edge and the details sit on a pane of glass.
+  Details pages fill the screen with the title's picture, the title and buttons on glass. The
+  player's controls float in a smoked glass panel. Settings, menus and pop-ups are glass too.
+- Your month (when it's ready) is in the bar in Glass, instead of by the clock.
+
 ## 0.55.0
 
 **Improved**

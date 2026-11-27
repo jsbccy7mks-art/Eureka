@@ -218,7 +218,7 @@ private fun GuideLinkDialog(vm: AppViewModel, item: PlaylistItem, onClose: () ->
             Modifier
                 .width(480.dp)
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel)
+                .panelSurface()
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -397,7 +397,7 @@ fun PlaylistForm(
                 .fillMaxHeight()
                 .padding(vertical = 28.dp)
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel),
+                .panelSurface(),
         ) {
             Column(
                 Modifier

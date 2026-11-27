@@ -164,7 +164,7 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
                 Modifier
                     .width(440.dp)
                     .clip(Shapes.Panel)
-                    .background(ZappColors.Panel)
+                    .panelSurface()
                     .padding(horizontal = 14.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

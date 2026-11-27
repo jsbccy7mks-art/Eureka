@@ -230,7 +230,20 @@ fun FocusSurface(
     val lift by animateFloatAsState(if (ring && focused) 1f else 0f, tween(160), label = "lift")
     // Card style (Appearance): square corners, or a thin border at rest.
     val isCard = ring && ringCorner <= 14.dp // cards, not round swatches
-    val corner = if (isCard && FocusStyle.cardStyle == 1) 3.dp else ringCorner
+    val glass = FocusStyle.glass && isCard
+    val corner = when {
+        isCard && FocusStyle.cardStyle == 1 -> 3.dp
+        glass -> 16.dp
+        else -> ringCorner
+    }
+    // Glass: the focused card lifts towards you, leans a touch and a band of light sweeps across it.
+    val sheen = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(focused, glass) {
+        if (glass && focused) {
+            sheen.snapTo(0f)
+            sheen.animateTo(1f, tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+    }
     val cardShape = if (isCard) RoundedCornerShape(corner) else shape
     val fill by animateColorAsState(
         when {
@@ -288,7 +301,24 @@ fun FocusSurface(
                 }
             }
             .focusable()
+            // (Inside the focus node, so the lean never changes where focus thinks the card is.)
+            .then(
+                if (glass) Modifier.graphicsLayer {
+                    val k = 1f + 0.075f * ringAlpha
+                    scaleX = k
+                    scaleY = k
+                    rotationX = 3f * ringAlpha
+                    rotationY = -4f * ringAlpha
+                    cameraDistance = 14f * density
+                } else Modifier,
+            )
             .drawWithContent {
+                if (glass) {
+                    drawLiftShadow(corner.toPx(), lift)
+                    drawContent()
+                    drawGlassCard(corner.toPx(), ringAlpha, sheen.value)
+                    return@drawWithContent
+                }
                 // The glow sits behind the card; the ring on top of it.
                 if (ring) drawLiftShadow(corner.toPx(), lift)
                 if (ring && ringAlpha > 0.01f) drawFocusGlow(corner.toPx(), pulse.value, ringAlpha)
@@ -346,6 +376,8 @@ object FocusStyle {
     var glowLevel by mutableStateOf(1)
     /** A soft, still gloss over the top half of cards, like light on glass. */
     var gloss by mutableStateOf(true)
+    /** The Glass style (Settings, Appearance, Style). */
+    var glass by mutableStateOf(false)
 }
 
 /**
@@ -371,6 +403,50 @@ fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGloss(corner: Float, st
         Brush.verticalGradient(0f to Color.White.copy(alpha = 0.22f * strength), 0.12f to Color.Transparent, endY = h),
         cornerRadius = r,
         style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+    )
+}
+
+/**
+ * A glass card: a bright specular edge (stronger when focused), the light from the top left, and
+ * when focused a band of light sweeping across once ([sweep] 0..1).
+ */
+fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlassCard(corner: Float, focus: Float, sweep: Float) {
+    val w = size.width
+    val h = size.height
+    val r = androidx.compose.ui.geometry.CornerRadius(corner)
+    drawRoundRect(
+        Brush.linearGradient(
+            0f to Color.White.copy(alpha = 0.16f + 0.08f * focus),
+            0.4f to Color.White.copy(alpha = 0.03f),
+            1f to Color.Transparent,
+            start = Offset(0f, 0f),
+            end = Offset(w * 0.6f, h * 0.6f),
+        ),
+        cornerRadius = r,
+    )
+    if (focus > 0.01f && sweep in 0.001f..0.999f) {
+        val clip = androidx.compose.ui.graphics.Path().apply { addRoundRect(androidx.compose.ui.geometry.RoundRect(0f, 0f, w, h, r)) }
+        androidx.compose.ui.graphics.drawscope.clipPath(clip) {
+            val x = -w + sweep * w * 3f
+            drawRect(
+                Brush.linearGradient(
+                    listOf(Color.Transparent, Color.White.copy(alpha = 0.32f * focus), Color.Transparent),
+                    start = Offset(x, 0f),
+                    end = Offset(x + w * 0.5f, h * 0.5f),
+                ),
+            )
+        }
+    }
+    drawRoundRect(
+        Brush.linearGradient(
+            0f to Color.White.copy(alpha = 0.45f + 0.5f * focus),
+            0.5f to Color.White.copy(alpha = 0.10f + 0.6f * focus),
+            1f to Color.White.copy(alpha = 0.25f + 0.55f * focus),
+            start = Offset(0f, 0f),
+            end = Offset(w, h),
+        ),
+        cornerRadius = r,
+        style = androidx.compose.ui.graphics.drawscope.Stroke((1f + 1f * focus).dp.toPx()),
     )
 }
 
@@ -475,7 +551,13 @@ fun ZButton(
         // Always the same modifiers (only the colour changes), so focus is never lost by rebuilding them.
         modifier = modifier.border(
             1.dp,
-            if (!isFocused && style != ButtonStyle.Primary && style != ButtonStyle.Quiet) Color(0x2EFFFFFF) else Color.Transparent,
+            when {
+                isFocused -> Color.Transparent
+                // Glass: every button is a little pill of frosted glass with a bright rim.
+                FocusStyle.glass -> Color(0x33FFFFFF)
+                style != ButtonStyle.Primary && style != ButtonStyle.Quiet -> Color(0x2EFFFFFF)
+                else -> Color.Transparent
+            },
             RoundedCornerShape(50),
         ),
         focusRequester = focusRequester,
@@ -485,8 +567,10 @@ fun ZButton(
         },
         shape = RoundedCornerShape(50),
         focusScale = 1.03f,
-        restColor = when (style) {
-            ButtonStyle.Primary -> Color(0x2EFFFFFF)
+        restColor = when {
+            FocusStyle.glass && style == ButtonStyle.Primary -> Color(0x40FFFFFF)
+            FocusStyle.glass -> Color(0x1CFFFFFF)
+            style == ButtonStyle.Primary -> Color(0x2EFFFFFF)
             else -> Color.Transparent
         },
     ) { focused ->
@@ -658,7 +742,8 @@ fun KeyHint(key: String, label: String) {
 @Composable
 fun Panel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
-        modifier
+        if (FocusStyle.glass) modifier.glass(Shapes.Panel, elevation = 8.dp).clip(Shapes.Panel)
+        else modifier
             .clip(Shapes.Panel)
             .background(ZappColors.Glass)
             .border(1.dp, Color(0x0FFFFFFF), Shapes.Panel),
@@ -670,6 +755,10 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
 /** The page colour with the theme's glow: its first colour top left, melting into the second bottom right. */
 @Composable
 fun AmbientBackground() {
+    if (FocusStyle.glass) {
+        GlassBackground()
+        return
+    }
     Canvas(Modifier.fillMaxSize()) {
         drawRect(ZappColors.Bg)
     }
@@ -943,7 +1032,7 @@ fun BusyOverlay(message: String) {
         Row(
             modifier = Modifier
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel)
+                .panelSurface()
                 .padding(horizontal = 26.dp, vertical = 20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

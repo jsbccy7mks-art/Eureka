@@ -365,7 +365,9 @@ fun CollectionScreen(
         // A blurred wash of the collection's colours, then the focused film's backdrop drifting over it.
         val part = c?.parts?.getOrNull(index)
         BlurredBackdrop(c?.backdrop ?: c?.poster, dim = 0.5f)
-        Crossfade(targetState = part?.item?.backdrop ?: c?.backdrop, animationSpec = tween(700), label = "colBg", modifier = Modifier.fillMaxSize()) { u ->
+        val partArt = part?.item?.backdrop ?: c?.backdrop
+        LaunchedEffect(partArt) { if (glassOn && partArt != null) GlassScene.url = partArt }
+        Crossfade(targetState = partArt, animationSpec = tween(700), label = "colBg", modifier = Modifier.fillMaxSize()) { u ->
             if (u != null) {
                 AsyncImage(model = hiRes(u), contentDescription = null, contentScale = ContentScale.Crop, alpha = 0.42f, modifier = Modifier.fillMaxSize().drift())
             }
@@ -710,6 +712,7 @@ fun CollectionsHome(mvm: MediaViewModel, focusTick: Int, onOpen: (Long) -> Unit)
                     )
                 },
         ) {
+            LaunchedEffect(shown?.backdrop) { if (glassOn) shown?.backdrop?.let { GlassScene.url = it } }
             Crossfade(targetState = shown?.backdrop, animationSpec = tween(650), label = "colsBg", modifier = Modifier.fillMaxSize()) { u ->
                 if (u != null) AsyncImage(model = hiRes(u), contentDescription = null, contentScale = ContentScale.Crop, alpha = 0.75f, modifier = Modifier.fillMaxSize().drift())
             }
@@ -837,7 +840,7 @@ private fun TunePicker(
             Modifier
                 .width(480.dp)
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel)
+                .panelSurface()
                 .padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -871,7 +874,7 @@ private fun CollectionMenu(mvm: MediaViewModel, c: MediaViewModel.CollectionSumm
             Modifier
                 .width(440.dp)
                 .clip(Shapes.Panel)
-                .background(ZappColors.Panel)
+                .panelSurface()
                 .padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
