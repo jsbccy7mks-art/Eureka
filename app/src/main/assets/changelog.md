@@ -2,6 +2,10 @@
 
 ## 0.59.2
 
+**Fixed**
+- Axon could close when switching to a profile with nothing in Continue watching yet (a new kids
+  profile, for example).
+
 **Changed**
 - Settings: Right from a section always goes to the top of its list, not to whatever is level
   with the section you were on.

@@ -206,7 +206,7 @@ fun HomeScreen(
         val first = rows.firstOrNull()
         val start = when {
             first == null -> null
-            first.id == CONTINUE_ROW -> HomeFocus(first.id, continueItems.first().videoId)
+            first.id == CONTINUE_ROW -> HomeFocus(first.id, continueItems.firstOrNull()?.videoId.orEmpty())
             else -> HomeFocus(first.id, "")
         }
         val target = when {
@@ -223,9 +223,9 @@ fun HomeScreen(
     var topTick by remember { mutableIntStateOf(0) }
     val atTop = lastFocus == null || lastFocus?.rowKey == rows.firstOrNull()?.id
     androidx.activity.compose.BackHandler(enabled = !atTop && rows.isNotEmpty()) {
-        val first = rows.first()
+        val first = rows.firstOrNull() ?: return@BackHandler
         topTick++
-        pending = if (first.id == CONTINUE_ROW) HomeFocus(first.id, continueItems.first().videoId) else HomeFocus(first.id, "")
+        pending = if (first.id == CONTINUE_ROW) HomeFocus(first.id, continueItems.firstOrNull()?.videoId.orEmpty()) else HomeFocus(first.id, "")
     }
 
     ImmersiveLayout(
@@ -562,7 +562,7 @@ private fun ContinueRow(
             ) {
                 itemsIndexed(items, key = { _, it -> it.videoId }) { index, p ->
                     val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
-                    if (pendingId == p.videoId) {
+                    if (pendingId == p.videoId || (pendingId == "" && index == 0)) {
                         LaunchedEffect(Unit) {
                             requester.tryRequest()
                             onPendingDone()
