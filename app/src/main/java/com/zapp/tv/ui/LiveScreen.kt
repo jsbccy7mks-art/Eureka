@@ -295,7 +295,8 @@ fun LiveScreen(
                         state = categoryState,
                         selectedRequester = categoryFocus,
                         modifier = Modifier.weight(1f),
-                        onFocus = { if (it.id != HIDDEN_CATEGORIES) focusedCategory = CategoryKey(it.id) },
+                        // The Hidden categories line isn't a list of its own: resting on it changes nothing.
+                        onFocus = { focusedCategory = if (it.id == HIDDEN_CATEGORIES) null else CategoryKey(it.id) },
                         // OK opens the category: the list takes over the screen.
                         onPick = { item -> openCategory(item.id) },
                     )
