@@ -598,12 +598,17 @@ fun DetailScreen(
                                 )
                                 Spacer(Modifier.height(10.dp))
                                 val memory = rememberFocusMemory()
-                                PivotScrolling(56.dp) {
+                                // Like a row on Home: same-sized cards, the one you're on held at the
+                                // left edge as the row glides along under it.
+                                val extra = EpisodeCardWidth + 24.dp
+                                RowScrolling(56.dp + extra) {
                                     LazyRow(
-                                        modifier = Modifier.restoreFocus(memory),
+                                        modifier = Modifier
+                                            .extendLeft(extra)
+                                            .fadeLeftOf(extra + 56.dp)
+                                            .restoreFocus(memory),
                                         horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        contentPadding = PaddingValues(horizontal = 56.dp),
-                                        verticalAlignment = Alignment.Bottom,
+                                        contentPadding = PaddingValues(start = 56.dp + extra, end = 56.dp),
                                     ) {
                                         items(episodes, key = { it.id }) { v ->
                                             val p = progress.firstOrNull { it.videoId == v.id }
@@ -1254,65 +1259,57 @@ private fun seasonsOf(videos: List<Video>): List<Int> =
 
 private fun seasonName(s: Int) = if (s == 0) "Specials" else "Season $s"
 
+/** Episode cards on the details page: the size of Home's large wide cards. */
+private val EpisodeCardWidth = 248.dp
+
+/**
+ * An episode, like a card on Home: the same size focused or not (only the ring and glow show where
+ * you are), its number and title underneath, and the same marks (a bar for how far you got, a
+ * tick when watched).
+ */
 @Composable
 private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext: Boolean = false, onFocus: () -> Unit = {}, rating: Double? = null, shield: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    // The card you're on grows; the others stay compact.
-    val w by androidx.compose.animation.core.animateDpAsState(if (focused) 290.dp else 190.dp, androidx.compose.animation.core.tween(220), label = "epw")
-    Column(Modifier.width(w)) {
+    Column(Modifier.width(EpisodeCardWidth)) {
         FocusSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            onFocusChange = {
-                focused = it
-                if (it) onFocus()
-            },
+            onFocusChange = { if (it) onFocus() },
             modifier = modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 9f),
-            shape = RoundedCornerShape(12.dp),
+                .aspectRatio(WideAspect),
+            shape = RoundedCornerShape(10.dp),
             focusScale = 1f,
             restColor = ZappColors.Glass,
             focusColor = ZappColors.Glass,
             ring = true,
-            ringCorner = 12.dp,
-        ) { f ->
-            // After a second on it, the still slowly pans, like the art behind Home.
-            var panning by remember { mutableStateOf(false) }
-            LaunchedEffect(f) {
-                panning = false
-                if (f) {
-                    kotlinx.coroutines.delay(1_000)
-                    panning = true
-                }
-            }
+        ) {
             if (shield) {
                 // Spoiler shield: a blur (on newer TVs) under a soft veil, so nothing gives the episode away.
                 Box(Modifier.fillMaxSize().then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(22.dp) else Modifier)) { Artwork(v.thumbnail, shortLabel(v)) }
                 Box(Modifier.fillMaxSize().background(if (android.os.Build.VERSION.SDK_INT >= 31) Color(0x55000000) else Color(0xD9101018)))
             } else {
-                Box(Modifier.fillMaxSize().then(if (panning) Modifier.drift() else Modifier)) { Artwork(v.thumbnail, shortLabel(v)) }
+                Artwork(v.thumbnail, shortLabel(v))
             }
-            if (f) {
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color(0xD9000000))))
-                Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
-                    Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = TextSize.Body, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        listOfNotNull(if (upNext) "Up next" else null, if (p?.watched == true) "Watched" else null, p?.takeIf { !it.watched && it.position > 30_000 }?.let { minutesLeft(it) }).joinToString("  ·  ").ifBlank { " " },
-                        fontSize = TextSize.Small,
-                        color = Color(0xCCFFFFFF),
-                    )
+            val fraction = p?.takeIf { !it.watched && it.duration > 0 && it.position > 30_000 }?.let { (it.position.toFloat() / it.duration).coerceIn(0f, 1f) }
+            if (fraction != null) {
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(34.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x8C000000)))))
+                val b1 = ZappColors.Brand1
+                val b2 = ZappColors.Brand2
+                androidx.compose.foundation.Canvas(Modifier.align(Alignment.BottomCenter).padding(start = 8.dp, end = 8.dp, bottom = 7.dp).fillMaxWidth().height(3.dp)) {
+                    val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2f)
+                    drawRoundRect(Color.White.copy(alpha = 0.28f), cornerRadius = r)
+                    drawRoundRect(Brush.horizontalGradient(listOf(b1, b2), startX = 0f, endX = size.width), size = androidx.compose.ui.geometry.Size(size.width * fraction.coerceAtLeast(0.04f), size.height), cornerRadius = r)
                 }
             }
-            if (p != null && !p.watched && p.duration > 0) {
-                ProgressLine(
-                    (p.position.toFloat() / p.duration).coerceIn(0f, 1f),
-                    Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
-                    track = Color(0x55FFFFFF),
-                )
-            }
             if (p?.watched == true) {
-                WatchedTick(Modifier.align(Alignment.TopEnd).padding(7.dp))
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0x8C0A0A12))
+                        .padding(3.dp),
+                ) { WatchedTick(size = 14.dp) }
             }
             // The episode's rating, tiny, top left.
             rating?.let { r ->
@@ -1326,11 +1323,19 @@ private fun EpisodeCard(v: Video, p: WatchProgress?, modifier: Modifier, upNext:
                 )
             }
         }
-        if (!focused) {
-            Spacer(Modifier.height(6.dp))
-            Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (upNext) "Up next" else v.released?.take(10).orEmpty(), fontSize = TextSize.Label, color = if (upNext) ZappColors.Brand2 else ZappColors.Faint, maxLines = 1)
-        }
+        Spacer(Modifier.height(7.dp))
+        Text((if (v.episode != null) "${v.episode}. " else "") + v.title.ifBlank { "Episode" }, fontSize = TextSize.Small, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            when {
+                upNext -> "Up next"
+                p?.watched == true -> "Watched"
+                p != null && p.position > 30_000 -> minutesLeft(p)
+                else -> v.released?.take(10).orEmpty()
+            },
+            fontSize = TextSize.Label,
+            color = if (upNext) ZappColors.Brand2 else ZappColors.Faint,
+            maxLines = 1,
+        )
     }
 }
 

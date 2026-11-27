@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.58.1
+
+**Changed**
+- Episodes on a details page work like a row on Home: every card the same size (the one you're on
+  no longer grows and pushes the others along), the focus ring and glow showing where you are, and
+  the row gliding along with the card you're on held at the left edge. Each card has its number,
+  title and date (or Up next, Watched, time left) underneath, and the same marks as posters.
+
 ## 0.58.0
 
 **New**
