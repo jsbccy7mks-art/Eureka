@@ -99,9 +99,9 @@ fun CollectionCard(
         val christmas = c.id in -304L..-301L
         // Christmas Classics: a warm, old-film look.
         CollectionArtwork(c, sepia = c.id == -301L)
-        if (christmas) ChristmasTouch(c.id)
         val titleTop = c.id == -303L // above the snow drifts
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(if (titleTop) 0f to Color(0xCC000000) else 0.35f to Color.Transparent, if (titleTop) 0.6f to Color.Transparent else 1f to Color(0xE6000000))))
+        if (christmas) ChristmasTouch(c.id)
         Column(Modifier.align(if (titleTop) Alignment.TopStart else Alignment.BottomStart).padding(12.dp)) {
             Text(
                 when {
