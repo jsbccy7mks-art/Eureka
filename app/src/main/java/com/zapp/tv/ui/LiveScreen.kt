@@ -303,7 +303,9 @@ fun LiveScreen(
                 .fillMaxHeight(),
         ) {
             Row(
-                Modifier.padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Text(

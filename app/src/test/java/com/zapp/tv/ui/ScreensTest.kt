@@ -55,7 +55,25 @@ class ScreensTest {
         var bmp: Bitmap? = null
         rule.runOnUiThread {
             val v = rule.activity.window.decorView
-            bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888).also { v.draw(android.graphics.Canvas(it)) }
+            bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888).also { b ->
+                val canvas = android.graphics.Canvas(b)
+                v.draw(canvas)
+                // Dialogs (menus, pop-ups) are windows of their own: drawn on top, centred, over a dim.
+                val extra = runCatching {
+                    val wmg = Class.forName("android.view.WindowManagerGlobal")
+                    val global = wmg.getMethod("getInstance").invoke(null)
+                    val f = wmg.getDeclaredField("mViews").apply { isAccessible = true }
+                    @Suppress("UNCHECKED_CAST")
+                    (f.get(global) as List<android.view.View>).filter { it !== v && it.isShown && it.width > 0 }
+                }.getOrDefault(emptyList())
+                extra.forEach { w ->
+                    canvas.drawColor(0x99000000.toInt())
+                    canvas.save()
+                    canvas.translate(((v.width - w.width) / 2).toFloat(), ((v.height - w.height) / 2).toFloat())
+                    w.draw(canvas)
+                    canvas.restore()
+                }
+            }
         }
         val dir = File("build/screens").apply { mkdirs() }
         File(dir, "$name.png").outputStream().use { bmp!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -285,6 +303,7 @@ class ScreensTest {
         settle(600)
         // The guide, and its category panel (Left from the channel column).
         guide.value = true
+        settle(1500)
         tick.intValue = 2
         settle(2500)
         save("guide")
