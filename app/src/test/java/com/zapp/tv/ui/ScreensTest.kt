@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -114,6 +117,31 @@ class ScreensTest {
         key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
         rule.mainClock.advanceTimeBy(2500)
         save("wrapped-3")
+    }
+
+    @Test fun collectionCards() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        rule.mainClock.autoAdvance = false
+        fun c(id: Long, name: String, kind: String, tint: Long = 0) = MediaViewModel.CollectionSummary(id, name, null, null, kind = kind, tint = tint)
+        rule.setContent {
+            ZappTheme {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(ZappColors.Bg).padding(40.dp)) {
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) {
+                        CollectionCard(c(-301, "Christmas Classics", "seasonal"), 220.dp) {}
+                        CollectionCard(c(-302, "Christmas Favourites", "seasonal"), 220.dp) {}
+                        CollectionCard(c(-303, "Family Christmas", "seasonal"), 220.dp) {}
+                    }
+                    androidx.compose.foundation.layout.Spacer(Modifier.height(20.dp))
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) {
+                        CollectionCard(c(-304, "Christmas Comedies", "seasonal"), 220.dp) {}
+                        CollectionCard(c(-200008, "Netflix", "network", 0xFFE50914), 220.dp) {}
+                        CollectionCard(c(-200009, "Prime Video", "network", 0xFF00A8E1), 220.dp) {}
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeBy(1500)
+        save("collection-cards")
     }
 
     @Test fun app() {
