@@ -397,18 +397,33 @@ fun VodPlayer(
         barTick++
     }
 
+    // While the player is open, focus never stays outside it (something underneath, say Home's
+    // Continue watching updating as you pause, could otherwise take it, and the remote would then
+    // work the page underneath instead).
+    var holdsFocus by remember { mutableStateOf(true) }
+    LaunchedEffect(holdsFocus) {
+        if (holdsFocus) return@LaunchedEffect
+        delay(60)
+        if (!holdsFocus) focus.tryRequest()
+    }
     Box(
         Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onFocusChanged { holdsFocus = it.hasFocus }
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) lastKey[0] = System.currentTimeMillis()
+                // Back with nothing open leaves the player, straight away, whatever else is on screen.
+                if (it.key == Key.Back && panel == VodPanel.None && !endScreen) {
+                    if (it.type == KeyEventType.KeyUp) close()
+                    return@onPreviewKeyEvent true
+                }
                 false
             }
             .onKeyEvent { e ->
                 // The controls are up but focus slipped out of them (a panel closed under it, say):
-                // any arrow or OK puts it back on the controls instead of doing nothing.
-                if (rootFocused && panel == VodPanel.Controls && e.type == KeyEventType.KeyDown) {
+                // an arrow or OK puts it back on the controls instead of doing nothing. (Never Back.)
+                if (rootFocused && panel == VodPanel.Controls && e.type == KeyEventType.KeyDown && e.key in NavKeys) {
                     controlsEntry.tryRequest()
                     return@onKeyEvent true
                 }
@@ -764,6 +779,12 @@ fun VodPlayer(
         }
     }
 }
+
+private val NavKeys = setOf(
+    androidx.compose.ui.input.key.Key.DirectionUp, androidx.compose.ui.input.key.Key.DirectionDown,
+    androidx.compose.ui.input.key.Key.DirectionLeft, androidx.compose.ui.input.key.Key.DirectionRight,
+    androidx.compose.ui.input.key.Key.DirectionCenter, androidx.compose.ui.input.key.Key.Enter, androidx.compose.ui.input.key.Key.NumPadEnter,
+)
 
 @Composable
 private fun VodTopBar(playback: Playback) {

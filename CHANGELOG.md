@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.59.1
+
+**Fixed**
+- Back sometimes wouldn't leave the player (after pausing, for example). Two things could get in
+  the way: the page underneath could take the remote's focus while the player was open (Home's
+  Continue watching updating as you pause), and a safety net added in 0.58.0 could swallow Back.
+  The player now keeps focus for as long as it's open, Back with nothing open leaves it straight
+  away, and the safety net never touches Back. Films, episodes and Live TV.
+
 ## 0.59.0
 
 **New**

@@ -87,6 +87,7 @@ import kotlinx.coroutines.launch
 private val ZapUp = setOf(Key.DirectionUp, Key.ChannelDown)
 private val ZapDown = setOf(Key.DirectionDown, Key.ChannelUp)
 private val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
+private val LiveNavKeys = setOf(Key.DirectionUp, Key.DirectionDown, Key.DirectionLeft, Key.DirectionRight) + SelectKeys
 
 private enum class PlayerPanel { None, Controls, Channels, Audio, Subtitles, Details, MiniGuide }
 
@@ -205,11 +206,24 @@ fun PlayerOverlay(
         }
     }
 
+    // While the player is open, focus never stays outside it.
+    var holdsFocus by remember { mutableStateOf(true) }
+    LaunchedEffect(holdsFocus) {
+        if (holdsFocus) return@LaunchedEffect
+        delay(60)
+        if (!holdsFocus) focus.tryRequest()
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onFocusChanged { holdsFocus = it.hasFocus }
             .onPreviewKeyEvent {
+                // Back with nothing open leaves the player, straight away, whatever else is on screen.
+                if (it.key == Key.Back && panel == PlayerPanel.None) {
+                    if (it.type == KeyEventType.KeyUp) onClose()
+                    return@onPreviewKeyEvent true
+                }
                 // Any key while a panel is open keeps the controls from hiding; channel keys always zap.
                 if (it.type == KeyEventType.KeyDown) {
                     lastKey[0] = System.currentTimeMillis()
@@ -223,7 +237,7 @@ fun PlayerOverlay(
             .onKeyEvent { e ->
                 // The controls are up but focus slipped out of them (a panel closed under it, say):
                 // any key puts it back on the controls instead of doing nothing.
-                if (rootFocused && panel == PlayerPanel.Controls && e.type == KeyEventType.KeyDown) {
+                if (rootFocused && panel == PlayerPanel.Controls && e.type == KeyEventType.KeyDown && e.key in LiveNavKeys) {
                     controlsEntry.tryRequest()
                     return@onKeyEvent true
                 }
