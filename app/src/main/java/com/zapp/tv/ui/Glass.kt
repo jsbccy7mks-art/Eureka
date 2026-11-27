@@ -58,6 +58,8 @@ object GlassScene {
     var image by mutableStateOf<ImageBitmap?>(null)
     /** The picture before, for a gentle cross-fade. */
     var previous by mutableStateOf<ImageBitmap?>(null)
+    /** How bright the picture is (0 to 1): bright pictures get a deeper tint, so text stays easy to read. */
+    var brightness by mutableStateOf(0f)
 }
 
 /** In Glass there's no sidebar: pages sit this far in from the left edge. */
@@ -89,7 +91,17 @@ fun GlassSceneLoader() {
         val soft = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { soften(bmp) }
         GlassScene.previous = GlassScene.image
         GlassScene.image = soft.asImageBitmap()
+        GlassScene.brightness = brightnessOf(soft)
     }
+}
+
+/** The average brightness of a (tiny) picture, 0 to 1. */
+fun brightnessOf(b: android.graphics.Bitmap): Float {
+    val px = IntArray(b.width * b.height)
+    b.getPixels(px, 0, b.width, 0, 0, b.width, b.height)
+    var sum = 0.0
+    for (c in px) sum += (0.2126 * ((c shr 16) and 0xFF) + 0.7152 * ((c shr 8) and 0xFF) + 0.0722 * (c and 0xFF)) / 255.0
+    return (sum / px.size.coerceAtLeast(1)).toFloat()
 }
 
 /** A few passes of box blur on the tiny picture, so it stretches to the screen silky smooth. */
@@ -152,8 +164,8 @@ fun GlassBackground() {
 fun Modifier.glass(
     shape: Shape = Shapes.Panel,
     sample: Boolean = true,
-    dark: Float = 0.24f,
-    frost: Float = 0.09f,
+    dark: Float = 0.3f,
+    frost: Float = 0.07f,
     elevation: androidx.compose.ui.unit.Dp = 14.dp,
     /** The tint for panes that don't show the scene ([sample] false). */
     fill: Color = Color(0xE6161722),
@@ -161,6 +173,8 @@ fun Modifier.glass(
     val view = LocalView.current
     var pos by remember { mutableStateOf(Offset.Zero) }
     val scene = if (sample) GlassScene.image else null
+    // Brighter pictures: a deeper tint, so the text on the glass always reads.
+    val shade = (dark + 0.45f * (GlassScene.brightness - 0.22f).coerceAtLeast(0f)).coerceAtMost(0.72f)
     val b1 = ZappColors.Brand1
     val b2 = ZappColors.Brand2
     this
@@ -187,7 +201,7 @@ fun Modifier.glass(
                             dstSize = IntSize(view.width, view.height),
                             filterQuality = FilterQuality.Low,
                         )
-                        drawRect(Color.Black.copy(alpha = dark))
+                        drawRect(Color.Black.copy(alpha = shade))
                     } else if (sample) {
                         drawRect(Brush.linearGradient(listOf(b1.copy(alpha = 0.30f), b2.copy(alpha = 0.22f)), start = Offset(-pos.x, -pos.y), end = Offset(view.width - pos.x, view.height - pos.y)))
                         drawRect(Color.Black.copy(alpha = dark + 0.1f))

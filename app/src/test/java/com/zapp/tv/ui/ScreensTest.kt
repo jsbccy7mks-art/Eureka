@@ -80,7 +80,9 @@ class ScreensTest {
 
     private fun glass(on: Boolean) {
         FocusStyle.glass = on
-        GlassScene.image = if (on) fakeArt(64, 36).asImageBitmap() else null
+        val art = fakeArt(64, 36)
+        GlassScene.image = if (on) art.asImageBitmap() else null
+        GlassScene.brightness = if (on) brightnessOf(art) else 0f
     }
 
     @Test fun glassAppearance() {
