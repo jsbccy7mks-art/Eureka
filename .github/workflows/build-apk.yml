@@ -60,7 +60,7 @@ jobs:
         continue-on-error: true
         run: |
           [ -d app/build/screens ] || exit 0
-          mkdir -p /tmp/s && cp app/build/screens/*.png /tmp/s/
+          mkdir -p /tmp/s && cp app/build/screens/* /tmp/s/
           cd /tmp/s
           git init -q && git checkout -q -b screens
           git -c user.name=ci -c user.email=ci@localhost add -A
