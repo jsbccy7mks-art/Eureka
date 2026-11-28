@@ -465,12 +465,17 @@ fun ZappRoot(vm: AppViewModel) {
                         },
                         label = "page",
                     ) { shown ->
+                    // A page on its way out never takes focus back: it would pull the remote off the page
+                    // you've just opened, and then vanish, leaving nothing focused.
+                    val frozenTick = remember { IntArray(1) }
+                    if (shown == dest) frozenTick[0] = focusTick
+                    val pageTick = frozenTick[0]
                     if (launching && introHold) return@AnimatedContent
                     when (shown) {
                         Dest.Home -> HomeScreen(
                             vm = vm,
                             playback = playback,
-                            focusTick = focusTick,
+                            focusTick = pageTick,
                             mvm = mvm,
                             onOpenTitle = { openTitle(it) },
                             onResume = { p ->
@@ -484,12 +489,12 @@ fun ZappRoot(vm: AppViewModel) {
                             onPlayChannel = { c -> watchChannel(c) },
                             onRateAFew = { rateAFew = true },
                         )
-                        Dest.Discover -> DiscoverScreen(mvm, focusTick, { openTitle(it) }) {
+                        Dest.Discover -> DiscoverScreen(mvm, pageTick, { openTitle(it) }) {
                             settingsSection = "Accounts"
                             open(Dest.Settings)
                         }
-                        Dest.Library -> LibraryScreen(mvm, focusTick, onOpenCollection = { collectionOpen = it }, onRateAFew = { rateAFew = true }) { openTitle(it) }
-                        Dest.Collections -> CollectionsHome(mvm, focusTick) { collectionOpen = it }
+                        Dest.Library -> LibraryScreen(mvm, pageTick, onOpenCollection = { collectionOpen = it }, onRateAFew = { rateAFew = true }) { openTitle(it) }
+                        Dest.Collections -> CollectionsHome(mvm, pageTick) { collectionOpen = it }
                         Dest.Live -> {
                             // Always opens on Channels.
                             var liveTab by remember { mutableStateOf("channels") }
@@ -498,7 +503,7 @@ fun ZappRoot(vm: AppViewModel) {
                             Column(Modifier.fillMaxSize()) {
                                 LiveTabsHeader(liveTab, vm.guideStatus) { liveTab = it; liveTick++ }
                                 // Focus goes into the tab's content on arrival and when you switch.
-                                val tick = focusTick + liveTick
+                                val tick = pageTick + liveTick
                                 when (liveTab) {
                                     "guide" -> GuideScreen(vm, tick, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
                                     "sports" -> SportsScreen(vm, tick, showHeader = false) { c -> watchChannel(c) }
@@ -506,13 +511,13 @@ fun ZappRoot(vm: AppViewModel) {
                                 }
                             }
                         }
-                        Dest.Search -> SearchScreen(vm, playback, focusTick, mvm, { openTitle(it) }) { watchChannel(it) }
+                        Dest.Search -> SearchScreen(vm, playback, pageTick, mvm, { openTitle(it) }) { watchChannel(it) }
                         Dest.Settings -> SettingsScreen(
                             mvm = mvm,
                             initialSection = settingsSection,
                             vm = vm,
                             playback = playback,
-                            focusTick = focusTick,
+                            focusTick = pageTick,
                             onForm = { form = it },
                             onWatchPlaylist = { id ->
                                 vm.selectPlaylist(id)

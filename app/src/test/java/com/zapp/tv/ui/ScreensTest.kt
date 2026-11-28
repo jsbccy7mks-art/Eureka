@@ -357,20 +357,15 @@ class ScreensTest {
         key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
         settle(1200)
         save("nav-3-categories")
-        // Up to the header, then along it to its Settings button and back.
-        key(android.view.KeyEvent.KEYCODE_DPAD_UP)
-        settle(500)
-        save("nav-3a-up")
-        repeat(4) { i ->
-            key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-            settle(500)
-            save("nav-3b-right-$i")
-        }
+        // Right on a category opens it (OK does the same).
         key(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
-        settle(800)
-        save("nav-3c-down")
+        settle(200)
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle(1500)
+        save("nav-3a-right-opens")
         key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
-        settle(800)
+        settle(1200)
+        // The sidebar's Settings, from the categories.
         key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
         settle(600)
         key(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
@@ -382,38 +377,39 @@ class ScreensTest {
         key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
         settle(1500)
         save("nav-6-after-right")
-        // Settings, Live TV: open Categories, use a row, then leave and come back in.
+    }
+
+    /** Live TV's header Settings button, with the categories showing. */
+    @Test fun liveHeaderSettings() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        val app = RuntimeEnvironment.getApplication() as ZappApp
+        seedLive(app)
+        val vm = AppViewModel(app)
+        vm.settings.preview = false
+        rule.mainClock.autoAdvance = false
+        rule.setContent { ZappTheme { ZappRoot(vm) } }
+        settle(9000)
         key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
         settle(500)
-        repeat(6) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
-        settle(800)
-        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-        settle(800)
-        save("set-1-live")
         repeat(4) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
-        settle(500)
-        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
-        settle(1000)
-        save("set-2-open")
-        key(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
-        settle(500)
-        key(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
-        settle(500)
-        save("set-3-row")
-        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
-        settle(1000)
-        save("set-4-ok")
-        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-        settle(600)
-        save("set-5-right")
-        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
         settle(400)
+        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(3000)
         key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        settle(1200)
+        // From All channels: Up past Favourites and Recently watched to the header, then right to the end.
+        repeat(3) { key(android.view.KeyEvent.KEYCODE_DPAD_UP) }
+        settle(400)
+        save("hdr-0-up")
+        repeat(6) { key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT) }
         settle(600)
-        save("set-6-sections")
+        save("hdr-1-settings-button")
+        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(2500)
+        save("hdr-2-after-ok")
         key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
-        settle(1000)
-        save("set-7-back-in")
+        settle(1500)
+        save("hdr-3-after-right")
     }
 
     @Test fun playback() = settings("Playback", 4)

@@ -62,6 +62,7 @@ fun CategoryList(
     selectedRequester: FocusRequester,
     modifier: Modifier = Modifier,
     onFocus: (CategoryItem) -> Unit = {},
+    onMoving: (Boolean) -> Unit = {},
     onPick: (CategoryItem) -> Unit,
 ) {
     val memory = rememberFocusMemory()
@@ -71,6 +72,7 @@ fun CategoryList(
     var moving by remember { mutableStateOf<Long?>(null) }
     var refocus by remember { mutableStateOf<Long?>(null) }
     val shown = categories.filter { !it.hidden || showHidden }
+    LaunchedEffect(moving) { onMoving(moving != null) }
 
     // While a category is being moved, the list keeps it in view.
     LaunchedEffect(shown, moving) {

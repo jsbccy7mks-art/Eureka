@@ -105,6 +105,8 @@ fun LiveScreen(
     var wide by remember { mutableStateOf(vm.lastChannelUrl != null) }
     var categoryFocusWanted by remember { mutableStateOf(false) }
     var categoriesFocused by remember { mutableStateOf(false) }
+    var channelsFocused by remember { mutableStateOf(false) }
+    var categoryMoving by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<Pair<Int, ChannelRow>?>(null) }
     var moving by remember { mutableStateOf<String?>(null) }
 
@@ -121,7 +123,11 @@ fun LiveScreen(
         target?.tryRequest()
     }
 
-    /** Opens a category: the channel list takes over, from its first channel (or where you were, if it's the same one). */
+    /**
+     * Opens a category: the channel list takes over, from its first channel (or where you were, if
+     * it's the same one). A big list can take a moment, so it keeps trying until there's a channel
+     * to land on; an empty one says so rather than doing nothing.
+     */
     fun openCategory(id: Long?) {
         val changed = id != scope.categoryId
         vm.selectCategory(id)
@@ -130,8 +136,12 @@ fun LiveScreen(
                 listState.scrollToItem(0)
                 channelMemory.last = 0
             }
-            delay(30)
-            focusChannels()
+            repeat(25) { attempt ->
+                delay(if (attempt == 0) 30 else 80)
+                if (channelsFocused) return@launch
+                focusChannels()
+            }
+            if (!channelsFocused && rows.itemCount == 0) vm.showToast("No channels here")
         }
     }
 
@@ -246,11 +256,10 @@ fun LiveScreen(
                             if (it.hasFocus) wide = false
                         }
                         .onPreviewKeyEvent { e ->
-                            // Right on a category opens it straight away (not after the preview pause).
-                            if (e.key != Key.DirectionRight || e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            // Right on a category opens it, like OK (straight away, not after the preview pause).
+                            if (e.key != Key.DirectionRight || categoryMoving) return@onPreviewKeyEvent false
                             val f = focusedCategory ?: return@onPreviewKeyEvent false
-                            if (f.id == scope.categoryId) return@onPreviewKeyEvent false
-                            openCategory(f.id)
+                            if (e.type == KeyEventType.KeyDown) openCategory(f.id)
                             true
                         },
                 ) {
@@ -297,6 +306,7 @@ fun LiveScreen(
                         modifier = Modifier.weight(1f),
                         // The Hidden categories line isn't a list of its own: resting on it changes nothing.
                         onFocus = { focusedCategory = if (it.id == HIDDEN_CATEGORIES) null else CategoryKey(it.id) },
+                        onMoving = { categoryMoving = it },
                         // OK opens the category: the list takes over the screen.
                         onPick = { item -> openCategory(item.id) },
                     )
@@ -341,7 +351,10 @@ fun LiveScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .restoreFocus(channelMemory)
-                        .onFocusChanged { if (it.hasFocus) wide = true }
+                        .onFocusChanged {
+                            channelsFocused = it.hasFocus
+                            if (it.hasFocus) wide = true
+                        }
                         .onPreviewKeyEvent { e ->
                             val m = moving
                             if (m != null) {
