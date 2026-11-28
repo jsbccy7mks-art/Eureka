@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
@@ -314,6 +315,9 @@ class ScreensTest {
 
     @Test fun tvGuide() {
         assumeTrue(System.getenv("SCREENS") == "1")
+        File("build/screens").mkdirs()
+        val log = java.io.PrintStream(File("build/screens/guide-log.txt"))
+        org.robolectric.shadows.ShadowLog.stream = log
         val app = RuntimeEnvironment.getApplication() as ZappApp
         seedLive(app)
         val vm = AppViewModel(app)
@@ -324,13 +328,22 @@ class ScreensTest {
             ZappTheme {
                 Box(Modifier.fillMaxSize().background(ZappColors.Bg)) {
                     AmbientBackground()
-                    Box(Modifier.fillMaxSize().padding(top = 56.dp)) { GuideScreen(vm, tick.intValue) {} }
+                    Box(Modifier.fillMaxSize().padding(top = 56.dp).onFocusChanged { android.util.Log.d("GF", "ROOT hasFocus=${it.hasFocus}") }) { GuideScreen(vm, tick.intValue) {} }
                 }
             }
         }
         settle(2500)
+        android.util.Log.d("GF", "---- tick 1")
         tick.intValue = 1
         settle(2500)
+        android.util.Log.d("GF", "---- RIGHT")
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle(1000)
+        android.util.Log.d("GF", "---- RIGHT")
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle(1000)
+        android.util.Log.d("GF", "---- end")
+        log.flush()
         // Only the look: focus inside the guide grid doesn't take in this test setup (it didn't before
         // 0.61.0 either), so moving around it isn't pictured.
         save("guide")

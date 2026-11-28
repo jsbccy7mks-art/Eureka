@@ -528,6 +528,7 @@ private fun GuideRow(
                     true
                 },
             onFocusChange = {
+                android.util.Log.d("GF", "channel '${row.channel.name}' focused=$it")
                 if (it) {
                     onChannelFocus()
                     onSelect(GuideSelection(row, null))
@@ -570,10 +571,12 @@ private fun GuideRow(
                 .fillMaxHeight(),
         ) {
             val visible = programmes.filter { it.stop > windowStart && it.start < windowEnd }
+            androidx.compose.runtime.SideEffect { if (row.channel.name == "One HD") android.util.Log.d("GF", "row One HD visible=${visible.size} progs=${programmes.size}") }
             if (visible.isEmpty()) {
                 val requester = remember { FocusRequester() }
                 if (pending != null && pending.channelId == channel.id) {
                     LaunchedEffect(pending) {
+                        android.util.Log.d("GF", "pending -> NO INFO cell on '${channel.name}'")
                         requester.tryRequest()
                         onPendingDone()
                     }
@@ -607,6 +610,7 @@ private fun GuideRow(
                         val requester = remember { FocusRequester() }
                         if (pending != null && pending.channelId == channel.id && pending.time >= p.start && pending.time < p.stop) {
                             LaunchedEffect(pending) {
+                                android.util.Log.d("GF", "pending -> '${p.title}' on '${channel.name}'")
                                 requester.tryRequest()
                                 onPendingDone()
                             }
@@ -707,7 +711,7 @@ private fun ProgrammeCell(
         onClick = onClick,
         modifier = modifier,
         focusRequester = requester,
-        onFocusChange = { if (it) onFocus() },
+        onFocusChange = { android.util.Log.d("GF", "cell '${programme.title}' focused=$it"); if (it) onFocus() },
         shape = RoundedCornerShape(9.dp),
         focusScale = 1f,
         // On now: a touch of the theme's colour; sport: a touch of green.
