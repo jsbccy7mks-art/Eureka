@@ -386,6 +386,8 @@ fun RowOptionsDialog(
     onRemoveTitle: (WatchProgress) -> Unit,
     onClose: () -> Unit,
     canHide: Boolean = true,
+    /** A Continue watching card was marked watched (it leaves the row). */
+    onMarkedWatched: (WatchProgress?) -> Unit = {},
 ) {
     val first = remember { FocusRequester() }
     var rowOpen by remember { mutableStateOf(meta == null) }
@@ -432,11 +434,17 @@ fun RowOptionsDialog(
                 if (episode != null) {
                     MenuItem("◉", "Mark ${episode.episodeLabel?.substringBefore(",") ?: "episode"} as watched", firstOnce()) {
                         mvm.markContinueWatched(episode)
+                        onMarkedWatched(episode)
                         onClose()
                     }
                 } else {
                     MenuItem(if (watched) "○" else "◉", if (watched) "Mark as unwatched" else "Mark as watched", firstOnce()) {
-                        if (progress != null) mvm.markContinueWatched(progress) else mvm.setWatched(meta, !watched)
+                        if (progress != null) {
+                            mvm.markContinueWatched(progress)
+                            onMarkedWatched(progress)
+                        } else {
+                            mvm.setWatched(meta, !watched)
+                        }
                         onClose()
                     }
                 }

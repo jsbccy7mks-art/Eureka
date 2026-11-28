@@ -1045,22 +1045,54 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         return if (found.size < 3) null else s.name to found.values.take(20).toList()
     }
 
-    /** Series in your library with an episode out in the last 10 days that you haven't watched. */
-    suspend fun newEpisodes(library: List<LibraryItem>): List<Pair<MetaPreview, String>> {
+    /** A card in the Up next row: the show, which episode, and its badge ("Up next", "New", "In 5 days"). */
+    data class UpNextItem(val meta: MetaPreview, val episode: String, val badge: String, val upcoming: Boolean)
+
+    /**
+     * Up next: one card per show. First the next episodes after ones you finished, then episodes
+     * out in the last 10 days that you haven't started, then episodes airing in the next two weeks
+     * (with when). Anything you've started is in Continue watching instead.
+     */
+    suspend fun upNext(library: List<LibraryItem>, queued: List<WatchProgress>): List<UpNextItem> {
         val now = System.currentTimeMillis()
-        val out = ArrayList<Pair<MetaPreview, String>>()
-        for (item in library.filter { it.type == "series" }.take(15)) {
-            val d = runCatching { repo.meta("series", item.metaId) }.getOrNull() ?: continue
-            val latest = d.videos.filter { (it.season ?: 0) > 0 }
-                .mapNotNull { v -> releasedAt(v.released)?.let { v to it } }
-                .filter { it.second <= now }
-                .maxByOrNull { it.second } ?: continue
-            if (now - latest.second > 10 * 86_400_000L) continue
-            val p = repo.progress(latest.first.id)
-            if (p?.watched == true) continue
-            out.add(d.preview to "S${latest.first.season} E${latest.first.episode}")
+        val out = ArrayList<UpNextItem>()
+        val shows = HashSet<String>()
+        for (p in queued.filter { (it.percent ?: 0.0) < 0 }) {
+            if (!shows.add(p.metaId)) continue
+            out.add(UpNextItem(p.asPreview(), p.episodeLabel?.substringBefore(",").orEmpty(), "Up next", false))
         }
+        val fresh = ArrayList<Pair<UpNextItem, Long>>()
+        val soon = ArrayList<Pair<UpNextItem, Long>>()
+        for (item in library.filter { it.type == "series" && it.metaId !in shows }.take(20)) {
+            val d = runCatching { repo.meta("series", item.metaId) }.getOrNull() ?: continue
+            val dated = d.videos.filter { (it.season ?: 0) > 0 }.mapNotNull { v -> releasedAt(v.released)?.let { v to it } }
+            val latest = dated.filter { it.second <= now }.maxByOrNull { it.second }
+            if (latest != null && now - latest.second <= 10 * 86_400_000L && repo.progress(latest.first.id) == null) {
+                fresh.add(UpNextItem(d.preview, "S${latest.first.season} E${latest.first.episode}", "New", false) to latest.second)
+                continue
+            }
+            val next = dated.filter { it.second > now }.minByOrNull { it.second } ?: continue
+            if (next.second - now > 14 * 86_400_000L) continue
+            soon.add(UpNextItem(d.preview, "S${next.first.season} E${next.first.episode}", airsIn(next.second, now), true) to next.second)
+        }
+        out += fresh.sortedByDescending { it.second }.map { it.first }
+        out += soon.sortedBy { it.second }.map { it.first }
         return out
+    }
+
+    /** "Today", "Tomorrow", "In 5 days" (by calendar day). */
+    private fun airsIn(at: Long, now: Long): String {
+        val cal = java.util.Calendar.getInstance()
+        fun day(t: Long): Long {
+            cal.timeInMillis = t
+            return cal.get(java.util.Calendar.YEAR) * 400L + cal.get(java.util.Calendar.DAY_OF_YEAR)
+        }
+        val days = (day(at) - day(now)).toInt().let { if (it < 0) it + 400 else it }
+        return when (days) {
+            0 -> "Today"
+            1 -> "Tomorrow"
+            else -> "In $days days"
+        }
     }
 
     private fun releasedAt(text: String?): Long? {
@@ -2230,7 +2262,7 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
         val available = LinkedHashMap<String, String>()
         available[CONTINUE_ROW] = "Continue watching"
         available[BECAUSE_ROW] = "Because you watched…"
-        available[NEW_EPISODES_ROW] = "New episodes"
+        available[NEW_EPISODES_ROW] = "Up next"
         available[FOR_YOU_ROW] = "For you"
         available[LOVED_ROW] = "Because you loved…"
         available[GEMS_ROW] = "Hidden gems for you"

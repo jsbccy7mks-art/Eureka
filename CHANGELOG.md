@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.65.0
+
+**Changed**
+- Home: New episodes is now Up next, one row for everything waiting for you. It holds the next
+  episode after one you finished, episodes out in the last 10 days you haven't started, and
+  episodes airing in the next two weeks ("Tomorrow", "In 5 days"). Each card's badge sits on
+  its own in the top corner. Once you start an episode it moves to Continue watching, which is
+  now only what you're partway through.
+- Live TV, Channels: back to the earlier layout (categories on the left that slide away, preview
+  on the right).
+
+**Fixed**
+- Home: hiding a row moves focus to the row below it, not off to the sidebar. The same goes for
+  removing a card from Continue watching or marking it watched: focus moves to the card beside it.
+- Cards across Home and Discover no longer rebuild themselves at the moment they take focus,
+  which could drop the remote off the page.
+
 ## 0.64.0
 
 **Changed**

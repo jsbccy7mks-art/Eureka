@@ -432,10 +432,12 @@ private fun DiscoverGrid(
                 Row(Modifier.padding(start = RowInset), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     chunk.forEach { m ->
                         val req = cardFocus.getOrPut(m.id) { FocusRequester() }
-                        if (pendingId == m.id) {
-                            LaunchedEffect(Unit) {
-                                req.tryRequest()
-                                onPendingDone()
+                        // Always the same effect (never added or removed around the card, which can rebuild it as it takes focus).
+                        val wantsFocus = pendingId == m.id
+                        LaunchedEffect(wantsFocus) {
+                            if (wantsFocus) {
+                                    req.tryRequest()
+                                    onPendingDone()
                             }
                         }
                         PosterCard(

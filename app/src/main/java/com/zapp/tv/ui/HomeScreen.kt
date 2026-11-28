@@ -114,7 +114,9 @@ fun HomeScreen(
     onRateAFew: () -> Unit = {},
 ) {
     val addons by mvm.addons.collectAsState()
-    val continueItems by mvm.continueWatching.collectAsState()
+    val continueAll by mvm.continueWatching.collectAsState()
+    // Continue watching is only what you've started; next episodes you haven't are in Up next.
+    val continueItems = remember(continueAll) { continueAll.filter { (it.percent ?: 0.0) >= 0 } }
     // Kids profiles: no add-on catalogues on Home, just family titles from TMDB (their sources still
     // come from the same add-ons as everyone's).
     val kids = mvm.isKids
@@ -161,8 +163,8 @@ fun HomeScreen(
     // "For you" starts once there are a few ratings to go on; until then, the nudge to rate.
     val ratedCount = mvm.ratings.all().size
     val noRatings = ratedCount < 5
-    val newEpisodes by retrying(emptyList<Pair<MetaPreview, String>>(), libraryItems.map { it.metaId }, enough = { true }) { mvm.newEpisodes(libraryItems) }
-    LaunchedEffect(newEpisodes.size) { SideBadges.newEpisodes = newEpisodes.size }
+    val queued = continueAll.filter { (it.percent ?: 0.0) < 0 }
+    val upNext by retrying(emptyList<MediaViewModel.UpNextItem>(), libraryItems.map { it.metaId }, queued.map { it.videoId }, enough = { true }) { mvm.upNext(libraryItems, queued) }
     val libraryPreviews = libraryItems.map { MetaPreview(it.metaId, it.type, it.name, it.poster, "poster", null, null, null, null, null, emptyList()) }
 
     // Your teams: what's on now or in the next 24 hours.
@@ -177,7 +179,7 @@ fun HomeScreen(
             LOVED_ROW -> loved != null && (!kids || loved?.second.orEmpty().count { mvm.kidsOk(it) } >= 3)
             GEMS_ROW -> gems.size >= 3
             SEASON_ROW -> season != null && seasonPicks.size >= 3
-            NEW_EPISODES_ROW -> newEpisodes.isNotEmpty()
+            NEW_EPISODES_ROW -> upNext.isNotEmpty()
             LIBRARY_ROW -> libraryPreviews.isNotEmpty()
             COLLECTIONS_ROW -> mvm.collections.isNotEmpty()
             SPORTS_ROW -> !mvm.isKids && sportsSoon.isNotEmpty()
@@ -201,6 +203,30 @@ fun HomeScreen(
     }
     var lastFocus by remember { mutableStateOf<HomeFocus?>(null) }
     var pending by remember { mutableStateOf<HomeFocus?>(null) }
+    val focusScope = rememberCoroutineScope()
+
+    /** After a row is hidden: the row that was below it (or above, at the bottom) takes focus. */
+    fun focusNeighbourRow(rowId: String) {
+        val i = rows.indexOfFirst { it.id == rowId }
+        val target = rows.getOrNull(i + 1) ?: rows.getOrNull(i - 1) ?: return
+        focusScope.launch {
+            delay(250)
+            pending = HomeFocus(target.id, if (target.id == CONTINUE_ROW) continueItems.firstOrNull()?.videoId.orEmpty() else "")
+        }
+    }
+
+    /** After a Continue watching card goes (removed, or watched): the card beside it takes focus. */
+    fun focusNeighbourCard(videoId: String) {
+        val i = continueItems.indexOfFirst { it.videoId == videoId }
+        val next = continueItems.getOrNull(i + 1) ?: continueItems.getOrNull(i - 1)
+        focusScope.launch {
+            delay(300)
+            pending = if (next != null) HomeFocus(CONTINUE_ROW, next.videoId) else {
+                val r = rows.indexOfFirst { it.id == CONTINUE_ROW }
+                rows.getOrNull(r + 1)?.let { HomeFocus(it.id, "") }
+            }
+        }
+    }
     var handledTick by remember { mutableIntStateOf(focusTick) }
     var options by remember { mutableStateOf<RowOptions?>(null) }
     val emptyFocus = remember { FocusRequester() }
@@ -415,19 +441,19 @@ fun HomeScreen(
             } else if (row.id == BECAUSE_ROW || row.id == NEW_EPISODES_ROW || row.id == LIBRARY_ROW) {
                 val title = row.name ?: when (row.id) {
                     BECAUSE_ROW -> "Because you watched ${because?.first.orEmpty()}"
-                    NEW_EPISODES_ROW -> "New episodes"
+                    NEW_EPISODES_ROW -> "Up next"
                     else -> "Your library"
                 }
                 val items = when (row.id) {
                     BECAUSE_ROW -> because?.second.orEmpty()
-                    NEW_EPISODES_ROW -> newEpisodes.map { it.first }
+                    NEW_EPISODES_ROW -> upNext.map { it.meta }
                     else -> libraryPreviews
                 }
                 MetaRow(
                     title = title,
                     items = items,
                     badges = emptyMap(),
-                    newLabels = if (row.id == NEW_EPISODES_ROW) newEpisodes.associate { it.first.id to "New · ${it.second}" } else null,
+                    upNext = if (row.id == NEW_EPISODES_ROW) upNext.associateBy { it.meta.id } else null,
                     size = row.size,
                     // New episodes is always wide, like Continue watching.
                     landscape = row.landscape || row.id == NEW_EPISODES_ROW,
@@ -506,13 +532,20 @@ fun HomeScreen(
                 progress = o.progress,
                 canMoveUp = row.id != CONTINUE_ROW && layout.indexOf(row) > 1,
                 canMoveDown = row.id != CONTINUE_ROW && layout.indexOf(row) < layout.size - 1,
-                onChange = { change -> mvm.updateRow(layout, row.id, change) },
+                onChange = { change ->
+                    mvm.updateRow(layout, row.id, change)
+                    // Hiding the row you're on: focus goes to the row below it (or above), never off
+                    // to the sidebar.
+                    if (!change(row).on) focusNeighbourRow(row.id)
+                },
                 onMove = { by -> mvm.moveRow(layout, row.id, by) },
                 onRemoveTitle = { p ->
                     mvm.hideFromContinue(p.metaId)
                     vm.showToast("Removed ${p.name} from Continue watching")
+                    focusNeighbourCard(p.videoId)
                     options = null
                 },
+                onMarkedWatched = { p -> if (p != null) focusNeighbourCard(p.videoId) },
                 onClose = { options = null },
             )
         }
@@ -591,10 +624,12 @@ private fun ContinueRow(
             ) {
                 itemsIndexed(items, key = { _, it -> it.videoId }) { index, p ->
                     val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
-                    if (pendingId == p.videoId || (pendingId == "" && index == 0)) {
-                        LaunchedEffect(Unit) {
-                            requester.tryRequest()
-                            onPendingDone()
+                    // Always the same effect (never added or removed around the card, which can rebuild it as it takes focus).
+                    val wantsFocus = pendingId == p.videoId || (pendingId == "" && index == 0)
+                    LaunchedEffect(wantsFocus) {
+                        if (wantsFocus) {
+                                requester.tryRequest()
+                                onPendingDone()
                         }
                     }
                     ContinueCard(
@@ -685,7 +720,7 @@ internal fun MetaRow(
     onOpen: (MetaPreview) -> Unit,
     onLongPress: (MetaPreview) -> Unit,
     /** New episodes: cards like Continue watching, each with its "New · S2 E5". */
-    newLabels: Map<String, String>? = null,
+    upNext: Map<String, MediaViewModel.UpNextItem>? = null,
     /** A "See all" card at the end of the row. */
     onSeeAll: (() -> Unit)? = null,
 ) {
@@ -709,16 +744,20 @@ internal fun MetaRow(
             ) {
                 itemsIndexed(items, key = { _, m -> m.id }) { index, meta ->
                     val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
-                    if (pendingId == meta.id || (pendingId == "" && index == 0)) {
-                        LaunchedEffect(Unit) {
-                            requester.tryRequest()
-                            onPendingDone()
+                    // Always the same effect (never added or removed around the card, which can rebuild it as it takes focus).
+                    val wantsFocus = pendingId == meta.id || (pendingId == "" && index == 0)
+                    LaunchedEffect(wantsFocus) {
+                        if (wantsFocus) {
+                                requester.tryRequest()
+                                onPendingDone()
                         }
                     }
-                    if (newLabels != null) {
+                    if (upNext != null) {
                         NewEpisodeCard(
                             meta = meta,
-                            label = newLabels[meta.id].orEmpty(),
+                            label = upNext[meta.id]?.episode.orEmpty(),
+                            badge = upNext[meta.id]?.badge,
+                            upcoming = upNext[meta.id]?.upcoming == true,
                             modifier = Modifier
                                 .rememberFocus(memory, meta.id)
                                 .focusRequesterSafe(requester),

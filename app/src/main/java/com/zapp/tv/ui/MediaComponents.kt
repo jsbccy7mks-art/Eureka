@@ -396,13 +396,16 @@ fun ContinueCard(
 }
 
 /**
- * A new episode of a series you follow, looking just like a Continue watching card: the show's
- * wide artwork with its logo (or name) bottom left and "New · S2 E5" bottom right.
+ * An Up next card, looking just like a Continue watching card: the show's wide artwork, its logo
+ * (or name) bottom left and the episode ("S2 E5") bottom right. Its badge ("Up next", "New",
+ * "In 5 days") sits on its own, top left, so it never sits on top of anything else.
  */
 @Composable
 fun NewEpisodeCard(
     meta: MetaPreview,
     label: String,
+    badge: String? = null,
+    upcoming: Boolean = false,
     modifier: Modifier = Modifier,
     onFocus: () -> Unit,
     onClick: () -> Unit,
@@ -429,6 +432,21 @@ fun NewEpisodeCard(
                 .fillMaxSize()
                 .background(Brush.verticalGradient(0.4f to Color.Transparent, 1f to Color(0xD9000000))),
         )
+        badge?.let {
+            Text(
+                it,
+                fontSize = TextSize.Tag,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                maxLines = 1,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(if (upcoming) Color(0xCC1B1F2A) else ZappColors.Brand1.copy(alpha = 0.9f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+        }
         Row(
             Modifier
                 .align(Alignment.BottomStart)
@@ -454,7 +472,7 @@ fun NewEpisodeCard(
                 label,
                 fontSize = TextSize.Tag,
                 fontWeight = FontWeight.SemiBold,
-                color = ZappColors.Brand2,
+                color = if (upcoming) Color.White.copy(alpha = 0.8f) else ZappColors.Brand2,
                 maxLines = 1,
                 style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), androidx.compose.ui.geometry.Offset(0f, 1f), 4f)),
             )
@@ -770,10 +788,12 @@ fun CatalogRow(
                 itemsIndexed(if (top10) ordered.take(10) else ordered, key = { _, m -> m.id }) { index, meta ->
                     val requester = if (index == 0) rowStart.first else remember { FocusRequester() }
                     // An empty id means "the first card" (first start, nothing remembered yet).
-                    if (pendingId == meta.id || (pendingId == "" && index == 0)) {
-                        LaunchedEffect(Unit) {
-                            requester.tryRequest()
-                            onPendingDone()
+                    // Always the same effect (never added or removed around the card, which can rebuild it as it takes focus).
+                    val wantsFocus = pendingId == meta.id || (pendingId == "" && index == 0)
+                    LaunchedEffect(wantsFocus) {
+                        if (wantsFocus) {
+                                requester.tryRequest()
+                                onPendingDone()
                         }
                     }
                     val card: @Composable () -> Unit = {
