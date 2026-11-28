@@ -72,8 +72,8 @@ import java.util.Locale
 private const val SLOT = 30 * 60_000L
 private const val WINDOW = 4 * SLOT // two hours across the screen
 private const val NEAR_EDGE = 10 * 60_000L
-private val GuideRowHeight = 44.dp
-private val ChannelColumn = 186.dp
+private val GuideRowHeight = 40.dp
+private val ChannelColumn = 200.dp
 private val GridGap = 8.dp
 
 private fun floorSlot(t: Long) = t - Math.floorMod(t, SLOT)
@@ -86,6 +86,7 @@ private data class GuideSelection(val row: ChannelRow, val programme: Programme?
 fun GuideScreen(
     vm: AppViewModel,
     focusTick: Int,
+    playback: Playback? = null,
     onCatchUp: (ChannelRow, Programme) -> Unit = { _, _ -> },
     onWatch: (ChannelRow) -> Unit,
 ) {
@@ -156,6 +157,14 @@ fun GuideScreen(
 
     val categoryName = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
 
+    // Resting on a channel plays it in the picture at the top (Channel previews setting).
+    LaunchedEffect(selection?.row?.channel?.streamUrl, vm.settings.preview) {
+        val c = selection?.row?.channel ?: return@LaunchedEffect
+        if (playback == null || !vm.settings.preview) return@LaunchedEffect
+        delay(700)
+        playback.play(c)
+    }
+
     // The programme you're on, softly behind the page (only the top, above the grid).
     // A Box, so the backdrop sits behind the page instead of taking up room above it.
     Box(Modifier.fillMaxSize()) {
@@ -178,30 +187,6 @@ fun GuideScreen(
                 selP.start > now -> if (vm.hasReminder(sel.row.channel, selP)) "Cancel reminder" else "Remind me"
                 else -> "Watch"
             }
-            InfoPanel(selection, categoryName, now, timeFormat, okLabel)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Segmented(
-                    options = listOf("all" to "All channels", "live" to "On now only"),
-                    value = if (liveOnly) "live" else "all",
-                    onChange = { if ((it == "live") != liveOnly) vm.toggleGuideLiveOnly() },
-                )
-                ZButton(
-                    text = if (vm.guideStatus != null) "Updating…" else "Update guide",
-                    onClick = { vm.refreshGuideFor(scope.playlistId) },
-                    style = ButtonStyle.Quiet,
-                )
-                guideInfo?.let { info ->
-                    if (info.updated > 0) {
-                        Text(
-                            "Updated ${timeFormat.format(info.updated)}",
-                            color = ZappColors.Faint,
-                            fontSize = TextSize.Small,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
             val info = guideInfo
             val message = when {
                 info == null -> null
@@ -213,10 +198,23 @@ fun GuideScreen(
                     "Nothing on air right now in this list. Switch to All channels."
                 else -> null
             }
-            if (message != null) {
-                ErrorBanner(message)
-                Spacer(Modifier.height(10.dp))
-            }
+            val playlistName = vm.playlists.collectAsState().value.firstOrNull { it.playlist.id == scope.playlistId }?.playlist?.name
+            // Like TiviMate: the picture top left, what you're on beside it, then the whole grid below.
+            GuideHeader(
+                vm = vm,
+                playback = playback,
+                selection = selection,
+                context = listOfNotNull(playlistName, categoryName).joinToString("  ·  "),
+                now = now,
+                timeFormat = timeFormat,
+                okLabel = okLabel,
+                message = message,
+                liveOnly = liveOnly,
+                updated = info?.updated ?: 0L,
+                onLiveOnly = { if (it != liveOnly) vm.toggleGuideLiveOnly() },
+                onUpdate = { vm.refreshGuideFor(scope.playlistId) },
+            )
+            Spacer(Modifier.height(8.dp))
             TimeRuler(windowStart, gridWidth, dpPerMs, now, timeFormat)
             Spacer(Modifier.height(6.dp))
 
@@ -369,78 +367,132 @@ fun GuideScreen(
     }
 }
 
+/**
+ * The top of the guide: the picture (the channel you're on, playing if previews are on) and,
+ * beside it, the programme: title, when, how far in, what it's about. The list's name sits top
+ * right, with the guide's own few controls and key hints along the bottom.
+ */
 @Composable
-private fun InfoPanel(selection: GuideSelection?, categoryName: String, now: Long, timeFormat: java.text.DateFormat, okLabel: String) {
-    val dayFormat = remember { SimpleDateFormat("EEEE d MMMM", Locale.getDefault()) }
+private fun GuideHeader(
+    vm: AppViewModel,
+    playback: Playback?,
+    selection: GuideSelection?,
+    context: String,
+    now: Long,
+    timeFormat: java.text.DateFormat,
+    okLabel: String,
+    message: String?,
+    liveOnly: Boolean,
+    updated: Long,
+    onLiveOnly: (Boolean) -> Unit,
+    onUpdate: () -> Unit,
+) {
+    val dayFormat = remember { SimpleDateFormat("EEE d MMM", Locale.getDefault()) }
+    val row = selection?.row
+    val p = selection?.programme
     Row(
         Modifier
             .fillMaxWidth()
-            .height(96.dp),
-        verticalAlignment = Alignment.Top,
+            .height(168.dp),
     ) {
-        if (selection == null) {
-            Column(Modifier.weight(1f)) {
-                Text(categoryName, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                Text("Move onto a programme to see what it's about. OK on one that hasn't started sets a reminder.", color = ZappColors.Dim, fontSize = TextSize.Small)
+        // The picture.
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            val showingVideo = playback != null && row != null && playback.isOn(row.channel) && vm.settings.preview
+            if (playback != null && vm.settings.preview) PreviewVideo(playback, Modifier.fillMaxSize())
+            if (!showingVideo) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Brush.linearGradient(listOf(ZappColors.Brand1.copy(alpha = 0.25f), ZappColors.Panel, ZappColors.Brand2.copy(alpha = 0.15f)))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when {
+                        p?.icon != null -> AsyncImage(model = p.icon, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        row != null -> LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 56.dp)
+                        else -> LogoMark(34.dp)
+                    }
+                }
+            } else if (playback?.buffering == true && playback.error == null) {
+                ZappLoader(20.dp)
             }
-        } else {
-            val art = selection.programme?.icon
-            if (art != null) {
-                AsyncImage(
-                    model = art,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .height(84.dp)
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ZappColors.Glass),
-                )
-            } else {
-                LogoTile(url = selection.row.channel.logo, fallback = selection.row.channel.name, size = 52.dp)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                val p = selection.programme
+        }
+        Spacer(Modifier.width(18.dp))
+        // What you're on.
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = p?.title ?: selection.row.channel.name,
+                    p?.title ?: row?.channel?.name ?: "TV guide",
                     fontSize = TextSize.Title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(context, color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+            }
+            Spacer(Modifier.height(4.dp))
+            if (p != null && row != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (p != null && p.start <= now && p.stop > now) {
+                    if (p.start <= now && p.stop > now) {
                         LivePill()
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
-                        text = if (p != null) {
-                            "${selection.row.channel.name}, ${timeFormat.format(p.start)} – ${timeFormat.format(p.stop)}"
-                        } else {
-                            "No guide information"
-                        },
+                        "${row.channel.name}  ·  ${dayFormat.format(p.start)}, ${timeFormat.format(p.start)} – ${timeFormat.format(p.stop)}",
                         color = ZappColors.Dim,
                         fontSize = TextSize.Small,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
+                    if (p.start <= now && p.stop > now) {
+                        Spacer(Modifier.width(10.dp))
+                        ProgressLine(progressOf(p.start, p.stop, now), Modifier.width(70.dp), thickness = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${((p.stop - now) / 60_000).coerceAtLeast(1)} min left", color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+                    }
                 }
-                p?.description?.let {
-                    Spacer(Modifier.height(5.dp))
-                    Text(it, color = ZappColors.Faint, fontSize = TextSize.Small, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                p.description?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, color = ZappColors.Dim, fontSize = TextSize.Small, lineHeight = 16.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 }
+            } else {
+                Text(
+                    if (row != null) "${row.channel.name}  ·  No guide information" else "Move onto a programme to see what it's about. OK on one that hasn't started sets a reminder.",
+                    color = ZappColors.Dim,
+                    fontSize = TextSize.Small,
+                    maxLines = 2,
+                )
             }
-        }
-        Spacer(Modifier.width(20.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(dayFormat.format(now), color = ZappColors.Dim, fontSize = TextSize.Small)
-            Spacer(Modifier.height(8.dp))
-            KeyHint("OK", okLabel)
-            Spacer(Modifier.height(6.dp))
-            KeyHint("‹", "Categories")
+            Spacer(Modifier.weight(1f))
+            if (message != null) {
+                Text(message, color = ZappColors.Live, fontSize = TextSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Segmented(
+                    options = listOf("all" to "All channels", "live" to "On now only"),
+                    value = if (liveOnly) "live" else "all",
+                    onChange = { onLiveOnly(it == "live") },
+                )
+                ZButton(
+                    text = if (vm.guideStatus != null) "Updating…" else "Update guide",
+                    onClick = onUpdate,
+                    style = ButtonStyle.Quiet,
+                )
+                if (updated > 0) Text("Updated ${timeFormat.format(updated)}", color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                KeyHint("OK", okLabel)
+                KeyHint("‹", "Categories")
+            }
         }
     }
 }
@@ -453,9 +505,9 @@ private fun TimeRuler(windowStart: Long, gridWidth: Dp, dpPerMs: Float, now: Lon
             .height(22.dp),
     ) {
         Box(Modifier.width(ChannelColumn + GridGap)) {
-            val dayFormat = remember { SimpleDateFormat("EEE d", Locale.getDefault()) }
+            val dayFormat = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
             Text(
-                text = if (windowStart / 86_400_000L == now / 86_400_000L) "Today" else dayFormat.format(windowStart),
+                text = if (windowStart / 86_400_000L == now / 86_400_000L) "${dayFormat.format(now)}, ${timeFormat.format(now)}" else dayFormat.format(windowStart),
                 color = ZappColors.Faint,
                 fontSize = TextSize.Small,
                 modifier = Modifier.padding(start = 10.dp),

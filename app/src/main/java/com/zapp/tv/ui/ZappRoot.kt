@@ -499,13 +499,13 @@ fun ZappRoot(vm: AppViewModel) {
                             // Always opens on Channels.
                             var liveTab by remember { mutableStateOf("channels") }
                             var liveTick by remember { mutableIntStateOf(0) }
-                            LaunchedEffect(liveTab) { if (liveTab != "channels") playback.stop() }
+                            LaunchedEffect(liveTab) { if (liveTab == "sports") playback.stop() }
                             Column(Modifier.fillMaxSize()) {
                                 LiveTabsHeader(liveTab, vm.guideStatus) { liveTab = it; liveTick++ }
                                 // Focus goes into the tab's content on arrival and when you switch.
                                 val tick = pageTick + liveTick
                                 when (liveTab) {
-                                    "guide" -> GuideScreen(vm, tick, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
+                                    "guide" -> GuideScreen(vm, tick, playback, onCatchUp = { row, p -> playCatchUp(row, p) }) { watch(it) }
                                     "sports" -> SportsScreen(vm, tick, showHeader = false) { c -> watchChannel(c) }
                                     else -> LiveScreen(vm, playback, tick) { watch(it) }
                                 }

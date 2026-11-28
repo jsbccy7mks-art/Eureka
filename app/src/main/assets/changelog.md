@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.62.0
+
+**Changed**
+- TV guide laid out like TiviMate, in Axon's own style. The picture is top left and plays the
+  channel you're on (with Channel previews on). Beside it are the programme, its time, how far
+  in it is, the minutes left and what it's about. The whole grid sits below, with numbered
+  channels and more rows on screen. The list's name is top right, and Left still slides the
+  categories in.
+
 ## 0.61.2
 
 **Fixed**
