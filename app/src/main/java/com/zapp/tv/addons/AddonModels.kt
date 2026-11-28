@@ -146,6 +146,23 @@ data class StreamItem(
             }
         }
 
+    /**
+     * The picture, from the release name: 0 normal (SDR), 1 HDR (HDR10, HDR10+, HLG), 2 Dolby Vision
+     * with an HDR fallback (DV HDR10), 3 Dolby Vision only (often no fallback: odd colours without DV).
+     */
+    val pictureKind: Int
+        get() {
+            val t = text.lowercase()
+            val dv = "dolby vision" in t || "dovi" in t || Regex("\\bdv\\b").containsMatchIn(t)
+            val hdr = "hdr" in t || "hlg" in t
+            return when {
+                dv && hdr -> 2
+                dv -> 3
+                hdr -> 1
+                else -> 0
+            }
+        }
+
     /** Tags such as HDR, Dolby Vision, HEVC or Atmos found in the description. */
     val tags: List<String>
         get() {

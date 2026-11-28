@@ -629,6 +629,18 @@ class Settings(context: Context) {
             prefs.edit().putBoolean("cachedOnly", value).apply()
         }
 
+    private val hdrModeState = intState("hdrMode", 0)
+    /**
+     * HDR sources: 0 Auto (by what the TV and box can show), 1 Prefer SDR (normal versions first),
+     * 2 SDR only (HDR and Dolby Vision hidden), 3 No Dolby Vision (hidden; HDR10 kept).
+     */
+    var hdrMode: Int
+        get() = hdrModeState.intValue
+        set(value) {
+            hdrModeState.intValue = value
+            prefs.edit().putInt("hdrMode", value).apply()
+        }
+
     private val maxQualityState = intState("maxQuality", 0)
     /** 0 any, 1 up to 1080p, 2 up to 720p. */
     var maxQuality: Int

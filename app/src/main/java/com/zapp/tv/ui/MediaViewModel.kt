@@ -744,8 +744,9 @@ class MediaViewModel(app: Application) : AndroidViewModel(app) {
             val cap = when (settings.maxQuality) { 1 -> 1080; 2 -> 720; else -> Int.MAX_VALUE }
             val all = p.batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
                 .flatMap { b ->
-                    val kept = b.streams.filter { it.qualityRank <= cap }
-                    if (settings.bestFirst) kept.sortedByDescending { (if (it.markedReady == true) 10_000 else 0) + it.qualityRank + sourceStats.bonus(it) } else kept
+                    val ctx = getApplication<android.app.Application>()
+                    val kept = b.streams.filter { it.qualityRank <= cap && com.zapp.tv.data.PictureFilter.keep(ctx, settings.hdrMode, it) }
+                    if (settings.bestFirst) kept.sortedByDescending { (if (it.markedReady == true) 10_000 else 0) + it.qualityRank + sourceStats.bonus(it) + com.zapp.tv.data.PictureFilter.bonus(ctx, settings.hdrMode, it) } else kept
                 }
             // Only sources the debrid service already has (cached): they cost nothing to add and use no
             // download slot. If none are cached, nothing is prepared and Play works as usual.

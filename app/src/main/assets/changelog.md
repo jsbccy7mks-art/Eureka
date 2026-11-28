@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.63.0
+
+**New**
+- Settings, Playback, HDR: Auto, Prefer SDR, SDR only or No Dolby Vision. Auto hides Dolby
+  Vision releases your TV can't show (they play with odd colours) and lists HDR last if your TV
+  has no HDR. Prefer SDR lists normal versions first. If the setting would hide every source, it
+  steps aside rather than leave the list empty. Auto-play follows it too.
+- Sound in more films: an FFmpeg audio decoder (the same kind Haven uses) plays DTS, TrueHD and
+  other audio your TV or soundbar can't handle itself. Anything the TV can play still goes
+  straight to it.
+
 ## 0.62.0
 
 **Changed**

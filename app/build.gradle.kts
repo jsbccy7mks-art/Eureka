@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.zapp.tv"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.zapp.tv"
@@ -15,7 +15,7 @@ android {
         targetSdk = 34
         // Each GitHub build number becomes the version code, so the in-app updater can compare builds.
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 3
-        versionName = "0.62.0"
+        versionName = "0.63.0"
         // Optional: a Simkl app ID built in from the SIMKL_CLIENT_ID GitHub secret (it can also be set on the phone page).
         buildConfigField("String", "SIMKL_CLIENT_ID", "\"" + (System.getenv("SIMKL_CLIENT_ID") ?: "").filter { it.isLetterOrDigit() } + "\"")
     }
@@ -89,9 +89,11 @@ dependencies {
     implementation("androidx.profileinstaller:profileinstaller:1.3.1")
 
     // Player
-    implementation("androidx.media3:media3-exoplayer:1.4.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
-    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
+    implementation("androidx.media3:media3-exoplayer:1.5.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.0")
+    implementation("androidx.media3:media3-exoplayer-dash:1.5.0")
+    // FFmpeg audio decoder (Jellyfin's build of Media3's own extension), for sound the TV can't play.
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
 
     // QR code for phone setup
     implementation("com.google.zxing:core:3.5.3")

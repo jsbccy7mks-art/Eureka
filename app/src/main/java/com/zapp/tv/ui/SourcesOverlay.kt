@@ -92,8 +92,14 @@ fun SourcesOverlay(
         else -> s.markedReady
     }
     val cap = when (settings.maxQuality) { 1 -> 1080; 2 -> 720; else -> Int.MAX_VALUE }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // If the HDR setting would leave nothing at all, it steps aside rather than leave an empty list.
+    val hdrMode = settings.hdrMode.let { m ->
+        if (batches.any { b -> b.streams.any { com.zapp.tv.data.PictureFilter.keep(context, m, it) } } || batches.none { it.streams.isNotEmpty() }) m else -1
+    }
     fun keep(s: StreamItem): Boolean {
         if (s.qualityRank > cap) return false
+        if (hdrMode >= 0 && !com.zapp.tv.data.PictureFilter.keep(context, hdrMode, s)) return false
         if (!settings.cachedOnly) return true
         return when {
             s.infoHash != null -> viaDebrid && isReady(s) == true
@@ -103,7 +109,8 @@ fun SourcesOverlay(
     }
     // Ready first, then quality, nudged by how each add-on and release has done on this box.
     val stats = mvm.sourceStats
-    fun rank(s: StreamItem): Int = (if (isReady(s) == true) 10_000 else 0) + s.qualityRank + stats.bonus(s)
+    fun rank(s: StreamItem): Int = (if (isReady(s) == true) 10_000 else 0) + s.qualityRank + stats.bonus(s) +
+        (if (hdrMode >= 0) com.zapp.tv.data.PictureFilter.bonus(context, hdrMode, s) else 0)
 
     val sorted = batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
     val all = sorted.flatMap { b ->

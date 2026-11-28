@@ -698,7 +698,11 @@ class Playback(
         private fun createPlayer(context: Context, largeBuffer: Boolean, dataSourceFactory: DefaultHttpDataSource.Factory): ExoPlayer {
             // Small start-up buffer so channels open quickly when zapping; a larger one for unsteady providers.
             val loadControl = if (largeBuffer) FilmStartBuffer(30_000, 90_000, 2_500, 6_000) else FilmStartBuffer(10_000, 30_000, 1_000, 2_500)
-            return ExoPlayer.Builder(context)
+            // The FFmpeg audio decoder steps in only for sound the TV can't play or pass on itself
+            // (DTS, TrueHD and the like); everything else still goes to the TV's own decoders.
+            val renderers = androidx.media3.exoplayer.DefaultRenderersFactory(context)
+                .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            return ExoPlayer.Builder(context, renderers)
                 .setLoadControl(loadControl)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
                 .build()

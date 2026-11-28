@@ -23,6 +23,8 @@ object NewSettings {
         Entry("Sort channels", "Live", "Channel lists"),
         Entry("group:Categories", "Live"),
         Entry("group:Hidden channels", "Live"),
+        // 0.63.0
+        Entry("HDR", "Playback", "Starting"),
     )
 
     private var settings: com.zapp.tv.data.Settings? = null

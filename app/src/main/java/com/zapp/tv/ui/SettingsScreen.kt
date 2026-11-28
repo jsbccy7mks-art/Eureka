@@ -479,6 +479,12 @@ private fun PlaybackSettingsPane(vm: AppViewModel) {
                 onClick = { s.maxQuality = (s.maxQuality + 1) % 3 },
             )
             SettingRow(
+                title = "HDR",
+                body = "Auto hides Dolby Vision your TV can't show and puts HDR last if your TV has none. Prefer SDR lists normal versions first. SDR only hides HDR and Dolby Vision. No Dolby Vision hides only Dolby Vision.",
+                value = SettingValue.Choice(com.zapp.tv.data.PictureFilter.label(s.hdrMode)),
+                onClick = { s.hdrMode = (s.hdrMode + 1) % 4 },
+            )
+            SettingRow(
                 title = "Remember source",
                 body = "Tries the source you used last time first; for series, the same release for the next episode.",
                 value = SettingValue.Toggle(s.sameSource),
