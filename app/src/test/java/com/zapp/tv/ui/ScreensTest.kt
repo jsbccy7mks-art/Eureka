@@ -335,6 +335,41 @@ class ScreensTest {
         save("guide")
     }
 
+    /** The whole app: Live TV, the categories, then the sidebar to Settings (OK, then Right). */
+    @Test fun liveToSettings() {
+        assumeTrue(System.getenv("SCREENS") == "1")
+        val app = RuntimeEnvironment.getApplication() as ZappApp
+        seedLive(app)
+        val vm = AppViewModel(app)
+        vm.settings.preview = false
+        rule.mainClock.autoAdvance = false
+        rule.setContent { ZappTheme { ZappRoot(vm) } }
+        settle(9000)
+        save("nav-0-start")
+        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        settle(500)
+        repeat(4) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
+        settle(400)
+        save("nav-1-sidebar-live")
+        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(3000)
+        save("nav-2-live")
+        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        settle(1200)
+        save("nav-3-categories")
+        key(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        settle(600)
+        key(android.view.KeyEvent.KEYCODE_DPAD_DOWN)
+        settle(600)
+        save("nav-4-sidebar-settings")
+        key(android.view.KeyEvent.KEYCODE_DPAD_CENTER)
+        settle(2500)
+        save("nav-5-after-ok")
+        key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle(1500)
+        save("nav-6-after-right")
+    }
+
     @Test fun playback() = settings("Playback", 4)
     @Test fun appearance() = settings("Appearance", 2)
     @Test fun accounts() = settings("Accounts", 1)
