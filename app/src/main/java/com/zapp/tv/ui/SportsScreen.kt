@@ -60,7 +60,7 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
     var choose by remember { mutableStateOf<Pair<SportEvent, List<ProgrammeHit>>?>(null) }
     val first = remember { FocusRequester() }
     var handled by remember { mutableIntStateOf(focusTick) }
-    LaunchedEffect(focusTick, vm.followedTeams.isEmpty()) {
+    LaunchedEffect(focusTick, vm.fixtures.isEmpty()) {
         if (focusTick != handled || true) {
             handled = focusTick
             kotlinx.coroutines.delay(120)
@@ -68,11 +68,22 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
         }
     }
 
+    var leagues by remember { mutableStateOf(false) }
+
+    // Live scores: while this page is open and something is on, refresh once a minute.
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000)
+            val n = System.currentTimeMillis()
+            if (vm.fixtures.any { it.liveAt(n) || (it.start in n..(n + 5 * 60_000L)) }) vm.refreshLiveScores()
+        }
+    }
+
     fun watch(e: SportEvent) = scope.launch {
         val hits = vm.channelsFor(e)
         when {
-            hits.isEmpty() -> vm.showToast("Couldn't find ${e.title} in your TV guide")
-            hits.size == 1 -> playHit(vm, hits[0], now, timeFormat, onPlay)
+            hits.isEmpty() -> vm.showToast(if (e.start > now) "${e.title} isn't in your TV guide yet" else "Couldn't find ${e.title} in your TV guide")
+            hits.size == 1 -> playHit(vm, hits[0], now, onPlay)
             else -> choose = e to hits
         }
     }
@@ -81,11 +92,18 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
         ManageTeams(vm) { managing = false }
         return
     }
+    if (leagues) {
+        ManageLeagues(vm) { leagues = false }
+        return
+    }
 
     val teams = vm.followedTeams
-    val live = vm.fixtures.filter { it.liveAt(now) }
-    val soon = vm.fixtures.filter { it.start > now && !it.liveAt(now) }.take(20)
-    val results = vm.fixtures.filter { it.finished }.sortedByDescending { it.start }.take(10)
+    val followedLeagues = vm.followedLeagues
+    val all = vm.fixtures
+    val groups = remember(all, now / 60_000) { dayGroups(all.filterNot { it.off }, now) }
+    val firstId = groups.firstOrNull()?.second?.firstOrNull()?.id
+    val nothingFollowed = teams.isEmpty() && followedLeagues.isEmpty()
+    val leagueNames = followedLeagues.mapNotNull { c -> com.zapp.tv.data.FootballData.COMPETITIONS.firstOrNull { it.code == c }?.name }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -97,7 +115,7 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
                 Column(Modifier.weight(1f)) {
                     if (showHeader) Text("Sports", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
                     Text(
-                        if (teams.isEmpty()) "Follow your teams to see their matches, and play them on the channel they're on." else teams.joinToString("  ·  ") { it.name },
+                        if (nothingFollowed) "Follow leagues and teams to see their matches, and play them on the channel they're on." else (leagueNames + teams.map { it.name }).joinToString("  ·  "),
                         color = ZappColors.Dim,
                         fontSize = TextSize.Small,
                         maxLines = 1,
@@ -108,47 +126,33 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
                     ZappLoader(14.dp)
                     Spacer(Modifier.width(12.dp))
                 }
-                ZButton(if (teams.isEmpty()) "Follow a team" else "Your teams", { managing = true }, style = ButtonStyle.Primary, focusRequester = if (teams.isEmpty()) first else null)
+                ZButton("Leagues", { leagues = true }, style = if (nothingFollowed) ButtonStyle.Primary else ButtonStyle.Secondary, focusRequester = if (firstId == null) first else null)
+                Spacer(Modifier.width(10.dp))
+                ZButton(if (teams.isEmpty()) "Follow a team" else "Your teams", { managing = true }, style = ButtonStyle.Secondary)
             }
         }
-        if (live.isNotEmpty()) {
-            item(key = "live") {
+        groups.forEach { (label, events) ->
+            item(key = "g:$label") {
                 Column {
-                    SectionLabel("LIVE NOW")
+                    SectionLabel(label.uppercase())
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(live, key = { it.id }) { e ->
-                            MatchCard(e, now, timeFormat, if (e == live.first()) first else null, live = true) { watch(e) }
+                        items(events, key = { it.id }) { e ->
+                            val live = e.liveAt(now)
+                            MatchCard(e, now, timeFormat, if (e.id == firstId) first else null, live = live) { watch(e) }
                         }
                     }
                 }
             }
         }
-        if (soon.isNotEmpty()) {
-            item(key = "soon") {
-                Column {
-                    SectionLabel("COMING UP")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(soon, key = { it.id }) { e ->
-                            MatchCard(e, now, timeFormat, if (live.isEmpty() && e == soon.first()) first else null) { watch(e) }
-                        }
-                    }
-                }
+        if (!nothingFollowed && groups.isEmpty() && !vm.fixturesLoading) {
+            item(key = "none") {
+                Text(
+                    if (followedLeagues.isNotEmpty() && !vm.football.hasKey) "Add your free football-data.org token from your phone (Accounts, Football) to see league matches."
+                    else "No matches found for what you follow right now.",
+                    color = ZappColors.Dim,
+                    fontSize = TextSize.Body,
+                )
             }
-        }
-        if (results.isNotEmpty()) {
-            item(key = "results") {
-                Column {
-                    SectionLabel("RESULTS")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(results, key = { it.id }) { e ->
-                            MatchCard(e, now, timeFormat, if (live.isEmpty() && soon.isEmpty() && e == results.first()) first else null) { watch(e) }
-                        }
-                    }
-                }
-            }
-        }
-        if (teams.isNotEmpty() && vm.fixtures.isEmpty() && !vm.fixturesLoading) {
-            item(key = "none") { Text("No matches found for your teams right now.", color = ZappColors.Dim, fontSize = TextSize.Body) }
         }
     }
 
@@ -169,12 +173,13 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(e.title, fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 10.dp))
-                Text("Showing on", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(horizontal = 10.dp))
+                Text(if (e.start > now + 15 * 60_000L) "Showing on (OK sets a reminder)" else "Showing on", color = ZappColors.Faint, fontSize = TextSize.Small, modifier = Modifier.padding(horizontal = 10.dp))
                 Spacer(Modifier.height(8.dp))
                 hits.forEachIndexed { i, h ->
-                    MenuItem("▶", "${h.channelName}  ·  ${timeFormat.format(h.start)}", if (i == 0) f else null) {
+                    val later = h.start > now + 15 * 60_000L
+                    MenuItem(if (later) "⏰" else "▶", "${h.channelName}  ·  ${timeFormat.format(h.start)}" + if (later) (if (vm.hasReminder(h)) "  ·  Reminder set" else "  ·  Remind me") else "", if (i == 0) f else null) {
                         choose = null
-                        scope.launch { playHit(vm, h, now, timeFormat, onPlay) }
+                        scope.launch { playHit(vm, h, now, onPlay) }
                     }
                 }
             }
@@ -182,12 +187,76 @@ fun SportsScreen(vm: AppViewModel, focusTick: Int, showHeader: Boolean = true, o
     }
 }
 
-private suspend fun playHit(vm: AppViewModel, h: ProgrammeHit, now: Long, timeFormat: java.text.DateFormat, onPlay: (Channel) -> Unit) {
+/** Plays the channel when the match is on (or about to be); otherwise sets a reminder for it. */
+private suspend fun playHit(vm: AppViewModel, h: ProgrammeHit, now: Long, onPlay: (Channel) -> Unit) {
     if (h.start > now + 15 * 60_000L) {
-        vm.showToast("${h.title} starts at ${timeFormat.format(h.start)} on ${h.channelName}")
+        vm.remindHit(h)
         return
     }
     vm.channelById(h.channelId)?.let(onPlay)
+}
+
+/** Live now, then each day ahead (Today, Tomorrow, then by name), then results from the last few days. */
+private fun dayGroups(events: List<SportEvent>, now: Long): List<Pair<String, List<SportEvent>>> {
+    val cal = java.util.Calendar.getInstance()
+    fun dayIndex(t: Long): Int {
+        cal.timeInMillis = now
+        val y0 = cal.get(java.util.Calendar.YEAR); val d0 = cal.get(java.util.Calendar.DAY_OF_YEAR)
+        cal.timeInMillis = t
+        return (cal.get(java.util.Calendar.YEAR) - y0) * 365 + cal.get(java.util.Calendar.DAY_OF_YEAR) - d0
+    }
+    val live = events.filter { it.liveAt(now) }
+    val ahead = events.filter { it.start > now && !it.liveAt(now) && !it.finished }
+    val results = events.filter { it.finished && !it.liveAt(now) }.sortedByDescending { it.start }.take(20)
+    val out = mutableListOf<Pair<String, List<SportEvent>>>()
+    if (live.isNotEmpty()) out += "Live now" to live
+    val nameFmt = java.text.SimpleDateFormat("EEEE d MMM", java.util.Locale.getDefault())
+    ahead.groupBy { dayIndex(it.start) }.toSortedMap().forEach { (d, list) ->
+        if (d > 7) return@forEach
+        val label = when (d) { 0 -> "Today"; 1 -> "Tomorrow"; else -> nameFmt.format(list.first().start) }
+        out += label to list.take(30)
+    }
+    if (results.isNotEmpty()) out += "Results" to results
+    return out
+}
+
+/** Leagues and cups to follow from football-data.org. */
+@Composable
+private fun ManageLeagues(vm: AppViewModel, onDone: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onDone)
+    val done = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(150)
+        done.tryRequest()
+    }
+    val followed = vm.followedLeagues
+    val hasKey = vm.football.hasKey
+    Column(Modifier.fillMaxSize().padding(start = 40.dp, end = 40.dp, top = 28.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Leagues", fontSize = TextSize.Page, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (hasKey) "Every match in the leagues you follow, with live scores. From football-data.org."
+                    else "Needs a free football-data.org token. Add it from your phone: Accounts, Football.",
+                    color = ZappColors.Dim,
+                    fontSize = TextSize.Small,
+                )
+            }
+            ZButton("Done", onDone, style = ButtonStyle.Primary, focusRequester = done)
+        }
+        Spacer(Modifier.height(14.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 40.dp)) {
+            items(com.zapp.tv.data.FootballData.COMPETITIONS, key = { it.code }) { c ->
+                val on = c.code in followed
+                SettingRow(
+                    title = c.name,
+                    body = c.country,
+                    value = SettingValue.Choice(if (on) "Following" else "Follow"),
+                    onClick = { vm.followLeague(c.code, !on) },
+                )
+            }
+        }
+    }
 }
 
 @Composable

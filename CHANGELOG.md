@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.66.0
+
+**New**
+- Sports: follow whole football leagues, with live scores. Choose them under Sports, Leagues:
+  Premier League, Championship, Champions League, La Liga, Bundesliga, Serie A, Ligue 1,
+  Eredivisie, Primeira Liga, Brasileirão, and the Euros and World Cup when they're on. Uses a
+  free football-data.org token, added from your phone (Accounts, Football).
+- Sports is now laid out by day: Live now, Today, Tomorrow, the rest of the week, then Results.
+  Scores refresh every minute while a match is on.
+- OK on a match that's on plays the channel showing it in your TV guide. OK on a match later on
+  sets a reminder for it instead.
+
 ## 0.65.0
 
 **Changed**

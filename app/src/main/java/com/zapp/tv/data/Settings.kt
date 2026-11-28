@@ -475,6 +475,10 @@ class Settings(context: Context) {
         set(value) { prefs.edit().putString(acct("ratings"), value).apply() }
 
     /** Teams this profile follows (JSON). */
+    var sportsLeagues: String
+        get() = prefs.getString(acct("sportsLeagues"), "") ?: ""
+        set(value) { prefs.edit().putString(acct("sportsLeagues"), value).apply(); accountTick.intValue++ }
+
     var sportsTeamsJson: String
         get() = prefs.getString(acct("sportsTeams"), "") ?: ""
         set(value) { prefs.edit().putString(acct("sportsTeams"), value).apply(); accountTick.intValue++ }

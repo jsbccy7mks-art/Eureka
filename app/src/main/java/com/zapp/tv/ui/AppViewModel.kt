@@ -165,32 +165,84 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
     // ------------------------------------------------------------ sports
 
     val sports get() = zapp.sports
+    val football get() = zapp.football
     var followedTeams by mutableStateOf<List<com.zapp.tv.data.SportTeam>>(emptyList())
         private set
-    var fixtures by mutableStateOf<List<com.zapp.tv.data.SportEvent>>(emptyList())
+    var followedLeagues by mutableStateOf<List<String>>(emptyList())
         private set
+    private var teamFixtures by mutableStateOf<List<com.zapp.tv.data.SportEvent>>(emptyList())
+    private var leagueFixtures by mutableStateOf<List<com.zapp.tv.data.SportEvent>>(emptyList())
+
+    /** Matches for the teams and leagues you follow. A team's match that's also in a followed league is shown once. */
+    val fixtures: List<com.zapp.tv.data.SportEvent>
+        get() {
+            val leagues = leagueFixtures
+            if (leagues.isEmpty()) return teamFixtures
+            fun k(n: String?) = n?.lowercase()?.filter { it.isLetter() }?.take(4)
+            val extra = teamFixtures.filterNot { t ->
+                leagues.any { l -> kotlin.math.abs(l.start - t.start) < 45 * 60_000L && (k(l.home) == k(t.home) || k(l.away) == k(t.away)) }
+            }
+            return (leagues + extra).sortedBy { it.start }
+        }
     var fixturesLoading by mutableStateOf(false)
         private set
     private var fixturesAt = 0L
 
-    /** Reloads the teams this profile follows and their matches (at most every 10 minutes unless asked). */
+    /**
+     * Reloads what this profile follows and its matches. Teams are fetched at most every 10 minutes
+     * unless asked; leagues are cached by [com.zapp.tv.data.FootballData] (a minute while anything is live).
+     */
     fun refreshSports(force: Boolean = false) {
         followedTeams = sports.followed()
-        if (followedTeams.isEmpty()) {
-            fixtures = emptyList()
-            return
-        }
-        if (!force && System.currentTimeMillis() - fixturesAt < 10 * 60_000L && fixtures.isNotEmpty()) return
+        followedLeagues = football.followed()
+        if (followedTeams.isEmpty()) teamFixtures = emptyList()
+        if (followedLeagues.isEmpty() || !football.hasKey) leagueFixtures = emptyList()
+        val teamsDue = followedTeams.isNotEmpty() && (force || System.currentTimeMillis() - fixturesAt > 10 * 60_000L || teamFixtures.isEmpty())
+        val leaguesDue = followedLeagues.isNotEmpty() && football.hasKey
+        if (!teamsDue && !leaguesDue) return
         fixturesLoading = true
         viewModelScope.launch {
             try {
-                fixtures = sports.fixtures(followedTeams)
-                fixturesAt = System.currentTimeMillis()
+                if (leaguesDue) leagueFixtures = football.matches(followedLeagues, force)
+                if (teamsDue) {
+                    teamFixtures = sports.fixtures(followedTeams)
+                    fixturesAt = System.currentTimeMillis()
+                }
             } finally {
                 fixturesLoading = false
             }
         }
     }
+
+    /** Live scores: refetches the leagues (the client keeps calls inside the free plan's limit). */
+    fun refreshLiveScores() {
+        if (followedLeagues.isEmpty() || !football.hasKey) return
+        viewModelScope.launch { leagueFixtures = football.matches(followedLeagues, force = true) }
+    }
+
+    fun followLeague(code: String, on: Boolean) {
+        val list = football.followed().filter { it != code } + if (on) listOf(code) else emptyList()
+        football.setFollowed(list)
+        refreshSports(force = true)
+    }
+
+    /** Sets (or removes) a reminder for a match found in the guide. */
+    fun remindHit(h: com.zapp.tv.data.ProgrammeHit) {
+        viewModelScope.launch {
+            val ch = repo.channel(h.channelId) ?: return@launch
+            val on = reminders.any { it.playlistId == ch.playlistId && it.channelName == ch.name && it.start == h.start }
+            reminders = if (on) {
+                reminders.filterNot { it.playlistId == ch.playlistId && it.channelName == ch.name && it.start == h.start }
+            } else {
+                reminders + Reminder(ch.playlistId, ch.id, ch.name, h.title, h.start, h.stop)
+            }
+            saveReminders()
+            val at = android.text.format.DateFormat.getTimeFormat(getApplication<Application>()).format(h.start)
+            showToast(if (on) "Reminder removed" else "We'll remind you at $at when it starts on ${ch.name}")
+        }
+    }
+
+    fun hasReminder(h: com.zapp.tv.data.ProgrammeHit): Boolean = reminders.any { it.channelId == h.channelId && it.start == h.start }
 
     fun follow(team: com.zapp.tv.data.SportTeam, on: Boolean) {
         val list = sports.followed().filter { it.id != team.id } + if (on) listOf(team) else emptyList()
@@ -702,6 +754,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                 !settings.seekrOn -> st(false, "Key saved, switched off on the TV")
                 else -> st(true, "Connected")
             })
+            .put("football", if (zapp.football.hasKey) st(true, "Connected") else st(false, "Not connected"))
             .put("sportsdb", if (settings.secret("sportsDbKey").isNotBlank()) st(true, "Using your own key") else st(false, "Using the free shared key"))
     }
 
@@ -784,6 +837,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app), SetupServer.Handle
                     zapp.seekr.keyChanged()
                     showToast("Seekr connected from your phone")
                     return@withContext "Seekr is connected. The seek bar now shows pictures while you skip through films and episodes."
+                }
+                "football" -> {
+                    val key = body.optString("footballKey").trim()
+                    if (key.length < 16) fail("Paste your football-data.org API token.")
+                    if (!zapp.football.check(key)) fail("football-data.org didn't accept that token. Copy it again from the email they sent you.")
+                    settings.setSecret(com.zapp.tv.data.FootballData.KEY, key)
+                    if (zapp.football.followed().isEmpty()) zapp.football.setFollowed(listOf("PL", "ELC"))
+                    refreshSports(force = true)
+                    showToast("Football connected from your phone")
+                    return@withContext "Connected. Sports now shows the Premier League and Championship. Choose more leagues on the TV under Sports, Leagues."
                 }
                 "sportsdb" -> {
                     val key = body.optString("sportsDbKey").trim()

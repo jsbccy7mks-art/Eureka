@@ -33,8 +33,21 @@ data class SportEvent(
     val status: String?,
     val thumb: String?,
 ) {
-    val finished: Boolean get() = homeScore != null && awayScore != null && System.currentTimeMillis() > start + 2 * 3_600_000L
-    fun liveAt(now: Long) = now >= start - 10 * 60_000L && now <= start + 2 * 3_600_000L + 30 * 60_000L && !(status?.contains("FT", true) == true || status?.contains("Finished", true) == true)
+    val finished: Boolean get() = status == "FINISHED" || status == "AWARDED" ||
+        (homeScore != null && awayScore != null && status !in INPLAY && System.currentTimeMillis() > start + 2 * 3_600_000L)
+
+    /** Off: postponed, cancelled or suspended. */
+    val off: Boolean get() = status == "POSTPONED" || status == "CANCELLED" || status == "SUSPENDED"
+
+    fun liveAt(now: Long): Boolean {
+        if (status in INPLAY) return true
+        if (finished || off) return false
+        return now >= start - 10 * 60_000L && now <= start + 2 * 3_600_000L + 30 * 60_000L && !(status?.contains("FT", true) == true || status?.contains("Finished", true) == true)
+    }
+
+    private companion object {
+        val INPLAY = setOf("IN_PLAY", "PAUSED", "LIVE")
+    }
 }
 
 /**

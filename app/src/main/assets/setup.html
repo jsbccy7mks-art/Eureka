@@ -115,6 +115,7 @@
     <button type="button" data-type="tmdb" aria-pressed="false">TMDB</button>
     <button type="button" data-type="mdblist" aria-pressed="false">MDBList</button>
     <button type="button" data-type="seekr" aria-pressed="false">Seekr</button>
+    <button type="button" data-type="football" aria-pressed="false">Football</button>
     <button type="button" data-type="sportsdb" aria-pressed="false">Sports</button>
   </div>
 
@@ -224,6 +225,16 @@
       </div>
     </div>
 
+    <!-- football-data.org -->
+    <div data-for="football" hidden>
+      <h2>Football</h2>
+      <p>Follow whole leagues in Sports, with live scores: Premier League, Championship, Champions League and the big European leagues. Register for a free token at football-data.org (it arrives by email), then paste it here.</p>
+      <div class="field">
+        <label for="footballKey">API token</label>
+        <input id="footballKey" autocapitalize="off" spellcheck="false">
+      </div>
+    </div>
+
     <!-- TheSportsDB -->
     <div data-for="sportsdb" hidden>
       <h2>TheSportsDB</h2>
@@ -306,7 +317,7 @@
   let format = 'ts';
   let debridService = 'pm';
   const remembered = { playlist: 'xtream', accounts: 'stremio' };
-  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect', mdblist: 'Connect', seekr: 'Connect', sportsdb: 'Save' };
+  const buttonText = { xtream: 'Add playlist', m3u: 'Add playlist', addon: 'Install add-on', stremio: 'Sign in', nuvio: 'Connect', simkl: 'Save', debrid: 'Connect', tmdb: 'Connect', mdblist: 'Connect', seekr: 'Connect', football: 'Connect', sportsdb: 'Save' };
 
   if (!token) $('codeBox').hidden = false;
   function currentToken() { return token || $('code').value.trim().toUpperCase(); }
@@ -371,7 +382,7 @@
   // The TV can open a particular part of this page (?tab=stremio and so on).
   const want = params.get('tab');
   if (want === 'xtream' || want === 'm3u') { remembered.playlist = want; choose('playlist'); }
-  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb' || want === 'mdblist' || want === 'seekr' || want === 'sportsdb') { remembered.accounts = want; choose('accounts'); }
+  else if (want === 'stremio' || want === 'nuvio' || want === 'simkl' || want === 'debrid' || want === 'tmdb' || want === 'mdblist' || want === 'seekr' || want === 'football' || want === 'sportsdb') { remembered.accounts = want; choose('accounts'); }
   else if (want === 'addon' || want === 'help') { choose(want); }
   else { show(); }
 
@@ -415,6 +426,7 @@
     tmdb: (b) => !b.tmdbKey.trim() && 'Paste your TMDB key first.',
     mdblist: (b) => !b.mdblistKey.trim() && 'Paste your MDBList key first.',
     seekr: (b) => !b.seekrKey.trim() && 'Paste your Seekr key first.',
+    football: (b) => !b.footballKey.trim() && 'Paste your football-data.org token first.',
     sportsdb: (b) => !b.sportsDbKey.trim() && 'Paste your TheSportsDB key first.',
   };
   const working = {
@@ -428,6 +440,7 @@
     tmdb: 'Checking the key with TMDB…',
     mdblist: 'Checking the key with MDBList…',
     seekr: 'Checking the key with Seekr…',
+    football: 'Checking the token with football-data.org…',
   };
 
   $('form').addEventListener('submit', async (e) => {
@@ -456,6 +469,7 @@
       mdblistKey: $('mdblistKey').value,
       seekrKey: $('seekrKey').value,
       sportsDbKey: $('sportsDbKey').value,
+      footballKey: $('footballKey').value,
     };
     const problem = missing[type] && missing[type](body);
     if (problem) { setStatus('err', problem); return; }
