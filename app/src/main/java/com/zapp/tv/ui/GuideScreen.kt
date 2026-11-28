@@ -436,7 +436,12 @@ private fun GuideHeader(
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(12.dp))
-                Text(context, color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+                Text(
+                    context + if (updated > 0) "  ·  Updated ${timeFormat.format(updated)}" else "",
+                    color = ZappColors.Faint,
+                    fontSize = TextSize.Small,
+                    maxLines = 1,
+                )
             }
             Spacer(Modifier.height(4.dp))
             if (p != null && row != null) {
@@ -488,9 +493,9 @@ private fun GuideHeader(
                     onClick = onUpdate,
                     style = ButtonStyle.Quiet,
                 )
-                if (updated > 0) Text("Updated ${timeFormat.format(updated)}", color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
                 Spacer(Modifier.weight(1f))
                 KeyHint("OK", okLabel)
+                Spacer(Modifier.width(4.dp))
                 KeyHint("‹", "Categories")
             }
         }
