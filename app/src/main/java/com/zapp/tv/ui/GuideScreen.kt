@@ -572,8 +572,11 @@ private fun GuideRow(
             val visible = programmes.filter { it.stop > windowStart && it.start < windowEnd }
             if (visible.isEmpty()) {
                 val requester = remember { FocusRequester() }
-                if (pending != null && pending.channelId == channel.id) {
-                    LaunchedEffect(pending) {
+                // Always the same effect (never added or removed): a block that came and went here
+                // rebuilt the cell just as it took focus, and the remote fell out of the guide.
+                val mine = pending != null && pending.channelId == channel.id
+                LaunchedEffect(if (mine) pending else null) {
+                    if (mine) {
                         requester.tryRequest()
                         onPendingDone()
                     }
@@ -605,8 +608,9 @@ private fun GuideRow(
                         val x = ((from - windowStart) * dpPerMs).dp
                         val w = (((to - from) * dpPerMs).dp - 3.dp).coerceAtLeast(3.dp)
                         val requester = remember { FocusRequester() }
-                        if (pending != null && pending.channelId == channel.id && pending.time >= p.start && pending.time < p.stop) {
-                            LaunchedEffect(pending) {
+                        val mine = pending != null && pending.channelId == channel.id && pending.time >= p.start && pending.time < p.stop
+                        LaunchedEffect(if (mine) pending else null) {
+                            if (mine) {
                                 requester.tryRequest()
                                 onPendingDone()
                             }

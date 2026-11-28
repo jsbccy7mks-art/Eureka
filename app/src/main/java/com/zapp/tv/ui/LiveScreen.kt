@@ -395,8 +395,11 @@ fun LiveScreen(
                         val row = rows[index]
                         val focusRequester = remember { FocusRequester() }
                         val wanted = pendingFocusIndex
-                        if (row != null && row.channel.streamUrl == pendingFocusUrl && (wanted == null || wanted == index)) {
-                            LaunchedEffect(Unit) {
+                        // Always the same effect, never added or removed around the row (that can rebuild
+                        // it just as it takes focus).
+                        val wantsFocus = row != null && row.channel.streamUrl == pendingFocusUrl && (wanted == null || wanted == index)
+                        LaunchedEffect(wantsFocus) {
+                            if (wantsFocus) {
                                 focusRequester.tryRequest()
                                 pendingFocusUrl = null
                                 pendingFocusIndex = null

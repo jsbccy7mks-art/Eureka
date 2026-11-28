@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
@@ -1038,59 +1039,63 @@ internal fun PlayerGlyph(icon: PlayerIcon, color: Color, size: Dp, modifier: Mod
     }
 }
 
-/** A player icon on its own (no circle): soft shadow at rest; white, larger and underlined on focus. */
+/**
+ * The player's buttons: just an icon. On focus a white disc appears behind it and the icon turns
+ * dark. Nothing animates, grows or re-lays out, so moving along the row costs almost nothing while
+ * a film is decoding (the shared FocusSurface, with its scale, colour and glow animations, was what
+ * made the controls feel slow on a busy box).
+ */
 @Composable
-internal fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequester?, onClick: () -> Unit) {
-    val s = if (big) 56.dp else 44.dp
-    FocusSurface(
-        onClick = onClick,
-        modifier = Modifier.size(s),
-        focusRequester = requester,
-        shape = CircleShape,
-        focusScale = 1.16f,
-        scaleMs = 90,
-        restColor = Color.Transparent,
-        focusColor = Color.Transparent,
-    ) { focused ->
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val g = if (big) 32.dp else 26.dp
-            GlyphShadow(icon, g)
-            PlayerGlyph(icon, if (focused) Color.White else Color.White.copy(alpha = 0.8f), g)
-            FocusUnderline(focused, Modifier.align(Alignment.BottomCenter))
-        }
+internal fun PlayerIconButton(
+    icon: PlayerIcon,
+    size: Dp,
+    glyph: Dp,
+    requester: FocusRequester?,
+    tint: Color = Color.White.copy(alpha = 0.85f),
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val own = remember { FocusRequester() }
+    val click by androidx.compose.runtime.rememberUpdatedState(onClick)
+    val down = remember { booleanArrayOf(false) }
+    Box(
+        Modifier
+            .size(size)
+            .focusRequester(requester ?: own)
+            .onFocusChanged {
+                focused = it.isFocused
+                if (!it.isFocused) down[0] = false
+            }
+            .onKeyEvent { e ->
+                if (e.key != Key.DirectionCenter && e.key != Key.Enter && e.key != Key.NumPadEnter) return@onKeyEvent false
+                // Clicks on release (like everywhere else), so a press that opens something never
+                // clicks whatever appears under it.
+                if (e.type == KeyEventType.KeyDown) {
+                    if (e.nativeKeyEvent.repeatCount == 0) down[0] = true
+                } else if (e.type == KeyEventType.KeyUp && down[0]) {
+                    down[0] = false
+                    click()
+                }
+                true
+            }
+            .focusable()
+            .drawBehind { if (focused) drawCircle(Color.White) },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!focused) GlyphShadow(icon, glyph)
+        PlayerGlyph(icon, if (focused) Color(0xFF101218) else tint, glyph)
     }
 }
 
-/**
- * A short theme-coloured line under whatever has focus in the player. Drawn (growing from the
- * middle), never re-laid out, so moving between buttons stays light.
- */
+/** A player icon on its own. */
 @Composable
-internal fun FocusUnderline(focused: Boolean, modifier: Modifier = Modifier) {
-    val w = androidx.compose.animation.core.animateFloatAsState(if (focused) 1f else 0f, androidx.compose.animation.core.tween(120), label = "underline")
-    val b1 = ZappColors.Brand1
-    val b2 = ZappColors.Brand2
-    androidx.compose.foundation.Canvas(modifier.width(18.dp).height(2.dp)) {
-        val ww = size.width * w.value
-        if (ww <= 0.5f) return@Canvas
-        val x = (size.width - ww) / 2f
-        drawRoundRect(
-            Brush.horizontalGradient(listOf(b1, b2), startX = x, endX = x + ww),
-            topLeft = Offset(x, 0f),
-            size = androidx.compose.ui.geometry.Size(ww, size.height),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f),
-        )
-    }
-}
+internal fun RoundButton(icon: PlayerIcon, big: Boolean, requester: FocusRequester?, onClick: () -> Unit) =
+    PlayerIconButton(icon, if (big) 56.dp else 44.dp, if (big) 30.dp else 24.dp, requester, onClick = onClick)
 
-/**
- * The soft shadow under a player icon: the icon itself, twice, slightly lower and see-through.
- * (A real blur looked the same but was costly to redraw over a playing film.)
- */
+/** One soft shadow under a player icon, so it reads over a bright picture (no blur: cheap to draw). */
 @Composable
 internal fun GlyphShadow(icon: PlayerIcon, size: Dp) {
-    PlayerGlyph(icon, Color.Black.copy(alpha = 0.22f), size, Modifier.offset(y = 2.5.dp))
-    PlayerGlyph(icon, Color.Black.copy(alpha = 0.3f), size, Modifier.offset(y = 1.2.dp))
+    PlayerGlyph(icon, Color.Black.copy(alpha = 0.35f), size, Modifier.offset(y = 1.5.dp))
 }
 
 /** Up (while something inside has focus) runs [onUp] instead of moving focus, whenever [now] says so. */
@@ -1115,32 +1120,8 @@ internal fun Playback.hasSeekBar(): Boolean {
  * so the row itself stays clean.
  */
 @Composable
-internal fun IconOption(icon: PlayerIcon, label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) {
-    FocusSurface(
-        onClick = onClick,
-        modifier = Modifier.size(44.dp),
-        focusRequester = requester,
-        shape = CircleShape,
-        focusScale = 1.16f,
-        scaleMs = 90,
-        restColor = Color.Transparent,
-        focusColor = Color.Transparent,
-    ) { focused ->
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            GlyphShadow(icon, 22.dp)
-            PlayerGlyph(
-                icon,
-                when {
-                    focused -> Color.White
-                    accent -> ZappColors.Brand2
-                    else -> Color.White.copy(alpha = 0.75f)
-                },
-                22.dp,
-            )
-            FocusUnderline(focused, Modifier.align(Alignment.BottomCenter))
-        }
-    }
-}
+internal fun IconOption(icon: PlayerIcon, label: String, value: String?, onClick: () -> Unit, requester: FocusRequester? = null, accent: Boolean = false) =
+    PlayerIconButton(icon, 42.dp, 21.dp, requester, tint = if (accent) ZappColors.Brand2 else Color.White.copy(alpha = 0.8f), onClick = onClick)
 
 /** A player option as quiet text; its current value appears beneath it while it has focus. */
 @Composable
@@ -1167,7 +1148,6 @@ private fun ChipButton(label: String, value: String?, onClick: () -> Unit, reque
                 style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color(0x99000000), Offset(0f, 1.5f), 6f)),
             )
             Spacer(Modifier.height(4.dp))
-            FocusUnderline(focused)
             Box(Modifier.height(16.dp)) {
                 if (focused && value != null) {
                     Text(value, fontSize = TextSize.Label, color = ZappColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.61.2
+
+**Fixed**
+- TV guide: Right moves along the programmes again. The programme you landed on was rebuilt the
+  moment it got focus, so the remote fell out of the guide onto the sidebar and back, over and over.
+- Player: 4K films in widescreen showed "1080p". The picture size is now judged by its width.
+
+**Changed**
+- Player controls are plain icons. The one you're on gets a white circle behind it, with no
+  line underneath and nothing animating, so moving between them stays quick while a film plays.
+
 ## 0.61.1
 
 **Fixed**

@@ -252,6 +252,7 @@ class Playback(
     var aspect by mutableFloatStateOf(16f / 9f)
     /** Height of the picture now playing, in pixels (0 until known). */
     var videoHeight by mutableIntStateOf(0)
+    var videoWidth by mutableIntStateOf(0)
         private set
 
     /** How the picture fills the screen: 0 fit, 1 fill (crop the edges), 2 stretch. */
@@ -342,6 +343,7 @@ class Playback(
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             if (videoSize.height > 0) videoHeight = videoSize.height
+            if (videoSize.width > 0) videoWidth = videoSize.width
             if (videoSize.height > 0 && videoSize.width > 0) {
                 aspect = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
             }
@@ -418,11 +420,14 @@ class Playback(
         val a = player.audioFormat
         val out = ArrayList<String>()
         val h = if (videoHeight > 0) videoHeight else v?.height ?: 0
+        val w = if (videoWidth > 0) videoWidth else v?.width ?: 0
+        // By width first: widescreen films have the black bars cropped off, so a 4K film is
+        // 3840 wide but often only about 1600 tall (that used to read as "1080p").
         when {
-            h >= 1800 -> out.add("4K")
-            h >= 1000 -> out.add("1080p")
-            h >= 700 -> out.add("720p")
-            h > 0 -> out.add("SD")
+            w >= 3200 || h >= 2000 -> out.add("4K")
+            w >= 1800 || h >= 1000 -> out.add("1080p")
+            w >= 1200 || h >= 700 -> out.add("720p")
+            w > 0 || h > 0 -> out.add("SD")
         }
         if (v != null) {
             when {
