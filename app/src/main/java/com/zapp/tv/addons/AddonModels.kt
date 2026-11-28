@@ -96,85 +96,79 @@ data class StreamItem(
 ) {
     val playable: Boolean get() = !url.isNullOrBlank()
 
-    private val text: String get() = "$name\n$description\n${filename.orEmpty()}"
+    // Worked out once per source (they were re-read with regular expressions on every redraw of the list).
+    private val text: String by lazy { "$name\n$description\n${filename.orEmpty()}" }
 
-    val quality: String?
-        get() {
+    val quality: String? by lazy { run {
             val t = text.lowercase()
-            return when {
+            return@lazy when {
                 "2160" in t || Regex("\\b4k\\b").containsMatchIn(t) || "uhd" in t -> "4K"
                 "1080" in t -> "1080p"
                 "720" in t -> "720p"
                 "480" in t -> "480p"
                 else -> null
             }
-        }
+        } }
 
-    val size: String?
-        get() = Regex("(\\d+(?:[.,]\\d+)?)\\s?(GB|MB|GiB|MiB)", RegexOption.IGNORE_CASE).find(text)?.value
+    val size: String? by lazy { Regex("(\\d+(?:[.,]\\d+)?)\\s?(GB|MB|GiB|MiB)", RegexOption.IGNORE_CASE).find(text)?.value }
 
-    val sizeBytes: Long
-        get() {
-            val m = Regex("(\\d+(?:[.,]\\d+)?)\\s?(GB|MB|GiB|MiB)", RegexOption.IGNORE_CASE).find(text) ?: return 0
-            val n = m.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return 0
+    val sizeBytes: Long by lazy { run {
+            val m = Regex("(\\d+(?:[.,]\\d+)?)\\s?(GB|MB|GiB|MiB)", RegexOption.IGNORE_CASE).find(text) ?: return@lazy 0
+            val n = m.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return@lazy 0
             val unit = m.groupValues[2].lowercase()
-            return (n * if (unit.startsWith("g")) 1_073_741_824.0 else 1_048_576.0).toLong()
-        }
+            return@lazy (n * if (unit.startsWith("g")) 1_073_741_824.0 else 1_048_576.0).toLong()
+        } }
 
     /** Quality as a number for sorting and limits: 2160, 1080, 720, 480 or 0 when unknown. */
-    val qualityRank: Int
-        get() = when (quality) {
+    val qualityRank: Int by lazy { when (quality) {
             "4K" -> 2160
             "1080p" -> 1080
             "720p" -> 720
             "480p" -> 480
             else -> 0
-        }
+        } }
 
     /**
      * Whether an add-on says this link is ready (already on the debrid service). Add-ons mark this in the
      * name: "[RD+]" or a lightning bolt for ready, "download" or an hourglass for not yet.
      */
-    val markedReady: Boolean?
-        get() {
+    val markedReady: Boolean? by lazy { run {
             val t = "$name $description"
             val lower = t.lowercase()
-            return when {
+            return@lazy when {
                 "download]" in lower || "\u23F3" in t || "uncached" in lower || "not cached" in lower -> false
                 "+]" in t || "\u26A1" in t || "instant" in lower || "cached" in lower -> true
                 else -> null
             }
-        }
+        } }
 
     /**
      * The picture, from the release name: 0 normal (SDR), 1 HDR (HDR10, HDR10+, HLG), 2 Dolby Vision
      * with an HDR fallback (DV HDR10), 3 Dolby Vision only (often no fallback: odd colours without DV).
      */
-    val pictureKind: Int
-        get() {
+    val pictureKind: Int by lazy { run {
             val t = text.lowercase()
             val dv = "dolby vision" in t || "dovi" in t || Regex("\\bdv\\b").containsMatchIn(t)
             val hdr = "hdr" in t || "hlg" in t
-            return when {
+            return@lazy when {
                 dv && hdr -> 2
                 dv -> 3
                 hdr -> 1
                 else -> 0
             }
-        }
+        } }
 
     /** Tags such as HDR, Dolby Vision, HEVC or Atmos found in the description. */
-    val tags: List<String>
-        get() {
+    val tags: List<String> by lazy { run {
             val t = text.lowercase()
-            return buildList {
+            return@lazy buildList {
                 if ("dolby vision" in t || Regex("\\bdv\\b").containsMatchIn(t)) add("Dolby Vision")
                 if ("hdr" in t) add("HDR")
                 if ("hevc" in t || "x265" in t || "h265" in t || "h.265" in t) add("HEVC")
                 if ("atmos" in t) add("Atmos")
                 if ("remux" in t) add("Remux")
             }
-        }
+        } }
 }
 
 /** A subtitle file offered by a subtitles add-on (OpenSubtitles and similar). */

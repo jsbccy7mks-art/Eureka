@@ -15,6 +15,8 @@ import androidx.compose.ui.input.key.type
 import com.zapp.tv.data.ChannelSort
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,7 +74,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 private data class CategoryKey(val id: Long?)
 
 private val RowHeight = 50.dp
-private val WideRowHeight = 56.dp
+private val WideRowHeight = 50.dp
 
 @Composable
 fun LiveScreen(
@@ -131,6 +133,7 @@ fun LiveScreen(
     fun openCategory(id: Long?) {
         val changed = id != scope.categoryId
         vm.selectCategory(id)
+        wide = true
         coroutines.launch {
             if (changed) {
                 listState.scrollToItem(0)
@@ -197,9 +200,7 @@ fun LiveScreen(
             if (first != null) {
                 pendingFocusUrl = first.channel.streamUrl
             } else {
-                wide = false
-                delay(40)
-                categoryFocus.tryRequest()
+                showCategories()
             }
         }
     }
@@ -232,120 +233,26 @@ fun LiveScreen(
     Box(Modifier.fillMaxSize()) {
     SoftBackdrop(currentArt, strength = 0.45f)
 
-    val title = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
     val currentPlaylist = playlists.firstOrNull { it.playlist.id == scope.playlistId }
 
-    Row(
+    val title = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
+    Column(
         Modifier
             .fillMaxSize()
-            .padding(start = 28.dp, end = 32.dp, bottom = 22.dp),
+            .padding(start = 28.dp, end = 32.dp, bottom = 18.dp),
     ) {
-        // ------------------------------------------------------------ categories
-        androidx.compose.animation.AnimatedVisibility(
-            visible = !wide,
-            enter = androidx.compose.animation.expandHorizontally(tween(220), expandFrom = Alignment.Start) + fadeIn(tween(200, delayMillis = 40)),
-            exit = androidx.compose.animation.shrinkHorizontally(tween(220), shrinkTowards = Alignment.Start) + fadeOut(tween(120)),
-        ) {
-            Row {
-                Column(
-                    Modifier
-                        .width(200.dp)
-                        .fillMaxHeight()
-                        .onFocusChanged {
-                            categoriesFocused = it.hasFocus
-                            if (it.hasFocus) wide = false
-                        }
-                        .onPreviewKeyEvent { e ->
-                            // Right on a category opens it, like OK (straight away, not after the preview pause).
-                            if (e.key != Key.DirectionRight || categoryMoving) return@onPreviewKeyEvent false
-                            val f = focusedCategory ?: return@onPreviewKeyEvent false
-                            if (e.type == KeyEventType.KeyDown) openCategory(f.id)
-                            true
-                        },
-                ) {
-                    if (playlists.size > 1 && currentPlaylist != null) {
-                        FocusSurface(
-                            onClick = { vm.nextPlaylist() },
-                            onFocusChange = { if (it) focusedCategory = null },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(10.dp),
-                            restColor = ZappColors.Glass,
-                        ) { focused ->
-                            Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        "Playlist",
-                                        fontSize = TextSize.Label,
-                                        color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
-                                    )
-                                    Text(
-                                        currentPlaylist.playlist.name,
-                                        fontSize = TextSize.Body,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (focused) ZappColors.OnFocus else ZappColors.Text,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                                ChevronGlyph(if (focused) ZappColors.OnFocus else ZappColors.Dim, 12.dp, down = false)
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                    }
-
-                    CategoryList(
-                        vm = vm,
-                        categories = categories,
-                        selectedId = scope.categoryId,
-                        playlistId = scope.playlistId,
-                        state = categoryState,
-                        selectedRequester = categoryFocus,
-                        modifier = Modifier.weight(1f),
-                        // The Hidden categories line isn't a list of its own: resting on it changes nothing.
-                        onFocus = { focusedCategory = if (it.id == HIDDEN_CATEGORIES) null else CategoryKey(it.id) },
-                        onMoving = { categoryMoving = it },
-                        // OK opens the category: the list takes over the screen.
-                        onPick = { item -> openCategory(item.id) },
-                    )
-                }
-                Spacer(Modifier.width(18.dp))
-            }
-        }
-
-        // ------------------------------------------------------------ channels
-        Column(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 10.dp, end = 10.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                Text(
-                    text = title,
-                    fontSize = TextSize.Title,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                Spacer(Modifier.width(8.dp))
-                if (rows.itemCount > 0) {
-                    Text(formatCount(rows.itemCount), color = ZappColors.Faint, fontSize = TextSize.Body)
-                }
-                if (wide) {
-                    Spacer(Modifier.weight(1f))
-                    Text("‹ Categories", color = ZappColors.Faint, fontSize = TextSize.Small)
-                }
-            }
-
-            Box(Modifier.weight(1f)) {
+        // Like TiviMate: the picture top left, what's on beside it, the whole list below.
+        LiveHeader(
+            vm = vm,
+            playback = playback,
+            row = focusedRow,
+            programmes = programmes,
+            context = listOfNotNull(currentPlaylist?.playlist?.name?.takeIf { playlists.size > 1 }, title, if (rows.itemCount > 0) "${formatCount(rows.itemCount)} channels" else null).joinToString("  ·  "),
+            now = now,
+            timeFormat = timeFormat,
+        )
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.weight(1f)) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -372,7 +279,7 @@ fun LiveScreen(
                                 }
                             }
                             when (e.key) {
-                                // Left from the channels brings the categories back.
+                                // Left from the channels slides the categories in.
                                 Key.DirectionLeft -> {
                                     if (e.type == KeyEventType.KeyDown) showCategories()
                                     true
@@ -408,7 +315,7 @@ fun LiveScreen(
                         ChannelItem(
                             modifier = Modifier.rememberFocus(channelMemory, index),
                             row = row,
-                            wide = wide,
+                            wide = true,
                             moving = row != null && row.channel.streamUrl == moving,
                             playing = row != null && playback.isOn(row.channel),
                             now = now,
@@ -442,22 +349,95 @@ fun LiveScreen(
                     )
                 }
             }
+    }
+
+    // ------------------------------------------------------------ categories, sliding in over the list
+    androidx.compose.animation.AnimatedVisibility(
+        visible = !wide,
+        enter = androidx.compose.animation.slideInHorizontally(tween(220)) { -it / 3 } + fadeIn(tween(180)),
+        exit = androidx.compose.animation.slideOutHorizontally(tween(200)) { -it / 3 } + fadeOut(tween(160)),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.horizontalGradient(0f to Color(0xF0000000), 0.4f to Color(0xA0000000), 1f to Color(0x30000000))),
+            )
+            Column(
+                Modifier
+                    .width(260.dp)
+                    .fillMaxHeight()
+                    .background(ZappColors.Panel.copy(alpha = 0.97f))
+                    .padding(start = 18.dp, end = 14.dp, top = 14.dp, bottom = 14.dp)
+                    .onFocusChanged {
+                        // Leaving the panel (to the sidebar, or into a list) puts it away.
+                        if (categoriesFocused && !it.hasFocus) wide = true
+                        categoriesFocused = it.hasFocus
+                        if (it.hasFocus) wide = false
+                    }
+                    .onPreviewKeyEvent { e ->
+                        // Right on a category opens it, like OK (straight away, not after the preview pause).
+                        if (e.key != Key.DirectionRight || categoryMoving) return@onPreviewKeyEvent false
+                        val f = focusedCategory ?: return@onPreviewKeyEvent true
+                        if (e.type == KeyEventType.KeyDown) openCategory(f.id)
+                        true
+                    }
+                    // Up and Down stay in the panel; Left (or Back) goes on to the sidebar.
+                    .focusProperties {
+                        exit = { d -> if (d == androidx.compose.ui.focus.FocusDirection.Left) FocusRequester.Default else FocusRequester.Cancel }
+                    }
+                    .focusGroup(),
+            ) {
+                Text("Categories", fontSize = TextSize.Title, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 12.dp, bottom = 10.dp))
+                    if (playlists.size > 1 && currentPlaylist != null) {
+                    FocusSurface(
+                        onClick = { vm.nextPlaylist() },
+                        onFocusChange = { if (it) focusedCategory = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        restColor = ZappColors.Glass,
+                    ) { focused ->
+                        Row(
+                            Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Playlist",
+                                    fontSize = TextSize.Label,
+                                    color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint,
+                                )
+                                Text(
+                                    currentPlaylist.playlist.name,
+                                    fontSize = TextSize.Body,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (focused) ZappColors.OnFocus else ZappColors.Text,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            ChevronGlyph(if (focused) ZappColors.OnFocus else ZappColors.Dim, 12.dp, down = false)
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+
+                CategoryList(
+                    vm = vm,
+                    categories = categories,
+                    selectedId = scope.categoryId,
+                    playlistId = scope.playlistId,
+                    state = categoryState,
+                    selectedRequester = categoryFocus,
+                    modifier = Modifier.weight(1f),
+                    // The Hidden categories line isn't a list of its own: resting on it changes nothing.
+                    onFocus = { focusedCategory = if (it.id == HIDDEN_CATEGORIES) null else CategoryKey(it.id) },
+                    onMoving = { categoryMoving = it },
+                    // OK opens the category: the list takes over the screen.
+                    onPick = { item -> openCategory(item.id) },
+                )
+            }
         }
-
-        Spacer(Modifier.width(20.dp))
-
-        // ------------------------------------------------------------ preview
-        PreviewPane(
-            vm = vm,
-            playback = playback,
-            row = focusedRow,
-            programmes = programmes,
-            now = now,
-            timeFormat = timeFormat,
-            modifier = Modifier
-                .width(330.dp)
-                .fillMaxHeight(),
-        )
     }
     }
 
@@ -655,6 +635,119 @@ private fun androidx.compose.foundation.layout.RowScope.WideChannelText(
                 Text(timeFormat.format(nextStart), color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim, fontSize = TextSize.Label, fontWeight = FontWeight.Medium, maxLines = 1)
                 Spacer(Modifier.width(6.dp))
                 Text(next, color = if (focused) ZappColors.OnFocusDim else ZappColors.Faint, fontSize = TextSize.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/**
+ * The top of the Channels tab, like the guide's: the picture (the channel you're on, playing if
+ * previews are on) and beside it what's on, when, how far in, what it's about and what's next.
+ */
+@Composable
+private fun LiveHeader(
+    vm: AppViewModel,
+    playback: Playback,
+    row: ChannelRow?,
+    programmes: List<Programme>,
+    context: String,
+    now: Long,
+    timeFormat: java.text.DateFormat,
+) {
+    val showingVideo = row != null && playback.isOn(row.channel) && vm.settings.preview
+    val current = programmes.firstOrNull { it.start <= now && it.stop > now }
+    val next = programmes.firstOrNull { it.start >= now }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(168.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (vm.settings.preview) PreviewVideo(playback, Modifier.fillMaxSize())
+            if (!showingVideo) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Brush.linearGradient(listOf(ZappColors.Brand1.copy(alpha = 0.25f), ZappColors.Panel, ZappColors.Brand2.copy(alpha = 0.15f)))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when {
+                        current?.icon != null -> AsyncImage(model = current.icon, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        row != null -> LogoTile(url = row.channel.logo, fallback = row.channel.name, size = 56.dp)
+                        else -> LogoMark(34.dp)
+                    }
+                }
+            } else {
+                if (playback.buffering && playback.error == null) ZappLoader(20.dp)
+                playback.error?.let { Text(it, color = Color.White, fontSize = TextSize.Small, modifier = Modifier.padding(12.dp)) }
+            }
+        }
+        Spacer(Modifier.width(18.dp))
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    current?.title ?: row?.channel?.name ?: "Pick a channel",
+                    fontSize = TextSize.Title,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(context, color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+            }
+            Spacer(Modifier.height(4.dp))
+            if (row != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (current != null) {
+                        LivePill()
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        row.channel.name + if (current != null) "  ·  ${timeFormat.format(current.start)} – ${timeFormat.format(current.stop)}" else "  ·  No guide information",
+                        color = ZappColors.Dim,
+                        fontSize = TextSize.Small,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    val realBadge = if (showingVideo && playback.videoHeight > 0) heightBadge(playback.videoHeight) else null
+                    (realBadge ?: qualityBadge(row.channel.name))?.let { q ->
+                        Spacer(Modifier.width(8.dp))
+                        QualityPill(q, false)
+                    }
+                    if (current != null) {
+                        Spacer(Modifier.width(10.dp))
+                        ProgressLine(progressOf(current.start, current.stop, now), Modifier.width(70.dp), thickness = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${((current.stop - now) / 60_000).coerceAtLeast(1)} min left", color = ZappColors.Faint, fontSize = TextSize.Small, maxLines = 1)
+                    }
+                }
+                current?.description?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(it, color = ZappColors.Dim, fontSize = TextSize.Small, lineHeight = 16.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
+            } else {
+                Text("Rest on a channel to see what's on and preview it here.", color = ZappColors.Dim, fontSize = TextSize.Small)
+            }
+            Spacer(Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (next != null) {
+                    Text("Next  ${timeFormat.format(next.start)}", color = ZappColors.Faint, fontSize = TextSize.Small, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(8.dp))
+                    Text(next.title, color = ZappColors.Dim, fontSize = TextSize.Small, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                }
+                Spacer(Modifier.weight(1f))
+                KeyHint("OK", "Watch")
+                Spacer(Modifier.width(10.dp))
+                KeyHint("‹", "Categories")
             }
         }
     }

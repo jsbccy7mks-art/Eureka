@@ -417,6 +417,12 @@ fun ZappRoot(vm: AppViewModel) {
                 false
             },
     ) {
+        // While a film or channel fills the screen, nothing underneath is drawn at all (the pages,
+        // their artwork and glows were being redrawn under the picture on every change, which is
+        // what made the player's buttons slow on a busy box).
+        val covered = (vodOpen && playRequest != null && playback.media != null) || (playerOpen && playback.channel != null) ||
+            (playRequest != null && !vodOpen)
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (covered) 0f else 1f }) {
         AmbientBackground()
 
         when {
@@ -720,6 +726,8 @@ fun ZappRoot(vm: AppViewModel) {
                     },
                 )
             }
+        }
+
         }
 
         val pr = playRequest
@@ -1039,7 +1047,7 @@ private fun Sidebar(
                                     },
                                     20.dp,
                                 )
-                                if ((d == Dest.Settings && updateReady) || (d == Dest.Library && SideBadges.newEpisodes > 0)) {
+                                if (d == Dest.Settings && updateReady) {
                                     Box(
                                         Modifier
                                             .align(Alignment.TopEnd)

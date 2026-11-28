@@ -94,8 +94,10 @@ fun SourcesOverlay(
     val cap = when (settings.maxQuality) { 1 -> 1080; 2 -> 720; else -> Int.MAX_VALUE }
     val context = androidx.compose.ui.platform.LocalContext.current
     // If the HDR setting would leave nothing at all, it steps aside rather than leave an empty list.
-    val hdrMode = settings.hdrMode.let { m ->
-        if (batches.any { b -> b.streams.any { com.zapp.tv.data.PictureFilter.keep(context, m, it) } } || batches.none { it.streams.isNotEmpty() }) m else -1
+    val hdrMode = remember(batches.size, settings.hdrMode) {
+        settings.hdrMode.let { m ->
+            if (batches.any { b -> b.streams.any { com.zapp.tv.data.PictureFilter.keep(context, m, it) } } || batches.none { it.streams.isNotEmpty() }) m else -1
+        }
     }
     fun keep(s: StreamItem): Boolean {
         if (s.qualityRank > cap) return false
@@ -112,10 +114,13 @@ fun SourcesOverlay(
     fun rank(s: StreamItem): Int = (if (isReady(s) == true) 10_000 else 0) + s.qualityRank + stats.bonus(s) +
         (if (hdrMode >= 0) com.zapp.tv.data.PictureFilter.bonus(context, hdrMode, s) else 0)
 
-    val sorted = batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } }
-    val all = sorted.flatMap { b ->
-        val kept = b.streams.filter(::keep)
-        if (settings.bestFirst) kept.sortedByDescending(::rank) else kept
+    // Worked out only when the sources or what's ready change (not on every move down the list).
+    val sorted = remember(batches.size, order) { batches.sortedBy { b -> order.indexOf(b.addonName).let { if (it < 0) Int.MAX_VALUE else it } } }
+    val all = remember(sorted, ready, hdrMode, cap, settings.cachedOnly, settings.bestFirst) {
+        sorted.flatMap { b ->
+            val kept = b.streams.filter(::keep)
+            if (settings.bestFirst) kept.sortedByDescending(::rank) else kept
+        }
     }
     val hiddenCount = sorted.sumOf { it.streams.size } - all.size
     fun canPlay(s: StreamItem) = (s.playable || (viaDebrid && s.infoHash != null)) && (s.url ?: s.infoHash) !in request.failed
@@ -323,7 +328,8 @@ private fun StreamRow(s: StreamItem, requester: FocusRequester?, debrid: String?
                         color = if (focused) ZappColors.OnFocusDim else ZappColors.Dim,
                         fontSize = TextSize.Small,
                         lineHeight = 15.sp,
-                        maxLines = if (focused) 5 else 2,
+                        // Same height focused or not, so moving down the list never re-lays it out.
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

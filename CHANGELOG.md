@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.64.0
+
+**Changed**
+- Live TV, Channels: laid out like TiviMate and the new guide. The picture is top left and plays
+  the channel you're on. Beside it is what's on: time, progress, minutes left, the description
+  and what's next. The full-width channel list sits below. Left (or Back) slides the categories in
+  over the list; OK or Right on one opens it.
+- The pink dot on Library in the sidebar is gone.
+
+**Faster**
+- Player: while a film or channel fills the screen, nothing behind it is drawn any more. The pages
+  underneath were being redrawn under the picture with every change, which was slowing down the
+  buttons.
+- Choosing a source: the list is worked out once instead of on every move, and rows keep the same
+  height when you move onto them. Each source's details are read once, and the page behind isn't
+  drawn.
+
 ## 0.63.0
 
 **New**
