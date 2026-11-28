@@ -155,6 +155,7 @@ fun GuideScreen(
     }
 
     val categoryName = categories.firstOrNull { it.id == scope.categoryId }?.name ?: "All channels"
+    androidx.compose.runtime.SideEffect { android.util.Log.d("GF", "guide recomposed sel=${selection?.programme?.title} pending=$pending rows=${rows.itemCount} ws=$windowStart") }
 
     // The programme you're on, softly behind the page (only the top, above the grid).
     // A Box, so the backdrop sits behind the page instead of taking up room above it.
@@ -704,6 +705,10 @@ private fun ProgrammeCell(
     replay: Boolean = false,
     reminder: Boolean = false,
 ) {
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        android.util.Log.d("GF", "cell '${programme.title}' start=${programme.start} composed")
+        onDispose { android.util.Log.d("GF", "cell '${programme.title}' start=${programme.start} DISPOSED") }
+    }
     val airing = programme.start <= now && programme.stop > now
     val past = programme.stop <= now
     val sport = remember(programme.title) { looksLikeSport(programme.title) }
