@@ -106,12 +106,13 @@ class ScreensTest {
                 }
             }
         }
-        rule.mainClock.advanceTimeBy(1500)
+        settle(1500)
         tick.intValue = 1
-        rule.mainClock.advanceTimeBy(1200)
+        settle(1200)
         key(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        settle(500)
         repeat(downs) { key(android.view.KeyEvent.KEYCODE_DPAD_DOWN) }
-        rule.mainClock.advanceTimeBy(800)
+        settle(800)
         save("settings-$section")
     }
 
