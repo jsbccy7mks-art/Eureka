@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.61.1
+
+**Fixed**
+- Settings: Right (or OK) on a section, such as Live TV, goes into its settings again. It could
+  bounce straight back to the list, so it looked like nothing happened.
+- Live TV: Right on a category always opens it, the same as OK. A big category waits until its
+  channels are there instead of doing nothing, and an empty one says so.
+- Leaving a page no longer pulls focus back to it on the way out, which could leave the new page
+  with nothing selected.
+
 ## 0.61.0
 
 **New**

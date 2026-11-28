@@ -145,7 +145,15 @@ fun SettingsScreen(
             ) {
                 items(SettingsSection.entries.filter { it.listed }, key = { it.name }) { s ->
                     FocusSurface(
-                        onClick = { section = s },
+                        // OK opens the section, like Right: straight onto the top of its list.
+                        onClick = {
+                            val changed = s != section
+                            section = s
+                            paneScope.launch {
+                                if (changed) delay(250)
+                                paneTop.tryRequest()
+                            }
+                        },
                         modifier = Modifier
                             .rememberFocus(sectionMemory, s.name)
                             // Right always goes to the top of the section's list.
@@ -208,7 +216,13 @@ fun SettingsScreen(
                     .onFocusChanged {
                         if (it.isFocused) {
                             paneScope.launch {
-                                if (!paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)) paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                                // On to the list's first item, in order (looking "down" from here could
+                                // miss it and bounce back to the sections, so Right seemed to do nothing).
+                                if (!paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Next) &&
+                                    !paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
+                                ) {
+                                    paneFocus.moveFocus(androidx.compose.ui.focus.FocusDirection.Left)
+                                }
                             }
                         }
                     }
